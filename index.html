@@ -165,7 +165,7 @@ button:disabled { opacity: .35; cursor: default }
 </head>
 <body>
 <div id="app"></div>
-<footer class="version">v12-2026-11-18 21:47 PST</footer>
+<footer class="version">v13-2026-11-18 21:49 PST</footer>
 
 <script id="core">
 /* Pure logic: money in integer cents, distances, link parsing, share codes. */
@@ -948,8 +948,8 @@ if (typeof module !== 'undefined') module.exports = Core;
     h += '</div><div class="side"><a class="btn chipbtn" href="' + mapURL(p) + '" target="_blank" rel="noopener">Google Maps</a>' +
       '<div class="updown"><button type="button" data-act="move" data-id="' + p.id + '" data-dir="-1" aria-label="Move ' + esc(p.name) + ' up"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
       '<button type="button" data-act="move" data-id="' + p.id + '" data-dir="1" aria-label="Move ' + esc(p.name) + ' down"' + (i === n - 1 ? ' disabled' : '') + '>↓</button></div>' +
-      (ui.admin && ui.confirm !== p.id ? '<div class="hovertools"><button type="button" class="link" data-act="edit-place" data-id="' + p.id + '">Edit</button><button type="button" class="link danger" data-act="ask" data-id="' + p.id + '">Remove</button></div>' : '') +
-      (ui.admin && p.kind !== 'stay' && stayOf(p.city) ? '<div class="hovertools"><button type="button" class="link small" data-act="use-as-stay" data-id="' + p.id + '" title="Moves this into the ' + esc(stayOf(p.city).name) + ' stop and removes this one">Use as our stay</button></div>' : '') +
+      (ui.confirm !== p.id ? '<div class="hovertools"><button type="button" class="link" data-act="edit-place" data-id="' + p.id + '">Edit</button><button type="button" class="link danger" data-act="ask" data-id="' + p.id + '">Remove</button></div>' : '') +
+      (p.kind !== 'stay' && stayOf(p.city) ? '<div class="hovertools"><button type="button" class="link small" data-act="use-as-stay" data-id="' + p.id + '" title="Moves this into the ' + esc(stayOf(p.city).name) + ' stop and removes this one">Use as our stay</button></div>' : '') +
       '</div></li>';
     return h;
   }
@@ -1030,7 +1030,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     h += '<div class="card"><h3>Expenses so far</h3>' + list(ex.map(function (e) {
       var who = e.split.length === PEOPLE.length ? 'everyone' : e.split.map(person).join(', ');
       var tools = '';
-      if (ui.admin) tools = ui.confirm === e.id
+      tools = ui.confirm === e.id
         ? '<div><button class="link danger" data-act="delete-expense" data-id="' + e.id + '">Yes, remove</button><button class="link" data-act="cancel">Keep</button></div>'
         : '<div class="hovertools"><button class="link" data-act="edit-expense" data-id="' + e.id + '">Edit</button><button class="link danger" data-act="ask" data-id="' + e.id + '">Remove</button></div>';
       return '<li><div class="main"><div class="ttl">' + esc(e.desc) + '</div><div class="sub">' + esc(person(e.paidBy)) + ' paid · split between ' + esc(who) + ' · ' + niceDate(e.date) + (e.by ? ' · added by ' + esc(person(e.by)) : '') + '</div>' + tools + '</div><div class="amt">' + fmt(e.amount) + '</div></li>';
@@ -1047,7 +1047,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     }), data.expenses.length ? 'Everyone is settled.' : 'Log some expenses and the payments show here.') + '</div>';
     if (data.payments.length) h += '<div class="card"><h3>Payments made</h3>' + list(data.payments.map(function (p) {
       return '<li><div class="main"><div class="ttl">' + esc(person(p.from)) + ' paid ' + esc(person(p.to)) + '</div><div class="sub">' + niceDate(p.date) + '</div></div><div class="amt">' + fmt(p.amount) + '</div>' +
-        (ui.admin ? '<button class="link" data-act="undo-pay" data-id="' + p.id + '">Undo</button>' : '') + '</li>';
+        '<button class="link" data-act="undo-pay" data-id="' + p.id + '">Undo</button></li>';
     }), '') + '</div>';
     return h;
   }
@@ -1091,7 +1091,7 @@ if (typeof module !== 'undefined') module.exports = Core;
             '<button data-act="invite">Invite</button><button data-act="toggle-log" aria-pressed="' + ui.showLog + '">Activity</button>' : '') +
           (CLOUD.user ? '<span class="whoami">' + esc(me ? person(me) : (CLOUD.user.displayName || '')) + '</span><button class="link" data-act="sign-out">Sign out</button>' : '') + '</div></header>'
         : '<div class="row"><button data-act="toggle-share">Share</button>' +
-          (ui.admin ? '<span class="adminpill">Admin</span><button class="link" data-act="lock">Lock</button>' : '<button data-act="admin-open">Admin</button>') + '</div></header>');
+          '</div></header>');
     if (CLOUD.on && CLOUD.state !== 'ready') {
       if (ui.msg) h += '<div class="note warnnote" role="alert">' + esc(ui.msg) + '</div>';
       app.innerHTML = h + gateHTML();
@@ -1130,7 +1130,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     }
 
     if (!CLOUD.on && ui.adminOpen && !ui.admin) {
-      h += '<form class="card" id="admin-form"><h3>Admin sign-in</h3><p class="sub" style="margin:0">Only the admin can remove or edit stops and expenses. Everyone can add.</p>' +
+      h += '<form class="card" id="admin-form"><h3>Admin sign-in</h3><p class="sub" style="margin:0">Admin tools for this browser.</p>' +
         '<div class="row"><input id="admin-pin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN" aria-label="Admin PIN" style="width:140px">' +
         '<button class="primary" type="submit">Unlock</button><button type="button" class="link" data-act="admin-close">Cancel</button></div><div class="err" data-err hidden></div></form>';
     }
@@ -1167,7 +1167,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     data.places = data.places.filter(function (p) { return p.city !== cid; }).concat(moved);
     save();
   }
-  var ADMIN_ONLY = ['use-as-stay', 'edit-place', 'delete-place', 'edit-expense', 'delete-expense', 'undo-pay', 'ask', 'reset-member', 'start-trip'];
+  var ADMIN_ONLY = ['reset-member', 'start-trip'];
   function act(a, d) {
     if (ADMIN_ONLY.indexOf(a) >= 0 && !ui.admin) return;
     if (a !== 'ask') ui.confirm = null;
@@ -1372,7 +1372,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       var clash = cityPlaces(ui.tab).some(function (p) { return p.id !== ui.editing && p.name.toLowerCase() === name.toLowerCase(); });
       if (clash) return fail(name + ' is already on the list.');
       var rec = { name: name, note: val('place-note'), date: val('place-date'), time: val('place-time') };
-      var old = ui.editing && ui.admin ? placeById(ui.editing) : null;
+      var old = ui.editing ? placeById(ui.editing) : null;
       if (old) {
         if (pll) { old.lat = pll.lat; old.lng = pll.lng; old.pin = true; delete old.geo; }
         else if (old.name !== name && !old.pin) { old.lat = null; old.lng = null; old.q = ''; delete old.geo; delete geoTried[old.id]; }
@@ -1404,7 +1404,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       if (amount === null || amount <= 0) return fail('Enter an amount above zero.');
       if (!split.length) return fail('Pick at least one person to split it between.');
       var e = { desc: desc, amount: amount, paidBy: val('exp-payer'), split: split, date: val('exp-date') || today() };
-      var oldE = ui.editingExp && ui.admin ? data.expenses.find(function (x) { return x.id === ui.editingExp; }) : null;
+      var oldE = ui.editingExp ? data.expenses.find(function (x) { return x.id === ui.editingExp; }) : null;
       if (oldE) { Object.assign(oldE, e); logIt('edited', 'the expense ' + desc + ' (' + fmt(amount) + ')'); }
       else { data.expenses.push(stamp(Object.assign({ id: uid() }, e))); logIt('added', 'the expense ' + desc + ' (' + fmt(amount) + ')'); }
       ui.editingExp = null;
