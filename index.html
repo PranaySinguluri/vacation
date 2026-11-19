@@ -1316,6 +1316,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<label class="field">Note<input id="place-note" maxlength="140" placeholder="Booking number, opening hours, price" value="' + esc(ed.note) + '"></label>' +
       '<label class="field">Google Maps link (optional)<input id="place-link" placeholder="Paste a link to pin the exact spot"></label>' +
       '<div class="err" data-err hidden></div>' +
+      '<label class="field">Booking link (optional)<input id="place-booking-link" inputmode="url" placeholder="Existing confirmation link" value="' + esc(ed.bookingLink || '') + '"></label>' +
       '<label class="field">Booking status<select id="place-booking"><option value="needed"' + (ed.needsBooking && !ed.booked ? ' selected' : '') + '>Booking needed</option><option value="booked"' + (ed.needsBooking && ed.booked ? ' selected' : '') + '>Booked</option><option value="none"' + (!ed.needsBooking ? ' selected' : '') + '>No booking</option></select></label>' +
       '<div class="row"><button class="primary" type="submit">Save changes</button><button type="button" class="link" data-act="cancel-edit">Cancel</button></div></form>';
     else if (ui.adding) h += '<form class="card" id="place-form"><h3>Add a stop in ' + esc(c.name) + '</h3>' +
@@ -1890,6 +1891,9 @@ if (typeof module !== 'undefined') module.exports = Core;
         var bs = val('place-booking');
         old.needsBooking = bs !== 'none';
         old.booked = bs === 'booked';
+        var bookingUrl = val('place-booking-link');
+        if (bookingUrl && !cleanLink(bookingUrl)) return fail('Enter a valid booking link.');
+        old.bookingLink = cleanLink(bookingUrl);
         logIt('edited', old.name + ' in ' + cityName(old.city));
         ui.editing = null;
       } else {
