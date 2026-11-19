@@ -46,6 +46,10 @@ button:disabled { opacity: .35; cursor: default }
 .travelers { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px }
 .av { font-size: 12px; font-weight: 600; background: var(--primary-soft); color: var(--primary); border-radius: 999px; padding: 2px 9px }
 .av.me { background: var(--primary); color: var(--primary-ink); box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--primary) }
+.hovertools { opacity: 0; transition: opacity .15s }
+.stop:hover .hovertools, .stop:focus-within .hovertools, .list li:hover .hovertools, .list li:focus-within .hovertools { opacity: 1 }
+@media (hover: none) { .hovertools { opacity: 1 } }
+@media (prefers-reduced-motion: reduce) { .hovertools { transition: none } }
 .logscroll { max-height: min(60vh, 460px); overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--line); border-radius: 12px; padding: 0 12px }
 #activity-card h3 .count { font-size: 12px; font-weight: 600; background: var(--primary-soft); color: var(--primary); border-radius: 999px; padding: 1px 8px; vertical-align: 2px }
 .by { font-size: 12px; color: var(--muted) }
@@ -161,7 +165,7 @@ button:disabled { opacity: .35; cursor: default }
 </head>
 <body>
 <div id="app"></div>
-<footer class="version">v11-2026-11-18 21:46 PST</footer>
+<footer class="version">v12-2026-11-18 21:47 PST</footer>
 
 <script id="core">
 /* Pure logic: money in integer cents, distances, link parsing, share codes. */
@@ -944,8 +948,8 @@ if (typeof module !== 'undefined') module.exports = Core;
     h += '</div><div class="side"><a class="btn chipbtn" href="' + mapURL(p) + '" target="_blank" rel="noopener">Google Maps</a>' +
       '<div class="updown"><button type="button" data-act="move" data-id="' + p.id + '" data-dir="-1" aria-label="Move ' + esc(p.name) + ' up"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
       '<button type="button" data-act="move" data-id="' + p.id + '" data-dir="1" aria-label="Move ' + esc(p.name) + ' down"' + (i === n - 1 ? ' disabled' : '') + '>↓</button></div>' +
-      (ui.admin && ui.confirm !== p.id ? '<div><button type="button" class="link" data-act="edit-place" data-id="' + p.id + '">Edit</button><button type="button" class="link danger" data-act="ask" data-id="' + p.id + '">Remove</button></div>' : '') +
-      (ui.admin && p.kind !== 'stay' && stayOf(p.city) ? '<div><button type="button" class="link small" data-act="use-as-stay" data-id="' + p.id + '" title="Moves this into the ' + esc(stayOf(p.city).name) + ' stop and removes this one">Use as our stay</button></div>' : '') +
+      (ui.admin && ui.confirm !== p.id ? '<div class="hovertools"><button type="button" class="link" data-act="edit-place" data-id="' + p.id + '">Edit</button><button type="button" class="link danger" data-act="ask" data-id="' + p.id + '">Remove</button></div>' : '') +
+      (ui.admin && p.kind !== 'stay' && stayOf(p.city) ? '<div class="hovertools"><button type="button" class="link small" data-act="use-as-stay" data-id="' + p.id + '" title="Moves this into the ' + esc(stayOf(p.city).name) + ' stop and removes this one">Use as our stay</button></div>' : '') +
       '</div></li>';
     return h;
   }
@@ -1028,7 +1032,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       var tools = '';
       if (ui.admin) tools = ui.confirm === e.id
         ? '<div><button class="link danger" data-act="delete-expense" data-id="' + e.id + '">Yes, remove</button><button class="link" data-act="cancel">Keep</button></div>'
-        : '<div><button class="link" data-act="edit-expense" data-id="' + e.id + '">Edit</button><button class="link danger" data-act="ask" data-id="' + e.id + '">Remove</button></div>';
+        : '<div class="hovertools"><button class="link" data-act="edit-expense" data-id="' + e.id + '">Edit</button><button class="link danger" data-act="ask" data-id="' + e.id + '">Remove</button></div>';
       return '<li><div class="main"><div class="ttl">' + esc(e.desc) + '</div><div class="sub">' + esc(person(e.paidBy)) + ' paid · split between ' + esc(who) + ' · ' + niceDate(e.date) + (e.by ? ' · added by ' + esc(person(e.by)) : '') + '</div>' + tools + '</div><div class="amt">' + fmt(e.amount) + '</div></li>';
     }), 'Nothing logged yet.') + '</div>';
 
