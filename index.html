@@ -221,6 +221,9 @@ html { overflow-x: hidden }
   .stop .main { flex: 1 1 calc(100% - 90px) }
   .wx { margin-left: 74px }
 }
+.backup-actions { justify-content: flex-end; padding: 8px 0 18px; }
+.completed-stops > summary { cursor: pointer; font-weight: 700; padding: 5px; }
+.completed-stops .stop { opacity: .8; }
 .when-static { font-weight: 700; font-size: 13px; padding: 5px 0; }
 .when-needed { color: var(--owe); }
 .when-ready { color: var(--good); }
@@ -755,6 +758,15 @@ if (typeof module !== 'undefined') module.exports = Core;
 
   /* ---------- Merging codes from friends ---------- */
   function exportData() { return { v: 3, places: data.places, expenses: data.expenses, payments: data.payments, deleted: data.deleted }; }
+  var undoStop = null;
+  function downloadBackup() {
+    var backup = { format: 'tripwallet-backup', exportedAt: new Date().toISOString(), data: exportData() };
+    var blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = 'vacation-backup-' + today() + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
   function merge(inc) {
     if (!inc || inc.v !== 3 || !Array.isArray(inc.places)) throw new Error('bad code');
     var dead = {};
@@ -1047,7 +1059,8 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (!p.date || !hasLL(p)) return null;
     var ahead = daysAhead(p.date);
     if (ahead === null) return null;
-    var mode = ahead >= 0 && ahead <= 15 ? 'forecast' : ahead < -5 ? 'past' : ahead > 15 ? 'lastyear' : 'forecast';
+    if (ahead < 0 || ahead > 15 || !p.time) return null;
+    var mode = 'forecast';
     var day = mode === 'lastyear' ? (+p.date.slice(0, 4) - 1) + p.date.slice(4) : p.date;
     return { mode: mode, day: day, key: mode + '|' + p.lat.toFixed(2) + ',' + p.lng.toFixed(2) + '|' + day, lat: p.lat, lng: p.lng };
   }
@@ -1103,7 +1116,8 @@ if (typeof module !== 'undefined') module.exports = Core;
   function wxInfo(p) {
     var w = wxPlan(p);
     if (!w) return null;
-    var hour = toMin(p.time) !== null ? Math.floor(toMin(p.time) / 60) : 12;
+    var hour = toMin(p.time) !== null ? Math.floor(toMin(p.time) / 60) : null;
+    if (hour === null) return null;
     var e = wxCache[w.key], row = e && e.hours && e.hours[hour];
     if (!row || row[0] === null || row[0] === undefined) return null;
     var look = wxLook(row[1], hour), when = toMin(p.time) !== null ? 'at ' + fmtClock(p.time) : 'around noon';
@@ -1281,6 +1295,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     h += '</div>' + wxHTML(p) + '<div class="side"><a class="btn chipbtn map-pin-only" aria-label="Directions to ' + esc(p.name) + '" title="Directions" href="' + mapURL(p) + '" target="_blank" rel="noopener">📍</a>' +
       '<div class="updown"><button type="button" data-act="move" data-id="' + p.id + '" data-dir="-1" aria-label="Move ' + esc(p.name) + ' up"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
       '<button type="button" data-act="move" data-id="' + p.id + '" data-dir="1" aria-label="Move ' + esc(p.name) + ' down"' + (i === n - 1 ? ' disabled' : '') + '>↓</button></div>' +
+      '<div class="hovertools"><button type="button" class="link" data-act="' + (p.completedAt ? 'restore-stop' : 'complete-stop') + '" data-id="' + p.id + '">' + (p.completedAt ? 'Restore' : 'Done') + '</button></div>' +
       (ui.confirm !== p.id ? '<div class="hovertools"><button type="button" class="link" data-act="edit-place" data-id="' + p.id + '">Edit</button><button type="button" class="link danger" data-act="ask" data-id="' + p.id + '">Remove</button></div>' : '') +
       (p.kind !== 'stay' && stayOf(p.city) ? '<div class="hovertools"><button type="button" class="link small" data-act="use-as-stay" data-id="' + p.id + '" title="Moves this into the ' + esc(stayOf(p.city).name) + ' stop and removes this one">Use as our stay</button></div>' : '') +
       '</div></li>';
@@ -1288,7 +1303,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
 
   function cityTab(c) {
-    var list = cityPlaces(c.id), h = '', route = routeURL(list);
+    var allStops = cityPlaces(c.id), list = allStops.filter(function (p) { return !p.completedAt; }), completed = allStops.filter(function (p) { return !!p.completedAt; }), h = '', route = routeURL(list);
     var sel = list.find(function (p) { return p.id === ui.sel; });
     h += '<section class="card cityhead"><div class="row between"><div><h2>' + esc(c.name) + '</h2><div class="sub">' + list.length + (list.length === 1 ? ' stop' : ' stops') + ' · drag the handle to change the order</div></div>' +
       '<div class="row"><button type="button" class="primary" data-act="add-stop" aria-expanded="' + !!(ui.adding || ui.editing) + '">+ Add stop</button>' +
@@ -1336,8 +1351,9 @@ if (typeof module !== 'undefined') module.exports = Core;
         h += stopHTML(p, i, list.length);
       });
       h += '</ol>';
-    } else h += '<div class="card"><p class="empty">No stops in ' + esc(c.name) + ' yet. Use Add stop to add the first one.</p></div>';
-
+    } else if (!completed.length) h += '<div class="card"><p class="empty">No stops in ' + esc(c.name) + ' yet. Use Add stop to add the first one.</p></div>';
+    if (completed.length) h += '<details class="card completed-stops"><summary>Completed Stops (' + completed.length + ')</summary><ol class="stops">' +
+      completed.map(function (p, i) { return stopHTML(p, i, completed.length); }).join('') + '</ol></details>';
     return h;
   }
 
@@ -1481,6 +1497,7 @@ if (typeof module !== 'undefined') module.exports = Core;
         '<button class="primary" type="submit">Unlock</button><button type="button" class="link" data-act="admin-close">Cancel</button></div><div class="err" data-err hidden></div></form>';
     }
     if (ui.msg) h += '<div class="note" role="status">' + esc(ui.msg) + '</div>';
+    if (undoStop) h += '<div class="note row between" role="status"><span>Stop changed: ' + esc(undoStop.name) + '</span><button type="button" data-act="undo-stop">Undo</button></div>';
     if (ui.share) {
       var code = Core.encode(exportData()), sa = standalone();
       h += '<section class="card"><h3>Share and merge</h3>' +
@@ -1501,6 +1518,7 @@ if (typeof module !== 'undefined') module.exports = Core;
 
     var c = cityById(ui.tab);
     h += c ? cityTab(c) : ui.tab === 'photos' ? photosTab() : costsTab();
+    h += '<div class="row backup-actions"><button type="button" data-act="download-backup">Download trip backup</button></div>';
     app.innerHTML = h;
     if (c) fetchLegs(cityPlaces(c.id));
     if (c) wxQueueFor(cityPlaces(c.id));
@@ -1526,7 +1544,30 @@ if (typeof module !== 'undefined') module.exports = Core;
       ui.tab = d.id; ui.undoOrder = null; ui.adding = false; ui.editing = null; ui.editingExp = null; ui.locFor = null; ui.sel = null;
       try { localStorage.setItem(TAB_KEY, d.id); } catch (e) {}
     }
-    else if (a === 'select') ui.sel = ui.sel === d.id ? null : d.id;
+    else if (a === 'select') { ui.editing = d.id; ui.adding = false; ui.sel = d.id; }
+    else if (a === 'download-backup') { downloadBackup(); return; }
+    else if (a === 'complete-stop' || a === 'restore-stop') {
+      var cp = placeById(d.id);
+      if (cp) {
+        undoStop = { id: cp.id, name: cp.name, completedAt: cp.completedAt || null, deleted: false };
+        if (a === 'complete-stop') cp.completedAt = new Date().toISOString();
+        else delete cp.completedAt;
+        logIt(a === 'complete-stop' ? 'completed' : 'restored', cp.name + ' in ' + cityName(cp.city));
+        save();
+      }
+    }
+    else if (a === 'undo-stop') {
+      if (undoStop) {
+        var previous = undoStop, up = placeById(previous.id);
+        if (!up && previous.place) {
+          data.places.push(previous.place);
+          data.deleted = data.deleted.filter(function (id) { return id !== previous.id; });
+        } else if (up) {
+          if (previous.completedAt) up.completedAt = previous.completedAt; else delete up.completedAt;
+        }
+        undoStop = null; save();
+      }
+    }
     else if (a === 'move') {
       var ids = cityPlaces(ui.tab).map(function (p) { return p.id; }), i = ids.indexOf(d.id), j = i + (+d.dir);
       if (i >= 0 && j >= 0 && j < ids.length) { ids.splice(j, 0, ids.splice(i, 1)[0]); reorderCity(ui.tab, ids); }
@@ -1540,7 +1581,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     else if (a === 'cancel-edit') { ui.adding = false; ui.editing = null; ui.editingExp = null; results = []; active = -1; searchSeq++; }
     else if (a === 'delete-place') {
       var gp = placeById(d.id);
-      if (gp) logIt('removed', gp.name + ' in ' + cityName(gp.city));
+      if (gp) { undoStop = { id: gp.id, name: gp.name, place: Object.assign({}, gp), deleted: true }; logIt('removed', gp.name + ' in ' + cityName(gp.city)); }
       data.places = data.places.filter(function (p) { return p.id !== d.id; });
       data.deleted.push(d.id);
       if (ui.editing === d.id) ui.editing = null;
