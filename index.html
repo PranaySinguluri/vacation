@@ -47,6 +47,8 @@ button:disabled { opacity: .35; cursor: default }
 .av { font-size: 12px; font-weight: 600; background: var(--primary-soft); color: var(--primary); border-radius: 999px; padding: 2px 9px }
 .by { font-size: 12px; color: var(--muted) }
 .gate { padding: 24px; gap: 14px }
+.warnnote { background: var(--owe-soft); color: var(--owe); font-weight: 500 }
+.chipbtn.fits { background: var(--primary); color: var(--primary-ink) }
 .gatehead { font-size: 22px; font-weight: 800; letter-spacing: -0.01em }
 .big { padding: 12px 18px; font-size: 16px; gap: 10px }
 .big svg { background: #fff; border-radius: 50%; padding: 2px; box-sizing: content-box }
@@ -141,7 +143,7 @@ button:disabled { opacity: .35; cursor: default }
 </head>
 <body>
 <div id="app"></div>
-<footer class="version">v6-2026-11-18 21:22 PST</footer>
+<footer class="version">v7-2026-11-18 21:33 PST</footer>
 
 <script id="core">
 /* Pure logic: money in integer cents, distances, link parsing, share codes. */
@@ -259,6 +261,16 @@ if (typeof module !== 'undefined') module.exports = Core;
     appId: '1:1071026221606:web:be26702ba1204d99b86ce7'
   };
   var FB_VERSION = '13.2.0';
+  /* A traveler's Gmail (before the @) must contain one of these: first or last name from the group's sheet.
+     The database rules check the same list, so this cannot be skipped by editing the page. */
+  var NAME_KEYS = {
+    A: ['akshaya', 'chiduruppa'], D: ['divya', 'theja', 'gangam'], H: ['haneela', 'vuyyuru'], M: ['megha', 'posinasetti'],
+    P: ['pranay', 'singuluri'], R: ['ramya', 'bikkina'], S: ['sahithi', 'thota']
+  };
+  function emailFits(email, pid) {
+    var local = String(email || '').toLowerCase().split('@')[0];
+    return (NAME_KEYS[pid] || []).some(function (k) { return local.indexOf(k) >= 0; });
+  }
   var GLOGO = '<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.9 6.1C12.4 13.7 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.4 5.7c4.3-4 6.9-9.9 6.9-17.1z"/><path fill="#FBBC05" d="M10.5 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C1 16.6 0 20.2 0 24s1 7.4 2.6 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.7c-2.1 1.4-4.8 2.3-8.5 2.3-6.3 0-11.6-4.2-13.5-10l-7.9 6.1C6.6 42.6 14.6 48 24 48z"/></svg>';
   var SPLITWISE_URL = 'https://secure.splitwise.com/#/groups/105847378';
   var ADMIN_HASH = 'df174295019980fadcb15ac944bdde3b3fc5aff2e92a0906afbc17a1a005044a';
@@ -951,10 +963,10 @@ if (typeof module !== 'undefined') module.exports = Core;
       var taken = {};
       Object.keys(CLOUD.members).forEach(function (k) { if (k !== CLOUD.user.uid) taken[CLOUD.members[k].person] = CLOUD.members[k].name || 'someone'; });
       return '<section class="card gate"><h2 class="gatehead">Which traveler are you?</h2>' +
-        '<p class="sub" style="margin:0">Signed in as ' + esc(CLOUD.user.displayName || CLOUD.user.email || 'you') + '. Pick your name once so the trip shows who added what.</p>' +
+        '<p class="sub" style="margin:0">Signed in as ' + esc(CLOUD.user.email || CLOUD.user.displayName || 'you') + '. Pick your name once. Your Gmail needs to include your first or last name.</p>' +
         '<div class="chips">' + PEOPLE.map(function (p) {
           return taken[p.id] ? '<button class="btn chipbtn" disabled title="Picked by ' + esc(taken[p.id]) + '">' + esc(p.name) + ' (taken)</button>'
-            : '<button class="btn chipbtn" data-act="be" data-id="' + p.id + '">' + esc(p.name) + '</button>';
+            : '<button class="btn chipbtn' + (emailFits(CLOUD.user.email, p.id) ? ' fits' : '') + '" data-act="be" data-id="' + p.id + '">' + esc(p.name) + '</button>';
         }).join('') + '</div><p class="sub" style="margin:0">Someone picked your name by mistake? Ask Pranay to reset it.</p>' +
         '<div><button class="link" data-act="sign-out">Use a different Google account</button></div></section>';
     }
@@ -972,7 +984,7 @@ if (typeof module !== 'undefined') module.exports = Core;
         : '<div class="row"><button data-act="toggle-share">Share</button>' +
           (ui.admin ? '<span class="adminpill">Admin</span><button class="link" data-act="lock">Lock</button>' : '<button data-act="admin-open">Admin</button>') + '</div></header>');
     if (CLOUD.on && CLOUD.state !== 'ready') {
-      if (ui.msg) h += '<div class="note" role="status">' + esc(ui.msg) + '</div>';
+      if (ui.msg) h += '<div class="note warnnote" role="alert">' + esc(ui.msg) + '</div>';
       app.innerHTML = h + gateHTML();
       return;
     }
@@ -1094,9 +1106,16 @@ if (typeof module !== 'undefined') module.exports = Core;
     else if (a === 'admin-open') ui.adminOpen = true;
     else if (a === 'admin-close') ui.adminOpen = false;
     else if (a === 'sign-in') { signIn(); return; }
-    else if (a === 'sign-out') { CLOUD.au.signOut(CLOUD.auth); return; }
+    else if (a === 'sign-out') { ui.msg = ''; CLOUD.au.signOut(CLOUD.auth); return; }
     else if (a === 'retry') { location.reload(); return; }
     else if (a === 'be') {
+      if (!emailFits(CLOUD.user.email, d.id)) {
+        ui.msg = (CLOUD.user.email || 'This Google account') + ' does not look like ' + person(d.id) + '\'s Gmail, so it cannot join as ' + person(d.id) +
+          '. Pick your own name, or sign in with your own Gmail. If your Gmail does not include your name, ask Pranay to add it.';
+        render();
+        return;
+      }
+      ui.msg = '';
       CLOUD.fs.setDoc(CLOUD.fs.doc(CLOUD.db, 'trips', 'main', 'members', CLOUD.user.uid), { person: d.id, name: String(CLOUD.user.displayName || '').slice(0, 60), at: new Date().toISOString() })
         .catch(function (err) { ui.msg = 'Could not save your name (' + (err.code || err.message) + ').'; render(); });
       return;
