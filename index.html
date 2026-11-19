@@ -337,6 +337,22 @@ html { overflow-x: hidden }
 
 
 
+/* iPhone editor fit: override .field flex-basis that stretched each form row vertically. */
+.edit-overlay { box-sizing: border-box; padding: max(8px, env(safe-area-inset-top, 0px)) 10px max(8px, env(safe-area-inset-bottom, 0px)); overscroll-behavior: contain; }
+.edit-sheet { box-sizing: border-box; width: min(440px, 100%); max-height: calc(100svh - 20px); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.edit-stop-form { height: auto !important; min-height: 0 !important; gap: 10px; }
+.edit-stop-form > .field, .edit-stop-form .edit-dates .field { flex: 0 0 auto !important; min-height: 0 !important; }
+.edit-stop-form > .field { width: 100%; }
+.edit-stop-form > .edit-types, .edit-stop-form > .edit-date-area, .edit-stop-form > .edit-top, .edit-stop-form > .edit-actions, .edit-stop-form > .err { flex: 0 0 auto; min-height: 0; }
+.edit-stop-form .edit-dates { display: grid !important; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 8px; align-items: start; }
+.edit-stop-form .edit-dates .field { width: 100%; min-width: 0; }
+.edit-stop-form .edit-dates input { box-sizing: border-box; display: block; width: 100%; min-width: 0; max-width: 100%; font-size: 16px; padding-inline: 7px; }
+.edit-stop-form input, .edit-stop-form select, .edit-stop-form textarea { box-sizing: border-box; max-width: 100%; font-size: 16px; }
+.edit-stop-form .edit-notes textarea { height: 58px; min-height: 58px; }
+.edit-stop-form .edit-type-choice span { min-height: 52px; }
+.edit-stop-form .edit-actions { margin-top: 0; }
+@media (max-height: 670px) { .edit-sheet { padding: 10px 14px; } .edit-stop-form { gap: 7px; } .edit-stop-form .edit-type-choice span { min-height: 46px; } }
+
 </style>
 </head>
 <body>
