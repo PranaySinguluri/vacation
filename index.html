@@ -1387,6 +1387,37 @@ if (typeof module !== 'undefined') module.exports = Core;
     try { localStorage.setItem(SPENDING_KEY, JSON.stringify(spending)); return true; }
     catch (e) { ui.msg = 'Device storage is full. Export your expenses before adding more.'; return false; }
   }
+  var gasResults = [], gasMessage = '';
+  function nearbyGas() {
+    if (!navigator.geolocation) { gasMessage = 'Location is unavailable in this browser.'; render(); return; }
+    gasMessage = 'Finding stations near you…'; gasResults = []; render();
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      var lat = pos.coords.latitude, lng = pos.coords.longitude;
+      var q = '[out:json][timeout:20];(node["amenity"="fuel"](around:16093,' + lat + ',' + lng + ');way["amenity"="fuel"](around:16093,' + lat + ',' + lng + '););out center 40;';
+      fetch('https://overpass.kumi.systems/api/interpreter', { method: 'POST', body: 'data=' + encodeURIComponent(q),
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }).then(function (r) { if (!r.ok) throw new Error('stations'); return r.json(); }).then(function (json) {
+        gasResults = (json.elements || []).map(function (x) {
+          var a = x.lat == null ? x.center : x;
+          if (!a || !Number.isFinite(a.lat) || !Number.isFinite(a.lon)) return null;
+          var dLat = (a.lat - lat) * Math.PI / 180, dLon = (a.lon - lng) * Math.PI / 180;
+          var h = Math.sin(dLat / 2) ** 2 + Math.cos(lat * Math.PI / 180) * Math.cos(a.lat * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+          return { id: x.id, name: x.tags && (x.tags.name || x.tags.brand) || 'Fuel station',
+            lat: a.lat, lng: a.lon, miles: 3958.8 * 2 * Math.asin(Math.min(1, Math.sqrt(h))) };
+        }).filter(Boolean).sort(function (a, b) { return a.miles - b.miles; }).slice(0, 20);
+        gasMessage = gasResults.length ? 'Nearest stations by straight-line distance; pump prices unavailable.' : 'No stations returned in the search area.';
+        render();
+      }).catch(function () { gasMessage = 'Free station lookup is temporarily unavailable. Try again later.'; render(); });
+    }, function () { gasMessage = 'Allow location access to search nearby stations.'; render(); },
+    { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 });
+  }
+  function gasList() {
+    return '<div class="sub">' + esc(gasMessage) + '</div>' +
+      (gasResults.length ? '<ul class="list">' + gasResults.map(function (g) {
+        var url = 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(g.lat + ',' + g.lng);
+        return '<li><div class="main"><b>' + esc(g.name) + '</b><div class="sub">' + g.miles.toFixed(1) +
+          ' mi straight line · Price unavailable</div></div><a class="btn" href="' + url + '" target="_blank" rel="noopener" aria-label="Directions to ' + esc(g.name) + '">📍</a></li>';
+      }).join('') + '</ul>' : '');
+  }
   function spendingForm() {
     return '<form class="card" id="spending-form"><h3>Record a purchase</h3>' +
       '<div class="row"><label class="field">Category<select id="sp-category"><option>Gas</option><option>Food</option><option>Other</option></select></label>' +
@@ -1418,7 +1449,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<div><a class="btn primary big" href="' + SPLITWISE_URL + '" target="_blank" rel="noopener">Open the group in Splitwise</a></div></section>' +
       '<section class="card"><h3>Trip spending · Gas, Food, Other</h3><p class="sub">Separate from Splitwise. Purchases are saved on this device; export before clearing browser data.</p>' +
       '<div class="row"><button type="button" data-act="export-spending">Export Excel (.xlsx)</button><button type="button" data-act="find-gas">Find nearby gas stations</button></div>' +
-      spendingList() + '</section>' + spendingForm();
+      gasList() + spendingList() + '</section>' + spendingForm();
   }
 
   function exportSpending() {
@@ -1621,14 +1652,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     else if (a === 'download-backup') { downloadBackup(); return; }
     else if (a === 'export-spending') { exportSpending(); return; }
     else if (a === 'remove-spending') { spending = spending.filter(function (e) { return e.id !== d.id; }); saveSpending(); }
-    else if (a === 'find-gas') {
-      if (!navigator.geolocation) { ui.msg = 'This browser cannot access location.'; }
-      else navigator.geolocation.getCurrentPosition(function (p) {
-        var lat = p.coords.latitude, lng = p.coords.longitude;
-        window.open('https://www.openstreetmap.org/#map=13/' + lat.toFixed(5) + '/' + lng.toFixed(5) + '&layers=N', '_blank', 'noopener');
-      }, function () { ui.msg = 'Location permission is needed to find nearby stations.'; render(); }, { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 });
-      return;
-    }
+    else if (a === 'find-gas') { nearbyGas(); return; }
     else if (a === 'complete-stop' || a === 'restore-stop') {
       var cp = placeById(d.id);
       if (cp) {
