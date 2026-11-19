@@ -196,7 +196,7 @@ button:disabled { opacity: .35; cursor: default }
 </head>
 <body>
 <div id="app"></div>
-<footer class="version">v19-2026-11-18 22:38 PST</footer>
+<footer class="version">v20-2026-11-18 22:41 PST</footer>
 
 <script id="core">
 /* Pure logic: money in integer cents, distances, link parsing, share codes. */
@@ -295,11 +295,13 @@ var Core = (function () {
   function parseBooking(text) {
     var t = String(text || '').replace(/\s+/g, ' ');
     var out = { name: '', conf: '', checkIn: '', checkOut: '', inTime: '', outTime: '' }, m;
-    String(text || '').split(/\n+/).some(function (line) {
-      var l = line.trim().replace(/[|]+/g, ' ').replace(/\s+/g, ' ');
-      if (l.length >= 4 && l.length <= 80 && /\b(inn|hotel|motel|suites?|lodge|resort|hostel|airbnb|casino)\b/i.test(l) && !/confirm|reservation|check-?(in|out)|thank|policy/i.test(l)) { out.name = l; return true; }
-      return false;
-    });
+    /* A likely name for the booking: a short line that names a place, tour, ticket or venue,
+       skipping greetings, labels, dates and totals. */
+    var KIND = /\b(inn|hotel|motel|suites?|lodge|resort|hostel|airbnb|casino|tours?|cruise|whale|watching|tickets?|admission|pass|experience|museum|park|canyon|observatory|show|concert|club|nightclub|lounge|restaurant|dinner|brunch|kayak|boat|helicopter|flight|airlines?|rental|car|dam|aquarium|zoo|theater|theatre|sphere|wheel|adventure)\b/i;
+    var JUNK = /confirm|reservation|booking (number|code|id)|thank|dear|\bhi\b|hello|check-?(in|out)|policy|total|paid|price|tax|receipt|order|email|@|https?:|cancel|guest|adults?|children|qty|quantity|address|phone|summary|details|itinerary|your (trip|stay|booking)/i;
+    var lines = String(text || '').split(/\n+/).map(function (l) { return l.trim().replace(/[|]+/g, ' ').replace(/\s+/g, ' '); });
+    var okLine = function (l) { return l.length >= 4 && l.length <= 70 && /[a-z]{3}/i.test(l) && !JUNK.test(l) && !/\d{1,2}:\d{2}|\b(19|20)\d{2}\b/.test(l) && (l.match(/\d/g) || []).length < 5; };
+    lines.some(function (l) { if (okLine(l) && KIND.test(l)) { out.name = l; return true; } return false; });
     var cm = /confirmation\s*(?:number|no\.?|code|#)?\s*[:#]?\s*([A-Z0-9][A-Z0-9.\-]{2,}[A-Z0-9])/i.exec(t)
       || /(?:booking|reservation|itinerary)\s*(?:number|no\.?|code|id|#)\s*[:#]?\s*([A-Z0-9][A-Z0-9.\-]{2,}[A-Z0-9])/i.exec(t);
     if (cm) out.conf = cm[1];
@@ -1174,9 +1176,10 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (!p.needsBooking) {
       return '<div><button type="button" class="link small" data-act="needs-booking" data-id="' + p.id + '">Needs booking?</button></div>';
     }
+    var L1 = p.kind === 'stay' ? 'Check-in' : 'Starts', L2 = p.kind === 'stay' ? 'Check-out' : 'Ends';
     var stay = (p.checkIn || p.checkOut) ? '<div class="bdates">' +
-        (p.checkIn ? '<span><b>Check-in</b> ' + niceDate(p.checkIn) + (p.checkInTime ? ', ' + fmtClock(p.checkInTime) : '') + '</span>' : '') +
-        (p.checkOut ? '<span><b>Check-out</b> ' + niceDate(p.checkOut) + (p.checkOutTime ? ', ' + fmtClock(p.checkOutTime) : '') + '</span>' : '') + '</div>' : '';
+        (p.checkIn ? '<span><b>' + L1 + '</b> ' + niceDate(p.checkIn) + (p.checkInTime ? ', ' + fmtClock(p.checkInTime) : '') + '</span>' : '') +
+        (p.checkOut ? '<span><b>' + L2 + '</b> ' + niceDate(p.checkOut) + (p.checkOutTime ? ', ' + fmtClock(p.checkOutTime) : '') + '</span>' : '') + '</div>' : '';
     var h = stay + '<div class="booking"><span class="bpill ' + (p.booked ? 'yes' : 'no') + '">' + (p.booked ? 'Booked' : 'Not booked') + '</span>' +
       '<button type="button" class="link small" data-act="toggle-booked" data-id="' + p.id + '">' + (p.booked ? 'Mark not booked' : 'Mark as booked') + '</button>';
     if (ui.linkEdit === p.id) {
@@ -1648,6 +1651,22 @@ if (typeof module !== 'undefined') module.exports = Core;
       softRender();
     }).catch(function () { ui.shot = { city: cid, state: 'error' }; softRender(); });
   }
+  /* Picks the stop a booking most likely belongs to: a name match first, then the stay for multi-day bookings. */
+  function guessTarget(cid, x) {
+    /* City names and filler words say nothing about which stop it is. */
+    var STOP = ['san', 'diego', 'los', 'angeles', 'las', 'vegas', 'arizona', 'the', 'and', 'for', 'with', 'tour', 'tours', 'ticket', 'tickets', 'booking', 'your', 'trip', 'day', 'night'];
+    var list = cityPlaces(cid), words = function (t) { return (String(t || '').toLowerCase().match(/[a-z]{3,}/g) || []).filter(function (w) { return STOP.indexOf(w) < 0; }); };
+    var nw = words(x.name), best = null, bestScore = 0;
+    list.forEach(function (p) {
+      var pw = words(p.name), hits = pw.filter(function (w) { return nw.indexOf(w) >= 0; }).length;
+      var score = hits ? hits + (p.needsBooking && !p.booked ? 0.5 : 0) : 0;
+      if (score > bestScore) { best = p; bestScore = score; }
+    });
+    if (best) return best.id;
+    var st = stayOf(cid);
+    if (st && x.checkOut && x.checkIn && x.checkOut !== x.checkIn) return st.id;
+    return 'new';
+  }
   function shotCard(c) {
     var sh = ui.shot;
     if (!sh || sh.city !== c.id) return '';
@@ -1656,14 +1675,21 @@ if (typeof module !== 'undefined') module.exports = Core;
       return '<div class="card shotcard row between"><span class="sub">' + (sh.state === 'error' ? 'The screenshot could not be read here. Add the stop with + Add stop instead.' : 'No booking details found in that screenshot.') + '</span>' +
         '<button type="button" class="link" data-act="shot-cancel">Close</button></div>';
     }
-    var x = sh.x, st = stayOf(c.id), bits = [];
-    if (x.checkIn) bits.push('<span><b>Check-in</b> ' + niceDate(x.checkIn) + (x.inTime ? ', ' + fmtClock(x.inTime) : '') + '</span>');
-    if (x.checkOut) bits.push('<span><b>Check-out</b> ' + niceDate(x.checkOut) + (x.outTime ? ', ' + fmtClock(x.outTime) : '') + '</span>');
+    var x = sh.x, bits = [], list = cityPlaces(c.id), pick = guessTarget(c.id, x);
+    if (x.checkIn) bits.push('<span><b>Starts</b> ' + niceDate(x.checkIn) + (x.inTime ? ', ' + fmtClock(x.inTime) : '') + '</span>');
+    if (x.checkOut) bits.push('<span><b>Ends</b> ' + niceDate(x.checkOut) + (x.outTime ? ', ' + fmtClock(x.outTime) : '') + '</span>');
     if (x.conf) bits.push('<span><b>Confirmation</b> ' + esc(x.conf) + '</span>');
-    return '<form class="card shotcard" id="shot-form"><div class="row"><input id="shot-name" class="grow" maxlength="80" placeholder="Name of the place" value="' + esc(x.name || (st && !st.hotel ? '' : '')) + '" aria-label="Name of the place"></div>' +
-      '<div class="bdates">' + bits.join('') + '</div><div class="err" data-err hidden></div>' +
-      '<div class="row">' + (st ? '<button class="primary" type="submit" data-mode="stay">Use for our stay</button>' : '') +
-      '<button type="submit" data-mode="new"' + (st ? '' : ' class="primary"') + '>Add as a stop</button><button type="button" class="link" data-act="shot-cancel">Cancel</button></div></form>';
+    var waiting = list.filter(function (p) { return p.needsBooking && !p.booked; }), others = list.filter(function (p) { return !(p.needsBooking && !p.booked); });
+    var opt = function (p) { return '<option value="' + p.id + '"' + (p.id === pick ? ' selected' : '') + '>' + esc(p.name) + '</option>'; };
+    return '<form class="card shotcard" id="shot-form"><h3>Booking from the screenshot</h3><div class="bdates">' + bits.join('') + '</div>' +
+      '<div class="row"><label class="field" style="flex:1 1 220px">Put this booking on<select id="shot-target">' +
+        '<option value="new"' + (pick === 'new' ? ' selected' : '') + '>A new stop</option>' +
+        (waiting.length ? '<optgroup label="Waiting for a booking">' + waiting.map(opt).join('') + '</optgroup>' : '') +
+        (others.length ? '<optgroup label="Other stops">' + others.map(opt).join('') + '</optgroup>' : '') + '</select></label>' +
+      '<label class="field" style="flex:2 1 240px">Name<input id="shot-name" maxlength="80" placeholder="Whale watching tour, Omnia Nightclub, Rodeway Inn" value="' + esc(x.name || '') + '"></label></div>' +
+      '<div class="sub" style="margin:0">An existing stop keeps its name unless you edit the name here.</div>' +
+      '<div class="err" data-err hidden></div>' +
+      '<div class="row"><button class="primary" type="submit">Save booking</button><button type="button" class="link" data-act="shot-cancel">Cancel</button></div></form>';
   }
 
   app.addEventListener('change', function (ev) {
@@ -1700,17 +1726,22 @@ if (typeof module !== 'undefined') module.exports = Core;
     }
 
     if (form.id === 'shot-form' && ui.shot && ui.shot.x) {
-      var x = ui.shot.x, mode = (ev.submitter && ev.submitter.dataset.mode) || 'new', nm = val('shot-name');
+      var x = ui.shot.x, which = val('shot-target') || 'new', nm = val('shot-name');
       var bk = { checkIn: x.checkIn, checkInTime: x.inTime, checkOut: x.checkOut, checkOutTime: x.outTime, confNo: x.conf, needsBooking: true, booked: true };
       if (x.checkIn) { bk.date = x.checkIn; bk.time = x.inTime || ''; }
-      var tgt = mode === 'stay' ? stayOf(ui.tab) : null;
+      var tgt = which !== 'new' ? placeById(which) : null;
       if (tgt) {
-        if (nm && nm !== tgt.name) { tgt.name = nm.slice(0, 80); tgt.hotel = true; if (!tgt.pin) { tgt.lat = null; tgt.lng = null; delete tgt.geo; delete geoTried[tgt.id]; } }
-        Object.assign(tgt, bk);
+        /* An existing stop keeps its name unless the name box was edited. */
+        if (nm && nm !== (x.name || '') && nm.toLowerCase() !== tgt.name.toLowerCase()) {
+          tgt.name = nm.slice(0, 80);
+          if (tgt.kind === 'stay') tgt.hotel = true;
+          if (!hasLL(tgt)) { tgt.q = ''; delete tgt.geo; delete geoTried[tgt.id]; }
+        }
+        Object.keys(bk).forEach(function (k) { if (bk[k] !== '' && bk[k] !== undefined) tgt[k] = bk[k]; });
         logIt('added a booking for', tgt.name + ' in ' + cityName(tgt.city));
       } else {
-        if (!nm) return fail('Type the name of the place.');
-        if (cityPlaces(ui.tab).some(function (q) { return q.name.toLowerCase() === nm.toLowerCase(); })) return fail(nm + ' is already on the list.');
+        if (!nm) return fail('Type a name for the new stop.');
+        if (cityPlaces(ui.tab).some(function (q) { return q.name.toLowerCase() === nm.toLowerCase(); })) return fail(nm + ' is already a stop. Pick it under Put this booking on.');
         tgt = stamp(Object.assign({ id: 'u-' + uid(), city: ui.tab, name: nm.slice(0, 80), lat: null, lng: null, note: '', q: '', pin: false }, bk));
         data.places.push(tgt);
         logIt('added', tgt.name + ' in ' + cityName(ui.tab) + ' from a booking screenshot');
