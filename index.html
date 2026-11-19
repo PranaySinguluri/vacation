@@ -224,6 +224,22 @@ html { overflow-x: hidden }
 .backup-actions { justify-content: flex-end; padding: 8px 0 18px; }
 .completed-stops > summary { cursor: pointer; font-weight: 700; padding: 5px; }
 .completed-stops .stop { opacity: .8; }
+.stop { align-items: center; padding: 10px 12px; gap: 9px; }
+.stop .main { gap: 3px; }
+.stop .side { gap: 4px; }
+.stop .hovertools { display: flex; gap: 6px; }
+.stop .hovertools button { padding: 3px 5px; }
+.stop .wx:empty, .stop .wx[hidden] { display: none !important; }
+.stop-editor { list-style: none; margin: 6px 0 12px 40px; }
+.stop-editor > .card { border-color: var(--primary-line); padding: 14px; gap: 10px; }
+.stop-editor h3 { font-size: 18px; }
+@media (max-width: 680px) {
+  .stop { flex-wrap: nowrap; align-items: flex-start; }
+  .stop .main { flex: 1 1 auto; }
+  .stop .side { width: auto; padding-left: 0; flex: 0 0 auto; flex-direction: column; align-items: flex-end; }
+  .stop .wx { margin-left: 0; }
+  .stop-editor { margin-left: 0; }
+}
 .when-static { font-weight: 700; font-size: 13px; padding: 5px 0; }
 .when-needed { color: var(--owe); }
 .when-ready { color: var(--good); }
@@ -1324,7 +1340,7 @@ if (typeof module !== 'undefined') module.exports = Core;
 
     h += shotCard(c);
     var ed = ui.editing ? placeById(ui.editing) : null;
-    if (ed) h += '<form class="card" id="place-form"><h3>Edit ' + esc(ed.name) + '</h3><div class="row">' +
+    var editForm = ed ? '<form class="card" id="place-form"><h3>Edit ' + esc(ed.name) + '</h3><div class="row">' +
       '<label class="field" style="flex:2 1 220px">Place<input id="place-name" maxlength="80" value="' + esc(ed.name) + '"></label>' +
       '<label class="field">Day<input id="place-date" type="date" value="' + esc(ed.date) + '"></label>' +
       '<label class="field">Time<input id="place-time" type="time" value="' + esc(ed.time) + '"></label></div>' +
@@ -1333,8 +1349,8 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<div class="err" data-err hidden></div>' +
       '<label class="field">Booking link (optional)<input id="place-booking-link" inputmode="url" placeholder="Existing confirmation link" value="' + esc(ed.bookingLink || '') + '"></label>' +
       '<label class="field">Booking status<select id="place-booking"><option value="needed"' + (ed.needsBooking && !ed.booked ? ' selected' : '') + '>Booking needed</option><option value="booked"' + (ed.needsBooking && ed.booked ? ' selected' : '') + '>Booked</option><option value="none"' + (!ed.needsBooking ? ' selected' : '') + '>No booking</option></select></label>' +
-      '<div class="row"><button class="primary" type="submit">Save changes</button><button type="button" class="link" data-act="cancel-edit">Cancel</button></div></form>';
-    else if (ui.adding) h += '<form class="card" id="place-form"><h3>Add a stop in ' + esc(c.name) + '</h3>' +
+      '<div class="row"><button class="primary" type="submit">Save changes</button><button type="button" class="link" data-act="cancel-edit">Cancel</button></div></form>' : '';
+    if (ui.adding) h += '<form class="card" id="place-form"><h3>Add a stop in ' + esc(c.name) + '</h3>' +
       '<div class="search"><label class="flabel" for="place-name">Search places</label><div class="searchbox">' + SEARCH_ICON +
       '<input id="place-name" maxlength="80" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="place-suggest" placeholder="Search, like USS Midway Museum"></div>' +
       '<ul class="suggest" id="place-suggest" role="listbox" aria-label="Search results" hidden></ul></div>' +
@@ -1349,11 +1365,12 @@ if (typeof module !== 'undefined') module.exports = Core;
       list.forEach(function (p, i) {
         if (i) h += '<li class="leg" data-a="' + list[i - 1].id + '" data-b="' + p.id + '" data-na="' + i + '" data-nb="' + (i + 1) + '">' + legHTML(list[i - 1], p, i, i + 1) + '</li>';
         h += stopHTML(p, i, list.length);
+        if (ed && ed.id === p.id) h += '<li class="stop-editor">' + editForm + '</li>';
       });
       h += '</ol>';
     } else if (!completed.length) h += '<div class="card"><p class="empty">No stops in ' + esc(c.name) + ' yet. Use Add stop to add the first one.</p></div>';
     if (completed.length) h += '<details class="card completed-stops"><summary>Completed Stops (' + completed.length + ')</summary><ol class="stops">' +
-      completed.map(function (p, i) { return stopHTML(p, i, completed.length); }).join('') + '</ol></details>';
+      completed.map(function (p, i) { return stopHTML(p, i, completed.length) + (ed && ed.id === p.id ? '<li class="stop-editor">' + editForm + '</li>' : ''); }).join('') + '</ol></details>';
     return h;
   }
 
