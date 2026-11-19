@@ -1380,12 +1380,85 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<p class="sub" style="margin:0">One shared Google Photos album for the whole group. To make one: in Google Photos, create an album, tap Share, turn on the link, and paste it here. Everyone can then open it and add their photos.</p>' +
       '<ul class="list albums">' + albumRow('group', 'Group photos', '') + '</ul></section>';
   }
+  var SPENDING_KEY = 'tripwallet.spending.v1';
+  var spending = [];
+  try { spending = JSON.parse(localStorage.getItem(SPENDING_KEY) || '[]'); if (!Array.isArray(spending)) spending = []; } catch (e) { spending = []; }
+  function saveSpending() {
+    try { localStorage.setItem(SPENDING_KEY, JSON.stringify(spending)); return true; }
+    catch (e) { ui.msg = 'Device storage is full. Export your expenses before adding more.'; return false; }
+  }
+  function spendingForm() {
+    return '<form class="card" id="spending-form"><h3>Record a purchase</h3>' +
+      '<div class="row"><label class="field">Category<select id="sp-category"><option>Gas</option><option>Food</option><option>Other</option></select></label>' +
+      '<label class="field">Amount<input id="sp-amount" inputmode="decimal" required placeholder="42.65"></label>' +
+      '<label class="field">Currency<select id="sp-currency"><option>USD</option><option>CAD</option></select></label>' +
+      '<label class="field">Paid by<select id="sp-payer"><option value="">Choose traveler</option>' + PEOPLE.map(function (p) { return '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>'; }).join('') + '</select></label></div>' +
+      '<div class="row"><label class="field">Purchase date<input id="sp-date" type="date" value="' + today() + '"></label>' +
+      '<label class="field">Time<input id="sp-time" type="time"></label>' +
+      '<label class="field">Merchant<input id="sp-merchant" maxlength="100" placeholder="Station or store"></label></div>' +
+      '<div class="row"><label class="field">Fuel quantity<input id="sp-quantity" inputmode="decimal" placeholder="Optional"></label>' +
+      '<label class="field">Unit<input id="sp-unit" maxlength="12" placeholder="gal or L"></label>' +
+      '<label class="field">Price per unit<input id="sp-unitprice" inputmode="decimal" placeholder="Optional"></label></div>' +
+      '<label class="field">Description<input id="sp-desc" maxlength="140" placeholder="Optional note"></label>' +
+      '<label class="field">Scan receipt locally (OCR)<input id="sp-receipt" type="file" accept="image/*"></label>' +
+      '<div class="sub" id="sp-ocr-status">OCR results are suggestions; verify the details before saving.</div>' +
+      '<div class="err" data-err hidden></div><button type="submit" class="primary">Save purchase</button></form>';
+  }
+  function spendingList() {
+    if (!spending.length) return '<p class="sub">No purchases recorded on this device yet.</p>';
+    return '<ul class="list">' + spending.slice().reverse().map(function (e) {
+      return '<li><div class="main"><b>' + esc(e.category) + ' · ' + esc(e.currency) + ' ' + (e.amount / 100).toFixed(2) + '</b>' +
+        '<div class="sub">' + esc(e.date || '') + ' · ' + esc(person(e.paidBy)) + ' · ' + esc(e.merchant || e.desc || '') + '</div></div>' +
+        '<button type="button" class="link danger" data-act="remove-spending" data-id="' + esc(e.id) + '">Remove</button></li>';
+    }).join('') + '</ul>';
+  }
   function costsTab() {
     return '<section class="card splitwise sw-only"><h2 class="pagehead">Expenses</h2>' +
       '<p class="sub" style="margin:0">The group tracks shared costs in Splitwise. Add every cost there so there is one set of numbers and Splitwise works out who owes whom.</p>' +
-      '<div><a class="btn primary big" href="' + SPLITWISE_URL + '" target="_blank" rel="noopener">Open the group in Splitwise</a></div></section>';
+      '<div><a class="btn primary big" href="' + SPLITWISE_URL + '" target="_blank" rel="noopener">Open the group in Splitwise</a></div></section>' +
+      '<section class="card"><h3>Trip spending · Gas, Food, Other</h3><p class="sub">Separate from Splitwise. Purchases are saved on this device; export before clearing browser data.</p>' +
+      '<div class="row"><button type="button" data-act="export-spending">Export Excel (.xlsx)</button><button type="button" data-act="find-gas">Find nearby gas stations</button></div>' +
+      spendingList() + '</section>' + spendingForm();
   }
 
+  function exportSpending() {
+    if (!spending.length) { ui.msg = 'Add at least one purchase before exporting.'; render(); return; }
+    var src = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';
+    function build() {
+      var book = new window.ExcelJS.Workbook(), sheet = book.addWorksheet('Purchases');
+      sheet.addRow(['Category', 'Amount', 'Currency', 'Paid By', 'Date', 'Time', 'Merchant', 'Fuel Quantity', 'Unit', 'Price Per Unit', 'Description']);
+      spending.forEach(function (e) { sheet.addRow([e.category, e.amount / 100, e.currency, person(e.paidBy), e.date, e.time, e.merchant, e.quantity || '', e.unit || '', e.unitPrice || '', e.desc]); });
+      var sum = book.addWorksheet('Summary'), groups = {};
+      spending.forEach(function (e) { var key = e.currency + '|' + e.category + '|' + person(e.paidBy); groups[key] = (groups[key] || 0) + e.amount; });
+      sum.addRow(['Currency', 'Category', 'Paid By', 'Total']);
+      Object.keys(groups).sort().forEach(function (k) { var p = k.split('|'); sum.addRow([p[0], p[1], p[2], groups[k] / 100]); });
+      return book.xlsx.writeBuffer().then(function (bytes) {
+        var blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), url = URL.createObjectURL(blob), a = document.createElement('a');
+        a.href = url; a.download = 'vacation-spending-' + today() + '.xlsx'; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      });
+    }
+    if (window.ExcelJS) { build().catch(function () { ui.msg = 'Excel export failed. Please try again.'; render(); }); return; }
+    var sc = document.createElement('script'); sc.src = src; sc.onload = function () { build().catch(function () { ui.msg = 'Excel export failed.'; render(); }); };
+    sc.onerror = function () { ui.msg = 'Excel library could not load. Connect to the internet and retry.'; render(); }; document.head.appendChild(sc);
+  }
+  function scanSpendingReceipt(file) {
+    var status = document.getElementById('sp-ocr-status');
+    if (!file || !status) return;
+    if (file.size > 12 * 1024 * 1024) { status.textContent = 'Image too large (12 MB maximum).'; return; }
+    status.textContent = 'Reading receipt locally…';
+    loadOCR().then(function (T) { return T.recognize(file, 'eng'); }).then(function (r) {
+      var t = r.data.text || '', lines = t.split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean);
+      var total = t.match(/(?:grand\s*total|amount\s*paid|total)\s*[:$ ]*([0-9]+[.,][0-9]{2})/i);
+      var date = t.match(/\b(20\d{2})[-\/]([01]?\d)[-\/]([0-3]?\d)\b/);
+      var set = function (id, value) { var el = document.getElementById(id); if (el && value) el.value = value; };
+      if (total) set('sp-amount', total[1].replace(',', '.'));
+      if (date) set('sp-date', date[1] + '-' + date[2].padStart(2, '0') + '-' + date[3].padStart(2, '0'));
+      if (lines[0]) set('sp-merchant', lines[0].slice(0, 100));
+      var st = document.getElementById('sp-ocr-status');
+      if (st) st.textContent = 'Receipt read. Check the amount, merchant, date, currency and payer before saving.';
+    }).catch(function () { var st = document.getElementById('sp-ocr-status'); if (st) st.textContent = 'Could not read this receipt. Enter details manually.'; });
+  }
   function logLine(l) {
     var when = '';
     try { when = new Date(l.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (e) {}
@@ -1546,6 +1619,16 @@ if (typeof module !== 'undefined') module.exports = Core;
     }
     else if (a === 'select') { ui.editing = d.id; ui.adding = false; ui.sel = d.id; }
     else if (a === 'download-backup') { downloadBackup(); return; }
+    else if (a === 'export-spending') { exportSpending(); return; }
+    else if (a === 'remove-spending') { spending = spending.filter(function (e) { return e.id !== d.id; }); saveSpending(); }
+    else if (a === 'find-gas') {
+      if (!navigator.geolocation) { ui.msg = 'This browser cannot access location.'; }
+      else navigator.geolocation.getCurrentPosition(function (p) {
+        var lat = p.coords.latitude, lng = p.coords.longitude;
+        window.open('https://www.openstreetmap.org/#map=13/' + lat.toFixed(5) + '/' + lng.toFixed(5) + '&layers=N', '_blank', 'noopener');
+      }, function () { ui.msg = 'Location permission is needed to find nearby stations.'; render(); }, { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 });
+      return;
+    }
     else if (a === 'complete-stop' || a === 'restore-stop') {
       var cp = placeById(d.id);
       if (cp) {
@@ -1760,6 +1843,9 @@ if (typeof module !== 'undefined') module.exports = Core;
     act(a, b.dataset);
   });
 
+  app.addEventListener('change', function (e) {
+    if (e.target && e.target.id === 'sp-receipt' && e.target.files[0]) scanSpendingReceipt(e.target.files[0]);
+  });
   /* Text recognition (Tesseract.js) loads only when someone uploads a screenshot. */
   function loadOCR() {
     if (window.Tesseract) return Promise.resolve(window.Tesseract);
@@ -1955,6 +2041,19 @@ if (typeof module !== 'undefined') module.exports = Core;
       save(); render(); return;
     }
 
+    if (form.id === 'spending-form') {
+      var amt = Core.toMinor(val('sp-amount')), payer = val('sp-payer'), category = val('sp-category'), currency = val('sp-currency');
+      if (!amt || amt <= 0 || !isPerson(payer)) return fail('Enter a valid amount and choose who paid.');
+      var item = { id: uid(), amount: amt, paidBy: payer, category: category, currency: currency,
+        date: val('sp-date'), time: val('sp-time'), merchant: val('sp-merchant'), quantity: val('sp-quantity'),
+        unit: val('sp-unit'), unitPrice: val('sp-unitprice'), desc: val('sp-desc') };
+      var duplicate = spending.some(function (e) { return e.amount === item.amount && e.currency === item.currency &&
+        e.date === item.date && e.merchant.toLowerCase() === item.merchant.toLowerCase() && e.paidBy === item.paidBy; });
+      if (duplicate && !window.confirm('A similar purchase already exists. Save another anyway?')) return;
+      spending.push(item);
+      if (!saveSpending()) { spending.pop(); return fail('Could not save. Check device storage.'); }
+      render(); return;
+    }
     if (form.id === 'expense-form') {
       var desc = val('exp-desc'), amount = Core.toMinor(val('exp-amount'));
       var split = Array.prototype.map.call(document.querySelectorAll('input[name="exp-split"]:checked'), function (c) { return c.value; });
