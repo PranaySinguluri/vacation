@@ -87,12 +87,17 @@ button:disabled { opacity: .35; cursor: default }
 .cityhead h2 { font-size: 26px; font-weight: 800; letter-spacing: -0.02em }
 .between { justify-content: space-between }
 .stayline { align-self: flex-start; background: var(--sun-soft); color: var(--sun-ink); border-radius: 8px; padding: 6px 10px; font-size: 13px; font-weight: 500 }
-.sketch svg { width: 100%; height: auto; display: block; border-radius: 12px; background: var(--map); border: 1px solid var(--line) }
-.sketch .pin { cursor: pointer }
+.sketch > svg { width: 100%; height: auto; display: block; border-radius: 12px; background: var(--map); border: 1px solid var(--line) }
+.sketch > svg .pin { cursor: pointer }
 .farlist { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px }
 .farchip { font-size: 12px; font-weight: 500; padding: 3px 10px; border-radius: 999px; background: var(--surface) }
 .farchip b { color: var(--sun-ink); background: var(--sun); border-radius: 999px; padding: 0 6px; font-size: 11px }
 .farchip.on { border-color: var(--primary); color: var(--primary) }
+.mapslot { min-height: 300px }
+.leafmap { height: 300px; border-radius: 12px; border: 1px solid var(--line); isolation: isolate; background: var(--map) }
+.lpin { width: 28px; height: 28px; border-radius: 14px; background: var(--sun); color: var(--sun-ink); border: 2px solid #fff; font: 800 13px/24px var(--display); text-align: center; box-shadow: 0 1px 5px rgba(16, 27, 51, .35) }
+.lpin.stay { background: var(--surface); color: var(--primary); border-color: var(--primary) }
+.lpin.sel { background: var(--primary); color: var(--primary-ink); border-color: #fff; transform: scale(1.18) }
 .nomap { background: var(--map); border: 1px dashed var(--line); border-radius: 12px; padding: 24px; text-align: center; color: var(--muted); font-size: 14px }
 .gmap { width: 100%; height: 260px; border: 1px solid var(--line); border-radius: 12px; display: block }
 .total { font-size: 14px; font-weight: 600 }
@@ -165,7 +170,7 @@ button:disabled { opacity: .35; cursor: default }
 </head>
 <body>
 <div id="app"></div>
-<footer class="version">v13-2026-11-18 21:49 PST</footer>
+<footer class="version">v14-2026-11-18 21:52 PST</footer>
 
 <script id="core">
 /* Pure logic: money in integer cents, distances, link parsing, share codes. */
@@ -468,7 +473,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   var legCache = {};
   try { legCache = JSON.parse(localStorage.getItem(LEGS_KEY) || '{}') || {}; } catch (e) {}
 
-  var ui = { tab: 'sd', linkOpen: null, linkEdit: null, showLog: false, adding: false, admin: false, adminOpen: false, share: false, sel: null, editing: null, editingExp: null, locFor: null, confirm: null, msg: '', importText: '' };
+  var ui = { tab: 'sd', undoOrder: null, linkOpen: null, linkEdit: null, showLog: false, adding: false, admin: false, adminOpen: false, share: false, sel: null, editing: null, editingExp: null, locFor: null, confirm: null, msg: '', importText: '' };
   try { ui.admin = sessionStorage.getItem(ADMIN_KEY) === '1'; } catch (e) {}
   try { var savedTab = localStorage.getItem(TAB_KEY); if (savedTab && (savedTab === 'costs' || cityById(savedTab))) ui.tab = savedTab; } catch (e) {}
 
@@ -838,19 +843,29 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
 
   /* ---------- Route sketch ---------- */
-  function sketch(list) {
+  /* Splits a city's located stops into the main group and far-away day trips. */
+  function groups(list) {
     var pts = [];
     list.forEach(function (p, i) { if (hasLL(p)) pts.push({ p: p, n: i + 1 }); });
-    if (!pts.length) return '<div class="nomap">Stops show here once they have a location.</div>';
-    var W = 480, H = 240, pad = 26;
-    /* Fit the map to the main group; far-away day trips are listed under it with their distance. */
+    if (!pts.length) return { pts: pts, inner: [], far: [], center: null };
     var med = function (arr) { var s = arr.slice().sort(function (a, b) { return a - b; }); return s[Math.floor(s.length / 2)]; };
     var center = { lat: med(pts.map(function (o) { return o.p.lat; })), lng: med(pts.map(function (o) { return o.p.lng; })) };
     pts.forEach(function (o) { o.dist = Core.miles(center, o.p); });
     var limit = Math.max(8, 3 * med(pts.map(function (o) { return o.dist; })));
     var inner = pts.filter(function (o) { return o.dist <= limit; });
     if (inner.length < 2) inner = pts;
-    var far = pts.filter(function (o) { return inner.indexOf(o) < 0; });
+    return { pts: pts, inner: inner, far: pts.filter(function (o) { return inner.indexOf(o) < 0; }), center: center };
+  }
+  function farChips(far) {
+    if (!far.length) return '';
+    return '<div class="farlist"><span class="sub">Day trips further out:</span>' + far.map(function (o) {
+      return '<button type="button" class="farchip' + (o.p.id === ui.sel ? ' on' : '') + '" data-act="select" data-id="' + o.p.id + '"><b>' + o.n + '</b> ' + esc(o.p.name) + ' · ' + Math.round(o.dist) + ' mi away</button>';
+    }).join('') + '</div>';
+  }
+  function sketch(list) {
+    var G = groups(list), pts = G.pts, inner = G.inner, far = G.far, center = G.center;
+    if (!pts.length) return '<div class="nomap">Stops show here once they have a location.</div>';
+    var W = 480, H = 240, pad = 26;
     var k = Math.cos(center.lat * Math.PI / 180);
     inner.forEach(function (o) { o.x = o.p.lng * k; o.y = -o.p.lat; });
     var xs = inner.map(function (o) { return o.x; }), ys = inner.map(function (o) { return o.y; });
@@ -889,13 +904,103 @@ if (typeof module !== 'undefined') module.exports = Core;
         '<text x="' + (sel.X + (right ? 20 : -20)) + '" y="' + (sel.Y + 5) + '" text-anchor="' + (right ? 'start' : 'end') + '" font-size="14" font-weight="700" fill="var(--ink)" stroke="var(--map)" stroke-width="4" paint-order="stroke" font-family="var(--body)">' + esc(sel.p.name) + '</text></g>';
     }
     g += '</svg>';
-    if (far.length) {
-      g += '<div class="farlist"><span class="sub">Day trips off this map:</span>' + far.map(function (o) {
-        return '<button type="button" class="farchip' + (o.p.id === ui.sel ? ' on' : '') + '" data-act="select" data-id="' + o.p.id + '"><b>' + o.n + '</b> ' + esc(o.p.name) + ' · ' + Math.round(o.dist) + ' mi away</button>';
-      }).join('') + '</div>';
-    }
-    return g;
+    return g + farChips(far);
   }
+
+  /* ---------- Real street map (Leaflet + OpenStreetMap), on the hosted site ---------- */
+  var LEAF = { L: null, loading: false, failed: false, map: null, el: null, layer: null, fitKey: '', selShown: null };
+  function useRealMap() { return standalone() && !LEAF.failed && !window.__tripwalletNoMap; }
+  function loadLeaflet() {
+    if (LEAF.L || LEAF.loading || LEAF.failed) return;
+    LEAF.loading = true;
+    var css = document.createElement('link');
+    css.rel = 'stylesheet'; css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css';
+    document.head.appendChild(css);
+    var sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js';
+    var give = setTimeout(function () { if (!LEAF.L) { LEAF.failed = true; LEAF.loading = false; softRender(); } }, 9000);
+    sc.onload = function () { clearTimeout(give); LEAF.L = window.L; LEAF.loading = false; softRender(); };
+    sc.onerror = function () { clearTimeout(give); LEAF.failed = true; LEAF.loading = false; softRender(); };
+    document.head.appendChild(sc);
+  }
+  function mountMap(cid) {
+    var slot = document.getElementById('map-slot');
+    if (!slot) return;
+    if (!LEAF.L) { slot.innerHTML = '<div class="nomap">Loading the map…</div>'; loadLeaflet(); return; }
+    var L = LEAF.L;
+    if (!LEAF.el) { LEAF.el = document.createElement('div'); LEAF.el.className = 'leafmap'; }
+    slot.appendChild(LEAF.el);
+    if (!LEAF.map) {
+      LEAF.map = L.map(LEAF.el, { scrollWheelZoom: false });
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' }).addTo(LEAF.map);
+      LEAF.layer = L.layerGroup().addTo(LEAF.map);
+    }
+    LEAF.map.invalidateSize();
+    LEAF.layer.clearLayers();
+    var G = groups(cityPlaces(cid));
+    if (!G.pts.length) { LEAF.map.setView([CENTERS[cid][0], CENTERS[cid][1]], 10); return; }
+    if (G.pts.length > 1) L.polyline(G.pts.map(function (o) { return [o.p.lat, o.p.lng]; }), { color: '#1A5FD6', weight: 3, opacity: 0.85, dashArray: '6 7' }).addTo(LEAF.layer);
+    G.pts.forEach(function (o) {
+      var on = o.p.id === ui.sel;
+      var icon = L.divIcon({ className: '', html: '<div class="lpin' + (on ? ' sel' : '') + (o.p.kind === 'stay' ? ' stay' : '') + '">' + o.n + '</div>', iconSize: [28, 28], iconAnchor: [14, 14] });
+      L.marker([o.p.lat, o.p.lng], { icon: icon, title: o.n + '. ' + o.p.name, keyboard: true, zIndexOffset: on ? 1000 : 0 })
+        .on('click', function () { ui.sel = ui.sel === o.p.id ? null : o.p.id; render(); })
+        .bindTooltip(o.n + '. ' + o.p.name, { direction: 'top', offset: [0, -14] })
+        .addTo(LEAF.layer);
+    });
+    /* Re-frame only when the city or its stops change, so panning is not undone on every tap. */
+    var key = cid + '|' + G.inner.map(function (o) { return o.p.id + o.p.lat; }).join(',');
+    if (key !== LEAF.fitKey) {
+      LEAF.fitKey = key;
+      if (G.inner.length === 1) LEAF.map.setView([G.inner[0].p.lat, G.inner[0].p.lng], 13);
+      else LEAF.map.fitBounds(G.inner.map(function (o) { return [o.p.lat, o.p.lng]; }), { padding: [28, 28] });
+    }
+    var sel = G.pts.find(function (o) { return o.p.id === ui.sel; });
+    if (sel && LEAF.selShown !== sel.p.id) LEAF.map.setView([sel.p.lat, sel.p.lng], Math.max(LEAF.map.getZoom(), 13));
+    LEAF.selShown = sel ? sel.p.id : null;
+  }
+
+  /* ---------- Shortest order ---------- */
+  /* The stay stays first. Stops with a day keep their days in date order (times respected);
+     inside each day, and for stops without a day, the order with the least driving is chosen. */
+  function shortestPath(start, pts) {
+    var left = pts.slice(), path = [], cur = start;
+    while (left.length) {
+      var bi = 0;
+      if (cur) left.forEach(function (q, i) { if (Core.miles(cur, q) < Core.miles(cur, left[bi])) bi = i; });
+      cur = left.splice(bi, 1)[0]; path.push(cur);
+    }
+    var seq = start ? [start].concat(path) : path, off = start ? 1 : 0, improved = true, d = Core.miles;
+    while (improved) {
+      improved = false;
+      for (var i = off + (start ? 0 : 1); i < seq.length - 1; i++) {
+        for (var j = i + 1; j < seq.length; j++) {
+          var a = seq[i - 1], b = seq[i], c = seq[j], e = seq[j + 1];
+          if (!a) continue;
+          var before = d(a, b) + (e ? d(c, e) : 0), after = d(a, c) + (e ? d(b, e) : 0);
+          if (after + 1e-9 < before) { seq = seq.slice(0, i).concat(seq.slice(i, j + 1).reverse(), seq.slice(j + 1)); improved = true; }
+        }
+      }
+    }
+    return start ? seq.slice(1) : seq;
+  }
+  function shortestOrder(cid) {
+    var list = cityPlaces(cid), stays = list.filter(function (p) { return p.kind === 'stay'; }), rest = list.filter(function (p) { return p.kind !== 'stay'; });
+    var days = rest.filter(function (p) { return p.date; }).map(function (p) { return p.date; }).filter(function (x, i, a) { return a.indexOf(x) === i; }).sort();
+    var blocks = days.map(function (dd) { return rest.filter(function (p) { return p.date === dd; }); }).concat([rest.filter(function (p) { return !p.date; })]);
+    var out = stays.slice(), cur = stays.find(hasLL) || null;
+    blocks.forEach(function (b) {
+      var timed = b.filter(function (p) { return toMin(p.time) !== null; }).sort(function (x, y) { return toMin(x.time) - toMin(y.time); });
+      var free = b.filter(function (p) { return toMin(p.time) === null; });
+      var located = free.filter(hasLL), unknown = free.filter(function (p) { return !hasLL(p); });
+      var path = shortestPath(timed.length ? timed[timed.length - 1] : cur, located);
+      out = out.concat(timed, path, unknown);
+      var lastLL = timed.concat(path).filter(hasLL).pop();
+      if (lastLL) cur = lastLL;
+    });
+    return out.map(function (p) { return p.id; });
+  }
+  function driveMiles(list) { var t = 0; for (var i = 1; i < list.length; i++) { var l = leg(list[i - 1], list[i]); if (l) t += l.mi; } return t; }
 
   /* ---------- Views ---------- */
   function locLine(p) {
@@ -959,16 +1064,15 @@ if (typeof module !== 'undefined') module.exports = Core;
     var sel = list.find(function (p) { return p.id === ui.sel; });
     h += '<section class="card cityhead"><div class="row between"><div><h2>' + esc(c.name) + '</h2><div class="sub">' + list.length + (list.length === 1 ? ' stop' : ' stops') + ' · drag the handle to change the order</div></div>' +
       '<div class="row"><button type="button" class="primary" data-act="add-stop" aria-expanded="' + !!(ui.adding || ui.editing) + '">+ Add stop</button>' +
+      (list.length > 2 ? '<button type="button" data-act="optimize">Shortest order</button>' : '') +
       (route ? '<a class="btn" href="' + route + '" target="_blank" rel="noopener">Open route in Google Maps</a>' : '') + '</div></div>' +
       (function () {
         var need = list.filter(function (x) { return x.needsBooking; }), done = need.filter(function (x) { return x.booked; }).length;
         return need.length ? '<div class="bsum ' + (done === need.length ? 'yes' : 'no') + '">Bookings: ' + done + ' of ' + need.length + ' booked' +
           (done < need.length ? ' · still to book: ' + esc(need.filter(function (x) { return !x.booked; }).map(function (x) { return x.name; }).join(', ')) : '') + '</div>' : '';
       })() +
-      '<div class="sketch">' + sketch(list) + '</div>';
-    if (standalone() && sel && hasLL(sel)) {
-      h += '<iframe class="gmap" title="Google map of ' + esc(sel.name) + '" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://maps.google.com/maps?q=' + sel.lat + ',' + sel.lng + '&z=14&output=embed"></iframe>';
-    }
+      '<div class="sketch">' + (useRealMap() ? '<div id="map-slot" class="mapslot"></div>' + farChips(groups(list).far) : sketch(list)) + '</div>' +
+      (ui.undoOrder && ui.undoOrder.city === c.id ? '<div class="note row between"><span>' + esc(ui.undoOrder.text) + '</span><button type="button" class="link" data-act="undo-order">Undo</button></div>' : '');
     h += '<div class="total" id="route-total">' + totalText(list) + '</div>' +
       (list.length > 10 ? '<div class="sub">The Google Maps route covers the first 10 stops.</div>' : '') +
       '<div class="sub">Drive distances come from OpenStreetMap road routing when the page can reach it. Ones marked "estimate" are straight-line distance with a road allowance.</div></section>';
@@ -1156,6 +1260,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     h += c ? cityTab(c) : costsTab();
     app.innerHTML = h;
     if (c) fetchLegs(cityPlaces(c.id));
+    if (c && useRealMap()) mountMap(c.id);
     geocodeMissing();
   }
 
@@ -1173,7 +1278,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (a !== 'ask') ui.confirm = null;
     if (a !== 'import') ui.msg = '';
     if (a === 'tab') {
-      ui.tab = d.id; ui.adding = false; ui.editing = null; ui.editingExp = null; ui.locFor = null; ui.sel = null;
+      ui.tab = d.id; ui.undoOrder = null; ui.adding = false; ui.editing = null; ui.editingExp = null; ui.locFor = null; ui.sel = null;
       try { localStorage.setItem(TAB_KEY, d.id); } catch (e) {}
     }
     else if (a === 'select') ui.sel = ui.sel === d.id ? null : d.id;
@@ -1214,6 +1319,22 @@ if (typeof module !== 'undefined') module.exports = Core;
     else if (a === 'toggle-share') ui.share = !ui.share;
     else if (a === 'admin-open') ui.adminOpen = true;
     else if (a === 'admin-close') ui.adminOpen = false;
+    else if (a === 'optimize') {
+      var cl = cityPlaces(ui.tab), oldIds = cl.map(function (p) { return p.id; }), newIds = shortestOrder(ui.tab);
+      if (oldIds.join() === newIds.join()) { ui.undoOrder = null; ui.msg = 'This is already the shortest order.'; }
+      else {
+        var before = driveMiles(cl);
+        reorderCity(ui.tab, newIds);
+        var after = driveMiles(cityPlaces(ui.tab));
+        ui.undoOrder = { city: ui.tab, ids: oldIds, text: 'Reordered for the shortest drive: about ' + Math.round(after) + ' mi instead of ' + Math.round(before) + ' mi.' };
+        logIt('reordered', cityName(ui.tab) + ' for the shortest drive');
+        LEAF.fitKey = '';
+        save();
+      }
+    }
+    else if (a === 'undo-order') {
+      if (ui.undoOrder) { reorderCity(ui.undoOrder.city, ui.undoOrder.ids); logIt('undid', 'the shortest-order change in ' + cityName(ui.undoOrder.city)); ui.undoOrder = null; save(); }
+    }
     else if (a === 'use-as-stay') {
       var src = placeById(d.id), stv = src && stayOf(src.city);
       if (src && stv) {
