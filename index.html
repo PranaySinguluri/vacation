@@ -96,6 +96,16 @@ button:disabled { opacity: .35; cursor: default }
 .field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); flex: 1 1 150px; min-width: 0 }
 .field input, .field select { font-size: 15px; color: var(--ink); width: 100% }
 .card > .field { flex: none }
+.search { position: relative }
+.flabel { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px }
+.searchbox { position: relative }
+.searchbox svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none }
+.searchbox input { width: 100%; padding: 12px 14px 12px 40px; font-size: 16px; border-radius: 999px }
+.suggest { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 20; list-style: none; margin: 0; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 14px 30px rgba(16, 27, 51, .16); max-height: 320px; overflow-y: auto }
+.suggest button { width: 100%; border: 0; background: none; border-radius: 10px; padding: 9px 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 0; text-align: left; font-weight: 400 }
+.suggest button b { font-weight: 600 }
+.suggest button span { font-size: 12px; color: var(--muted) }
+.suggest li[aria-selected="true"] button, .suggest button:hover { background: var(--primary-soft) }
 .chips { display: flex; flex-wrap: wrap; gap: 6px }
 .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: 13px; color: var(--ink); background: var(--bg) }
 .chip input { margin: 0; padding: 0 }
@@ -125,7 +135,7 @@ button:disabled { opacity: .35; cursor: default }
 </head>
 <body>
 <div id="app"></div>
-<footer class="version">v3-2026-11-18 20:45 PST</footer>
+<footer class="version">v4-2026-11-18 20:48 PST</footer>
 
 <script id="core">
 /* Pure logic: money in integer cents, distances, link parsing, share codes. */
@@ -228,6 +238,10 @@ if (typeof module !== 'undefined') module.exports = Core;
 (function () {
   var KEY = 'tripwallet.v3', LEGS_KEY = 'tripwallet.legs', ADMIN_KEY = 'tripwallet.admin', TAB_KEY = 'tripwallet.tab';
   /* SHA-256 of "tripwallet:" + the admin PIN. The PIN itself is not in the page. */
+  var SEARCH_HINT = 'Pick a result to add it. Set its day and time on the stop afterwards.';
+  var SEARCH_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+  /* Search results are ranked near the city whose tab is open. */
+  var CENTERS = { sd: [32.7157, -117.1611], la: [34.0522, -118.2437], lv: [36.1699, -115.1398], az: [36.2, -112.0] };
   var SPLITWISE_URL = 'https://secure.splitwise.com/#/groups/105847378';
   var ADMIN_HASH = 'df174295019980fadcb15ac944bdde3b3fc5aff2e92a0906afbc17a1a005044a';
   var PEOPLE = [['A', 'Akshaya'], ['D', 'DivyaTheja'], ['H', 'Haneela'], ['M', 'Megha'], ['P', 'Pranay'], ['R', 'Ramya'], ['S', 'Sahithi']]
@@ -481,6 +495,81 @@ if (typeof module !== 'undefined') module.exports = Core;
   function softRender() { if (typing() || drag) pendingRender = true; else render(); }
   app.addEventListener('focusout', function () { setTimeout(function () { if (pendingRender && !typing() && !drag) render(); }, 0); });
 
+  /* ---------- Place search (Photon, a free OpenStreetMap search made for type-ahead) ---------- */
+  var searchSeq = 0, searchTimer = null, results = [], active = -1, searchDown = false;
+  function labelOf(f) {
+    var p = f.properties || {};
+    var street = p.street ? (p.housenumber ? p.housenumber + ' ' : '') + p.street : '';
+    var name = p.name || street || p.city || '';
+    var where = [p.name ? street : '', p.city || p.county || '', p.state || ''].filter(function (x, i, arr) { return x && x !== name && arr.indexOf(x) === i; });
+    return { name: name, where: where.join(', ') };
+  }
+  function setStatus(t) { var el = document.getElementById('search-status'); if (el) el.textContent = t; }
+  function showSuggest() {
+    var ul = document.getElementById('place-suggest'), inp = document.getElementById('place-name');
+    if (!ul || !inp) return;
+    if (!results.length) { ul.hidden = true; ul.innerHTML = ''; inp.setAttribute('aria-expanded', 'false'); inp.removeAttribute('aria-activedescendant'); return; }
+    ul.innerHTML = results.map(function (r, i) {
+      return '<li role="option" id="sg-' + i + '" aria-selected="' + (i === active) + '"><button type="button" tabindex="-1" data-act="pick" data-i="' + i + '"><b>' + esc(r.name) + '</b>' + (r.where ? '<span>' + esc(r.where) + '</span>' : '') + '</button></li>';
+    }).join('');
+    ul.hidden = false;
+    inp.setAttribute('aria-expanded', 'true');
+    if (active >= 0) inp.setAttribute('aria-activedescendant', 'sg-' + active); else inp.removeAttribute('aria-activedescendant');
+  }
+  function runSearch(q) {
+    var seq = ++searchSeq;
+    if (q.length < 3) { results = []; active = -1; showSuggest(); setStatus(SEARCH_HINT); return; }
+    if (searchDown || typeof fetch !== 'function') { setStatus('Search is not available here. Type the full name and press Add by name.'); return; }
+    var c = CENTERS[ui.tab] || CENTERS.sd;
+    setStatus('Searching…');
+    fetch('https://photon.komoot.io/api/?limit=6&lang=en&q=' + encodeURIComponent(q) + '&lat=' + c[0] + '&lon=' + c[1])
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('search')); })
+      .then(function (js) {
+        if (seq !== searchSeq) return;
+        results = (js.features || []).filter(function (f) { return f.geometry && f.geometry.coordinates; }).map(function (f) {
+          var l = labelOf(f);
+          return { name: l.name, where: l.where, lat: +f.geometry.coordinates[1], lng: +f.geometry.coordinates[0] };
+        }).filter(function (r) { return r.name; });
+        active = results.length ? 0 : -1;
+        showSuggest();
+        setStatus(results.length ? 'Pick a result to add it. Use the arrow keys and Enter, or tap one.' : 'No matches. Try another spelling, or press Add by name.');
+      })
+      .catch(function () {
+        if (seq !== searchSeq) return;
+        searchDown = true; results = []; showSuggest();
+        setStatus('Search is not available here. Type the full name and press Add by name.');
+      });
+  }
+  function pick(i) {
+    var r = results[i];
+    if (!r) return;
+    if (cityPlaces(ui.tab).some(function (p) { return p.name.toLowerCase() === r.name.toLowerCase(); })) { setStatus(r.name + ' is already on the list.'); return; }
+    var np = { id: 'u-' + uid(), city: ui.tab, name: r.name.slice(0, 80), lat: r.lat, lng: r.lng, note: '', date: '', time: '', q: r.name + (r.where ? ', ' + r.where : ''), pin: false };
+    data.places.push(np);
+    results = []; active = -1;
+    ui.adding = false; ui.sel = np.id;
+    ui.msg = 'Added ' + np.name + ' as stop ' + cityPlaces(ui.tab).length + '. Set its day and time on the stop.';
+    save(); render();
+  }
+  app.addEventListener('input', function (e) {
+    if (e.target.id !== 'place-name' || !ui.adding) return;
+    clearTimeout(searchTimer);
+    var q = e.target.value.trim();
+    searchTimer = setTimeout(function () { runSearch(q); }, 300);
+  });
+  app.addEventListener('keydown', function (e) {
+    if (e.target.id !== 'place-name' || !ui.adding || !results.length) return;
+    if (e.key === 'ArrowDown') { active = (active + 1) % results.length; showSuggest(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { active = (active - 1 + results.length) % results.length; showSuggest(); e.preventDefault(); }
+    else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); pick(active); }
+    else if (e.key === 'Escape') { results = []; active = -1; showSuggest(); }
+  });
+  /* Keep focus in the search box while a result is tapped. */
+  app.addEventListener('mousedown', function (e) { if (e.target.closest('.suggest')) e.preventDefault(); });
+  app.addEventListener('focusout', function (e) {
+    if (e.target.id === 'place-name') setTimeout(function () { var a = document.activeElement; if (!a || a.id !== 'place-name') { results = []; active = -1; showSuggest(); } }, 150);
+  });
+
   /* ---------- Google Maps links ---------- */
   function searchText(p) { if (p.pin && hasLL(p)) return p.lat + ',' + p.lng; var c = cityById(p.city); return p.q || (p.name + ', ' + (c ? c.name : '')); }
   function mapURL(p) { return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(searchText(p)); }
@@ -597,15 +686,22 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<div class="sub">Drive distances come from OpenStreetMap road routing when the page can reach it. Ones marked "estimate" are straight-line distance with a road allowance.</div></section>';
 
     var ed = ui.editing ? placeById(ui.editing) : null;
-    if (ui.adding || ed) h += '<form class="card" id="place-form"><h3>' + (ed ? 'Edit ' + esc(ed.name) : 'Add a stop in ' + esc(c.name)) + '</h3><div class="row">' +
-      '<label class="field" style="flex:2 1 220px">Place<input id="place-name" maxlength="80" placeholder="USS Midway Museum" value="' + esc(ed ? ed.name : '') + '"></label>' +
-      '<label class="field">Day<input id="place-date" type="date" value="' + esc(ed ? ed.date : '') + '"></label>' +
-      '<label class="field">Time<input id="place-time" type="time" value="' + esc(ed ? ed.time : '') + '"></label></div>' +
-      '<label class="field">Note<input id="place-note" maxlength="140" placeholder="Booking number, opening hours, price" value="' + esc(ed ? ed.note : '') + '"></label>' +
+    if (ed) h += '<form class="card" id="place-form"><h3>Edit ' + esc(ed.name) + '</h3><div class="row">' +
+      '<label class="field" style="flex:2 1 220px">Place<input id="place-name" maxlength="80" value="' + esc(ed.name) + '"></label>' +
+      '<label class="field">Day<input id="place-date" type="date" value="' + esc(ed.date) + '"></label>' +
+      '<label class="field">Time<input id="place-time" type="time" value="' + esc(ed.time) + '"></label></div>' +
+      '<label class="field">Note<input id="place-note" maxlength="140" placeholder="Booking number, opening hours, price" value="' + esc(ed.note) + '"></label>' +
       '<label class="field">Google Maps link (optional)<input id="place-link" placeholder="Paste a link to pin the exact spot"></label>' +
-      '<div class="sub">Without a link, the page looks the place up by name.</div>' +
       '<div class="err" data-err hidden></div>' +
-      '<div class="row"><button class="primary" type="submit">' + (ed ? 'Save changes' : 'Add stop') + '</button>' + '<button type="button" class="link" data-act="cancel-edit">Cancel</button>' + '</div></form>';
+      '<div class="row"><button class="primary" type="submit">Save changes</button><button type="button" class="link" data-act="cancel-edit">Cancel</button></div></form>';
+    else if (ui.adding) h += '<form class="card" id="place-form"><h3>Add a stop in ' + esc(c.name) + '</h3>' +
+      '<div class="search"><label class="flabel" for="place-name">Search places</label><div class="searchbox">' + SEARCH_ICON +
+      '<input id="place-name" maxlength="80" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="place-suggest" placeholder="Search, like USS Midway Museum"></div>' +
+      '<ul class="suggest" id="place-suggest" role="listbox" aria-label="Search results" hidden></ul></div>' +
+      '<div class="sub" id="search-status">' + SEARCH_HINT + '</div>' +
+      '<label class="field">Or paste a Google Maps link<input id="place-link" placeholder="Pins the exact spot"></label>' +
+      '<div class="err" data-err hidden></div>' +
+      '<div class="row"><button type="submit">Add by name</button><button type="button" class="link" data-act="cancel-edit">Cancel</button></div></form>';
 
     if (list.length) {
       h += '<ol class="stops" id="stops" data-city="' + c.id + '">';
@@ -730,9 +826,9 @@ if (typeof module !== 'undefined') module.exports = Core;
     else if (a === 'cancel-loc') ui.locFor = null;
     else if (a === 'ask') ui.confirm = d.id;
     else if (a === 'cancel') ui.confirm = null;
-    else if (a === 'add-stop') { ui.adding = !(ui.adding || ui.editing); ui.editing = null; }
+    else if (a === 'add-stop') { ui.adding = !(ui.adding || ui.editing); ui.editing = null; results = []; active = -1; searchSeq++; }
     else if (a === 'edit-place') { ui.editing = d.id; ui.adding = false; }
-    else if (a === 'cancel-edit') { ui.adding = false; ui.editing = null; ui.editingExp = null; }
+    else if (a === 'cancel-edit') { ui.adding = false; ui.editing = null; ui.editingExp = null; results = []; active = -1; searchSeq++; }
     else if (a === 'delete-place') {
       data.places = data.places.filter(function (p) { return p.id !== d.id; });
       data.deleted.push(d.id);
@@ -770,6 +866,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     var b = ev.target.closest('[data-act]');
     if (!b || !app.contains(b)) return;
     var a = b.getAttribute('data-act');
+    if (a === 'pick') { pick(+b.dataset.i); return; }
     if (a === 'copy') {
       var el = document.getElementById(b.getAttribute('data-target')), label = b.textContent;
       var done = function () { b.textContent = 'Copied'; setTimeout(function () { b.textContent = label; }, 1500); };
