@@ -353,6 +353,23 @@ html { overflow-x: hidden }
 .edit-stop-form .edit-actions { margin-top: 0; }
 @media (max-height: 670px) { .edit-sheet { padding: 10px 14px; } .edit-stop-form { gap: 7px; } .edit-stop-form .edit-type-choice span { min-height: 46px; } }
 
+/* City action layout: balanced two-button row on mobile */
+.cityhead > .row.between { align-items: flex-start; }
+.city-toolbar { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.city-toolbar-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr); gap: 8px; }
+.city-toolbar-secondary { display: flex; flex-wrap: wrap; gap: 8px; }
+.city-toolbar-main > button, .city-toolbar-main > label { display: inline-flex; align-items: center; justify-content: center; text-align: center; min-width: 0; width: 100%; box-sizing: border-box; }
+.city-toolbar-secondary > button, .city-toolbar-secondary > a { justify-content: center; }
+@media (max-width: 700px) {
+  .cityhead > .row.between { display: block; }
+  .city-toolbar { width: 100%; margin-top: 12px; }
+  .city-toolbar-main { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); }
+  .city-toolbar-main > button, .city-toolbar-main > label { min-height: 46px; padding: 8px 9px; font-size: 14px; line-height: 1.25; }
+  .city-toolbar-secondary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .city-toolbar-secondary > button, .city-toolbar-secondary > a { min-width: 0; width: 100%; box-sizing: border-box; font-size: 13px; padding: 8px; text-align: center; }
+}
+@media (max-width: 360px) { .city-toolbar-main > button, .city-toolbar-main > label { font-size: 13px; } }
+
 </style>
 </head>
 <body>
@@ -1430,10 +1447,11 @@ if (typeof module !== 'undefined') module.exports = Core;
     var allStops = cityPlaces(c.id), list = allStops.filter(function (p) { return !p.completedAt; }), completed = allStops.filter(function (p) { return !!p.completedAt; }), h = '', route = routeURL(list);
     var sel = list.find(function (p) { return p.id === ui.sel; });
     h += '<section class="card cityhead"><div class="row between"><div><h2>' + esc(c.name) + '</h2><div class="sub">' + list.length + (list.length === 1 ? ' stop' : ' stops') + ' · drag the handle to change the order</div></div>' +
-      '<div class="row"><button type="button" class="primary" data-act="add-stop" aria-expanded="' + !!(ui.adding || ui.editing) + '">+ Add stop</button>' +
-      '<label class="btn shotbtn"><input type="file" id="shot-city" accept="image/*" hidden>Add from screenshot</label>' +
+      '<div class="city-toolbar"><div class="city-toolbar-main"><button type="button" class="primary" data-act="add-stop" aria-expanded="' + !!(ui.adding || ui.editing) + '">+ Add stop</button>' +
+      '<label class="btn shotbtn"><input type="file" id="shot-city" accept="image/*" hidden>Add from screenshot</label></div>' +
+      '<div class="city-toolbar-secondary">' +
       (list.length > 2 ? '<button type="button" data-act="optimize">Shortest order</button>' : '') +
-      (route ? '<a class="btn" href="' + route + '" target="_blank" rel="noopener">Open route in Google Maps</a>' : '') + '</div></div>' +
+      (route ? '<a class="btn" href="' + route + '" target="_blank" rel="noopener">Open route in Google Maps</a>' : '') + '</div></div></div>' +
       (function () {
         var need = list.filter(function (x) { return x.needsBooking; }), done = need.filter(function (x) { return x.booked; }).length;
         return need.length ? '<div class="bsum ' + (done === need.length ? 'yes' : 'no') + '">Bookings: ' + done + ' of ' + need.length + ' booked' +
@@ -1447,7 +1465,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<div class="sub">Drive distances come from OpenStreetMap road routing when the page can reach it. Ones marked "estimate" are straight-line distance with a road allowance.</div></section>';
 
     h += shotCard(c);
-    h += '<div class="quick-add"><button type="button" class="primary" data-act="add-stop">+ Add stop</button></div>';
+
     var ed = ui.editing ? placeById(ui.editing) : null;
     var editForm = ed ? '<div class="edit-overlay"><div class="edit-sheet" role="dialog" aria-modal="true" aria-labelledby="edit-stop-heading">' +
       '<form id="place-form" class="edit-stop-form"><div class="edit-top"><button type="button" class="edit-close" data-act="cancel-edit" aria-label="Close editor">✕</button><h3 id="edit-stop-heading">Edit Stop</h3><button type="button" class="edit-trash" data-act="ask-edit-delete" data-id="' + ed.id + '" aria-label="Delete stop">🗑</button></div>' +
