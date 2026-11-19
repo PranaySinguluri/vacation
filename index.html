@@ -488,6 +488,36 @@ html { overflow-x: hidden }
   }
 }
 
+/* Place temperature in the right-side whitespace marked in mobile screenshots */
+@media (max-width: 760px) {
+  .stop { position: relative !important; grid-template-rows: auto !important; }
+  .stop > .main { grid-column: 3 !important; grid-row: 1 !important; padding-bottom: 0 !important; }
+  .stop > .wx {
+    display: inline-flex !important;
+    position: absolute !important;
+    right: 76px !important;
+    top: 50% !important;
+    transform: translateY(0) !important;
+    grid-column: auto !important;
+    grid-row: auto !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-wrap: wrap !important;
+    gap: 3px !important;
+    width: 78px !important;
+    max-width: 78px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    pointer-events: none;
+    text-align: center;
+  }
+  .stop > .wx[hidden], .stop > .wx:empty { display: none !important; }
+  .stop > .wx svg { width: 19px; height: 19px; }
+  .stop > .wx .wxt { font-size: 16px; }
+  .stop > .wx .wx-historical { display: block; flex-basis: 100%; font-size: 10px; }
+  .stop > .side { grid-column: 4 !important; grid-row: 1 !important; }
+}
+
 </style>
 </head>
 <body>
@@ -1551,7 +1581,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (ui.confirm === p.id) {
       h += '<div class="row"><span class="sub">Remove this stop?</span><button type="button" class="link danger" data-act="delete-place" data-id="' + p.id + '">Yes, remove</button><button type="button" class="link" data-act="cancel">Keep</button></div>';
     }
-    h += wxHTML(p) + '</div><div class="side"><a class="btn chipbtn map-pin-only" aria-label="Directions to ' + esc(p.name) + '" title="Directions" href="' + mapURL(p) + '" target="_blank" rel="noopener">📍</a>' +
+    h += '</div>' + wxHTML(p) + '<div class="side"><a class="btn chipbtn map-pin-only" aria-label="Directions to ' + esc(p.name) + '" title="Directions" href="' + mapURL(p) + '" target="_blank" rel="noopener">📍</a>' +
       '<div class="updown"><button type="button" data-act="move" data-id="' + p.id + '" data-dir="-1" aria-label="Move ' + esc(p.name) + ' up"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
       '<button type="button" data-act="move" data-id="' + p.id + '" data-dir="1" aria-label="Move ' + esc(p.name) + ' down"' + (i === n - 1 ? ' disabled' : '') + '>↓</button></div>' +
       '<div class="hovertools"><button type="button" class="link" data-act="' + (p.completedAt ? 'restore-stop' : 'complete-stop') + '" data-id="' + p.id + '">' + (p.completedAt ? 'Restore' : 'Done') + '</button></div>' +
