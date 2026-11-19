@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Trip Wallet</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Pacifico&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap">
 <style>
 /* Layout: booking-site style. White app bar, city tabs as pills, a route sketch per city,
    then numbered stops with the drive between each pair. Light theme only, by choice. */
@@ -51,8 +51,29 @@ button:disabled { opacity: .35; cursor: default }
 .stop:hover .hovertools, .stop:focus-within .hovertools, .list li:hover .hovertools, .list li:focus-within .hovertools { opacity: 1 }
 @media (hover: none) { .hovertools { opacity: 1 } }
 @media (prefers-reduced-motion: reduce) { .hovertools { transition: none } }
-.hdr-actions { position: relative }
-.logpop { position: absolute; top: calc(100% + 8px); left: 0; z-index: 40; width: min(440px, calc(100vw - 32px)); background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 18px 40px rgba(16, 27, 51, .18); padding: 14px; display: flex; flex-direction: column; gap: 10px }
+.hdr-actions { position: relative; flex: none }
+html { overflow-x: hidden }
+.hero { position: relative; width: 100vw; margin-left: calc(50% - 50vw); color: #fff; overflow: visible; isolation: isolate; border-radius: 0 0 28px 28px }
+.hero .beach { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: -1; border-radius: 0 0 28px 28px }
+.hero-in { max-width: 820px; margin: 0 auto; min-height: 220px; padding-block: 22px 18px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; justify-content: space-between; gap: 16px; box-sizing: border-box }
+.hero-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px }
+.hero h1 { font-family: "Pacifico", "Brush Script MT", cursive; font-weight: 400; font-size: 50px; line-height: 1.15; letter-spacing: 0; color: #fff; text-shadow: 0 2px 12px rgba(5, 70, 105, .35) }
+.hero-sub { font-size: 14px; font-weight: 600; color: #fff; text-shadow: 0 1px 6px rgba(5, 70, 105, .45) }
+.hero .travelers { margin-top: 0 }
+.hero .av { background: rgba(255, 255, 255, .85); color: #0A4F6E; backdrop-filter: blur(4px) }
+.hero .av.me { background: #0A4F6E; color: #fff; box-shadow: 0 0 0 2px #fff }
+.avatarbtn { width: 46px; height: 46px; border-radius: 50%; padding: 0; border: 3px solid #fff; overflow: hidden; background: #0A4F6E; box-shadow: 0 3px 12px rgba(5, 50, 80, .3); display: block }
+.avatarbtn .face, .acct-head .face { width: 100%; height: 100%; object-fit: cover; display: flex; align-items: center; justify-content: center; font: 700 18px var(--display); font-style: normal; color: #fff; background: #0A4F6E; border-radius: 50% }
+.acct-head .face { width: 44px; height: 44px; flex: none }
+.acctmenu { position: absolute; right: 0; top: calc(100% + 8px); z-index: 45; width: min(300px, calc(100vw - 32px)); background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 18px 40px rgba(16, 27, 51, .2); padding: 6px; display: flex; flex-direction: column }
+.acct-head { display: flex; gap: 10px; align-items: center; padding: 10px; border-bottom: 1px solid var(--line); margin-bottom: 4px; min-width: 0 }
+.acct-head .main { min-width: 0 }
+.acct-head .sub { overflow-wrap: anywhere }
+.acctmenu > button { border: 0; background: none; justify-content: flex-start; width: 100%; padding: 10px 12px; border-radius: 10px; font-weight: 500 }
+.acctmenu > button:hover { background: var(--bg) }
+.herobtn { background: rgba(255, 255, 255, .9); border-color: transparent; color: #0A4F6E }
+@media (max-width: 520px) { .hero h1 { font-size: 40px } .hero-in { min-height: 200px } }
+.logpop { position: absolute; top: calc(100% + 8px); right: 0; z-index: 40; width: min(440px, calc(100vw - 32px)); background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 18px 40px rgba(16, 27, 51, .18); padding: 14px; display: flex; flex-direction: column; gap: 10px }
 .members summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--primary) }
 .logscroll { max-height: min(60vh, 460px); overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--line); border-radius: 12px; padding: 0 12px }
 #activity-card h3 .count { font-size: 12px; font-weight: 600; background: var(--primary-soft); color: var(--primary); border-radius: 999px; padding: 1px 8px; vertical-align: 2px }
@@ -196,7 +217,7 @@ button:disabled { opacity: .35; cursor: default }
 </head>
 <body>
 <div id="app"></div>
-<footer class="version">v20-2026-11-18 22:41 PST</footer>
+<footer class="version">v21-2026-11-18 22:48 PST</footer>
 
 <script id="core">
 /* Pure logic: money in integer cents, distances, link parsing, share codes. */
@@ -349,6 +370,21 @@ if (typeof module !== 'undefined') module.exports = Core;
     appId: '1:1071026221606:web:be26702ba1204d99b86ce7'
   };
   var GROUP_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h3l2-2h6l2 2h3v12H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
+  var BEACH = '<svg class="beach" viewBox="0 0 1440 260" preserveAspectRatio="xMidYMax slice" aria-hidden="true"><defs>' +
+    '<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4FC0EE"/><stop offset=".62" stop-color="#A9E5FA"/><stop offset="1" stop-color="#FDEBC8"/></linearGradient>' +
+    '<linearGradient id="sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22B0D6"/><stop offset="1" stop-color="#0B7DA5"/></linearGradient>' +
+    '<linearGradient id="sand" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F8E4B8"/><stop offset="1" stop-color="#EBCB8F"/></linearGradient></defs>' +
+    '<rect width="1440" height="260" fill="url(#sky)"/>' +
+    '<circle cx="1050" cy="86" r="74" fill="#FFF2A8" opacity=".45"/><circle cx="1050" cy="86" r="40" fill="#FFD54F"/>' +
+    '<g fill="#FFFFFF" opacity=".85"><ellipse cx="300" cy="62" rx="70" ry="16"/><ellipse cx="345" cy="50" rx="44" ry="18"/><ellipse cx="760" cy="40" rx="60" ry="13"/><ellipse cx="800" cy="31" rx="36" ry="14"/></g>' +
+    '<path d="M0 168C240 156 480 180 720 166S1200 154 1440 170V260H0Z" fill="url(#sea)"/>' +
+    '<path d="M60 186c40-6 80 6 120 0M420 194c40-6 80 6 120 0M900 182c40-6 80 6 120 0M1180 196c40-6 80 6 120 0" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" opacity=".55"/>' +
+    '<path d="M0 216C260 200 520 224 820 216S1240 204 1440 220V260H0Z" fill="url(#sand)"/>' +
+    '<path d="M0 216C260 200 520 224 820 216S1240 204 1440 220" fill="none" stroke="#FFFFFF" stroke-width="4" opacity=".7"/>' +
+    '<path d="M1330 236c-8-40-14-80-38-118" fill="none" stroke="#7A5634" stroke-width="10" stroke-linecap="round"/>' +
+    '<g fill="#1F7A5C"><path d="M1292 118c-30-10-62-4-84 14 28-6 54-6 84-14z"/><path d="M1292 118c-18-26-50-38-80-34 26 8 50 18 80 34z"/>' +
+    '<path d="M1292 118c10-28 38-46 70-46-26 12-48 26-70 46z"/><path d="M1292 118c30-8 62 2 82 24-28-10-54-14-82-24z"/><path d="M1292 118c4-24-4-50-22-66 10 24 16 44 22 66z"/></g>' +
+    '<g fill="#5B3A1E"><circle cx="1290" cy="124" r="5"/><circle cx="1299" cy="126" r="5"/></g></svg>';
   var BED = '<svg class="bed" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18V6M3 14h18v4M21 14v-2a3 3 0 0 0-3-3h-7v5M7 11.5a1.5 1.5 0 1 0 0-.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   var FB_VERSION = '13.2.0';
   /* Places to stay, shown as the first stop in each city. Their address is set once booked. */
@@ -535,7 +571,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   var legCache = {};
   try { legCache = JSON.parse(localStorage.getItem(LEGS_KEY) || '{}') || {}; } catch (e) {}
 
-  var ui = { tab: 'sd', shot: null, albumEdit: null, undoOrder: null, linkOpen: null, linkEdit: null, showLog: false, adding: false, admin: false, adminOpen: false, share: false, sel: null, editing: null, editingExp: null, locFor: null, confirm: null, msg: '', importText: '' };
+  var ui = { tab: 'sd', menu: false, shot: null, albumEdit: null, undoOrder: null, linkOpen: null, linkEdit: null, showLog: false, adding: false, admin: false, adminOpen: false, share: false, sel: null, editing: null, editingExp: null, locFor: null, confirm: null, msg: '', importText: '' };
   try { ui.admin = sessionStorage.getItem(ADMIN_KEY) === '1'; } catch (e) {}
   try { var savedTab = localStorage.getItem(TAB_KEY); if (savedTab && (savedTab === 'costs' || savedTab === 'photos' || cityById(savedTab))) ui.tab = savedTab; } catch (e) {}
 
@@ -1358,18 +1394,31 @@ if (typeof module !== 'undefined') module.exports = Core;
   function render() {
     pendingRender = false;
     if ((!CLOUD.on || (CLOUD.state === 'ready' && allLoaded() && data.places.length)) && ensureBookings()) save();
-    var h = '<header class="appbar"><div class="brand"><div class="eyebrow">Group trip · Dec 24 to 31</div><h1>San Diego, LA and Las Vegas</h1>' +
+    var u = CLOUD.on ? CLOUD.user : null, initial = (u && (u.displayName || u.email || '?').charAt(0).toUpperCase()) || '?';
+    var face = function (cls) {
+      return u && u.photoURL ? '<img class="' + cls + '" src="' + esc(u.photoURL) + '" alt="" referrerpolicy="no-referrer" data-ini="' + esc(initial) + '">' : '<i class="' + cls + ' ini">' + esc(initial) + '</i>';
+    };
+    var right = '';
+    if (u) {
+      right = '<button type="button" class="avatarbtn" data-act="toggle-menu" aria-haspopup="menu" aria-expanded="' + !!ui.menu + '" aria-label="Your account">' + face('face') + '</button>';
+      if (ui.menu) {
+        right += '<div class="acctmenu" role="menu"><div class="acct-head">' + face('face big') + '<div class="main"><div class="ttl">' + esc(u.displayName || 'You') + (ui.admin ? ' <span class="adminpill">Admin</span>' : '') + '</div>' +
+          '<div class="sub">' + esc(u.email || '') + '</div>' + (me ? '<div class="sub">Traveling as ' + esc(person(me)) + '</div>' : '') + '</div></div>' +
+          (CLOUD.state === 'ready' ? '<button type="button" role="menuitem" data-act="invite">Invite friends</button>' +
+            (ui.admin ? '<button type="button" role="menuitem" data-act="toggle-log" aria-controls="activity-card">Activity</button>' : '') : '') +
+          '<button type="button" role="menuitem" data-act="sign-out">Sign out</button></div>';
+      }
+      if (CLOUD.state === 'ready' && ui.admin && ui.showLog) right += activityHTML();
+    } else if (!CLOUD.on) {
+      right = '<button type="button" class="herobtn" data-act="toggle-share">Share</button>';
+    }
+    var h = '<header class="hero">' + BEACH + '<div class="hero-in"><div class="hero-top"><div class="hero-title"><h1>Vacation</h1>' +
+      '<div class="hero-sub">San Diego · Los Angeles · Las Vegas · Dec 24 to 31</div></div>' +
+      '<div class="hdr-actions">' + right + '</div></div>' +
       '<div class="travelers">' + PEOPLE.map(function (p) {
         var mine = CLOUD.on && me && p.id === me;
         return '<span class="av' + (mine ? ' me' : '') + '"' + (mine ? ' aria-current="true" title="Signed in as you"' : '') + '>' + esc(p.name) + '</span>';
-      }).join('') + '</div></div>' +
-      (CLOUD.on
-        ? '<div class="row hdr-actions">' + (CLOUD.state === 'ready' ? (ui.admin ? '<span class="adminpill">Admin</span>' : '') +
-            '<button data-act="invite">Invite</button>' + (ui.admin ? '<button data-act="toggle-log" aria-expanded="' + ui.showLog + '" aria-controls="activity-card">Activity</button>' : '') : '') +
-          (CLOUD.user ? '<span class="whoami">' + esc(me ? person(me) : (CLOUD.user.displayName || '')) + '</span><button class="link" data-act="sign-out">Sign out</button>' : '') +
-          (CLOUD.state === 'ready' && ui.admin && ui.showLog ? activityHTML() : '') + '</div></header>'
-        : '<div class="row"><button data-act="toggle-share">Share</button>' +
-          '</div></header>');
+      }).join('') + '</div></div></header>';
     if (CLOUD.on && CLOUD.state !== 'ready') {
       if (ui.msg) h += '<div class="note warnnote" role="alert">' + esc(ui.msg) + '</div>';
       app.innerHTML = h + gateHTML();
@@ -1437,6 +1486,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   var ADMIN_ONLY = ['reset-member', 'start-trip'];
   function act(a, d) {
     if (ADMIN_ONLY.indexOf(a) >= 0 && !ui.admin) return;
+    if (a !== 'toggle-menu') ui.menu = false;
     if (a !== 'ask') ui.confirm = null;
     if (a !== 'import') ui.msg = '';
     if (a === 'tab') {
@@ -1508,6 +1558,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       }
     }
     else if (a === 'shot-cancel') ui.shot = null;
+    else if (a === 'toggle-menu') { ui.menu = !ui.menu; ui.showLog = false; }
     else if (a === 'album-edit') ui.albumEdit = d.id;
     else if (a === 'album-cancel') ui.albumEdit = null;
     else if (a === 'album-remove') {
@@ -1609,6 +1660,11 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
 
   app.addEventListener('click', function (ev) {
+    if (ui.menu && !ev.target.closest('.acctmenu') && !ev.target.closest('[data-act="toggle-menu"]')) {
+      ui.menu = false;
+      var mn = document.querySelector('.acctmenu'); if (mn) mn.remove();
+      var ab = document.querySelector('[data-act="toggle-menu"]'); if (ab) ab.setAttribute('aria-expanded', 'false');
+    }
     if (ui.showLog && !ev.target.closest('.logpop') && !ev.target.closest('[data-act="toggle-log"]')) {
       ui.showLog = false;
       var pop = document.getElementById('activity-card');
@@ -1691,6 +1747,13 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<div class="err" data-err hidden></div>' +
       '<div class="row"><button class="primary" type="submit">Save booking</button><button type="button" class="link" data-act="shot-cancel">Cancel</button></div></form>';
   }
+
+  app.addEventListener('error', function (ev) {
+    var im = ev.target;
+    if (im && im.tagName === 'IMG' && im.dataset.ini) {
+      var i = document.createElement('i'); i.className = im.className + ' ini'; i.textContent = im.dataset.ini; im.replaceWith(i);
+    }
+  }, true);
 
   app.addEventListener('change', function (ev) {
     var el = ev.target;
