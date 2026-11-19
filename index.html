@@ -518,6 +518,7 @@ html { overflow-x: hidden }
   .stop > .side { grid-column: 4 !important; grid-row: 1 !important; }
 }
 
+.edit-no-date-done { width: 100%; min-height: 42px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--primary); font-weight: 700; }
 </style>
 </head>
 <body>
@@ -1565,6 +1566,14 @@ if (typeof module !== 'undefined') module.exports = Core;
     }
     return h;
   }
+  function stopTimePassed(p) {
+    if (!p.date) return false;
+    var parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date());
+    var f = {};
+    parts.forEach(function (x) { f[x.type] = x.value; });
+    var today = f.year + '-' + f.month + '-' + f.day;
+    return p.date < today || (p.date === today && (!p.time || p.time <= f.hour + ':' + f.minute));
+  }
   function stopHTML(p, i, n) {
     var h = '<li class="stop' + (ui.sel === p.id ? ' sel' : '') + '" data-id="' + p.id + '">' +
       '<button type="button" class="grip" aria-label="Drag ' + esc(p.name) + ' to reorder">' + GRIP + '</button>' +
@@ -1584,7 +1593,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     h += '</div>' + wxHTML(p) + '<div class="side"><a class="btn chipbtn map-pin-only" aria-label="Directions to ' + esc(p.name) + '" title="Directions" href="' + mapURL(p) + '" target="_blank" rel="noopener">📍</a>' +
       '<div class="updown"><button type="button" data-act="move" data-id="' + p.id + '" data-dir="-1" aria-label="Move ' + esc(p.name) + ' up"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
       '<button type="button" data-act="move" data-id="' + p.id + '" data-dir="1" aria-label="Move ' + esc(p.name) + ' down"' + (i === n - 1 ? ' disabled' : '') + '>↓</button></div>' +
-      '<div class="hovertools"><button type="button" class="link" data-act="' + (p.completedAt ? 'restore-stop' : 'complete-stop') + '" data-id="' + p.id + '">' + (p.completedAt ? 'Restore' : 'Done') + '</button></div>' +
+      ((p.completedAt || stopTimePassed(p)) ? '<div class="hovertools"><button type="button" class="link" data-act="' + (p.completedAt ? 'restore-stop' : 'complete-stop') + '" data-id="' + p.id + '">' + (p.completedAt ? 'Restore' : 'Done') + '</button></div>' : '') +
 
       (p.kind !== 'stay' && stayOf(p.city) ? '<div class="hovertools"><button type="button" class="link small" data-act="use-as-stay" data-id="' + p.id + '" title="Moves this into the ' + esc(stayOf(p.city).name) + ' stop and removes this one">Use as our stay</button></div>' : '') +
       '</div></li>';
@@ -1624,7 +1633,9 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<div class="edit-stay-dates"><div class="row edit-dates"><label class="field">Check-out date<input id="place-checkout" type="date" value="' + esc(ed.checkOut || '') + '"></label><label class="field">Check-out time<input id="place-checkout-time" type="time" value="' + esc(ed.checkOutTime || '') + '"></label></div></div></div>' +
       '<label class="field">Booking<select id="place-booking"><option value="needed"' + (ed.needsBooking && !ed.booked ? ' selected' : '') + '>🔴 Booking needed</option><option value="booked"' + (ed.needsBooking && ed.booked ? ' selected' : '') + '>🟢 Booked</option><option value="none"' + (!ed.needsBooking ? ' selected' : '') + '>🟢 No booking</option></select></label>' +
       '<label class="field edit-notes">Notes<textarea id="place-note" maxlength="140" rows="2" placeholder="Add a note">' + esc(ed.note || '') + '</textarea></label>' +
-      '<div class="err" data-err hidden></div><div class="edit-actions"><button type="button" data-act="cancel-edit">Cancel</button><button class="primary" type="submit">Save Changes</button></div></form></div></div>' : '';
+      '<div class="err" data-err hidden></div>' +
+      (!ed.date && !ed.completedAt ? '<button type="button" class="edit-no-date-done" data-act="complete-stop" data-id="' + ed.id + '">Done · Mark this stop completed</button>' : '') +
+      '<div class="edit-actions"><button type="button" data-act="cancel-edit">Cancel</button><button class="primary" type="submit">Save Changes</button></div></form></div></div>' : '';
     if (ui.adding) h += '<form class="card" id="place-form"><h3>Add a stop in ' + esc(c.name) + '</h3>' +
       '<div class="search"><label class="flabel" for="place-name">Search places</label><div class="searchbox">' + SEARCH_ICON +
       '<input id="place-name" maxlength="80" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="place-suggest" placeholder="Search, like USS Midway Museum"></div>' +
@@ -1951,7 +1962,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       var cp = placeById(d.id);
       if (cp) {
         undoStop = { id: cp.id, name: cp.name, completedAt: cp.completedAt || null, deleted: false };
-        if (a === 'complete-stop') cp.completedAt = new Date().toISOString();
+        if (a === 'complete-stop') { cp.completedAt = new Date().toISOString(); ui.editing = null; }
         else delete cp.completedAt;
         logIt(a === 'complete-stop' ? 'completed' : 'restored', cp.name + ' in ' + cityName(cp.city));
         save();
