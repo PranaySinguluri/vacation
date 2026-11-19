@@ -57,17 +57,9 @@ button:disabled { opacity: .35; cursor: default }
 .logscroll { max-height: min(60vh, 460px); overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--line); border-radius: 12px; padding: 0 12px }
 #activity-card h3 .count { font-size: 12px; font-weight: 600; background: var(--primary-soft); color: var(--primary); border-radius: 999px; padding: 1px 8px; vertical-align: 2px }
 .by { font-size: 12px; color: var(--muted) }
-.wx { flex: none; display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 4px 11px 4px 8px; border-radius: 999px; background: var(--wxbg); color: var(--wxink); font-size: 13px; margin-right: 4px; margin-top: 2px }
-.wx svg { flex: none }
-.wxt { font-weight: 700; font-variant-numeric: tabular-nums }
-.wxl { color: var(--wxsub); white-space: nowrap }
-.bdates { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 13px; margin-top: 2px }
-.bdates b { font-weight: 600; color: var(--muted) }
-.conf b { font-variant-numeric: tabular-nums; letter-spacing: .02em }
-.bookbox { border: 1px dashed var(--line); border-radius: 12px; padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 10px; margin: 0; min-width: 0 }
-.bookbox legend { font-size: 12px; font-weight: 700; color: var(--muted); padding: 0 6px }
-.shotbtn { align-self: flex-start; cursor: pointer }
-.sw-only { padding: 24px; gap: 14px }
+.wx { flex: none; display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 2px 6px; margin-right: 6px; color: var(--ink) }
+.wx svg { flex: none; width: 24px; height: 24px }
+.wxt { font: 700 17px var(--display); font-variant-numeric: tabular-nums }
 .booking { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 2px }
 .bpill { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 10px }
 .bpill.no { background: var(--owe-soft); color: var(--owe) }
@@ -90,6 +82,16 @@ button:disabled { opacity: .35; cursor: default }
 .big { padding: 12px 18px; font-size: 16px; gap: 10px }
 .big svg { background: #fff; border-radius: 50%; padding: 2px; box-sizing: content-box }
 .whoami { font-size: 13px; font-weight: 600; color: var(--muted) }
+.av { display: inline-flex; align-items: center; gap: 5px }
+.av.hasphoto { padding-left: 3px }
+.av img { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; flex: none }
+.av .ini { width: 18px; height: 18px; border-radius: 50%; flex: none; display: inline-flex; align-items: center; justify-content: center; font: 700 10px var(--display); font-style: normal; background: var(--primary); color: var(--primary-ink) }
+.av.me .ini { background: var(--surface); color: var(--primary) }
+.pic { border-radius: 50%; object-fit: cover; flex: none; display: inline-flex; align-items: center; justify-content: center }
+.pic.none { background: var(--primary-soft); color: var(--primary); font-weight: 700; font-family: var(--display) }
+.pic.grp { background: var(--sun-soft); color: var(--sun-ink) }
+.albums .albumrow { align-items: center; gap: 10px 12px }
+.albumform { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 100% }
 .adminpill { font-size: 12px; font-weight: 700; background: var(--sun); color: var(--sun-ink); border-radius: 999px; padding: 4px 10px }
 
 .tabs { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 6px }
@@ -187,7 +189,7 @@ button:disabled { opacity: .35; cursor: default }
 </head>
 <body>
 <div id="app"></div>
-<footer class="version">v17-2026-11-18 22:14 PST</footer>
+<footer class="version">v18-2026-11-18 22:34 PST</footer>
 
 <script id="core">
 /* Pure logic: money in integer cents, distances, link parsing, share codes. */
@@ -332,6 +334,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     messagingSenderId: '1071026221606',
     appId: '1:1071026221606:web:be26702ba1204d99b86ce7'
   };
+  var GROUP_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h3l2-2h6l2 2h3v12H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
   var BED = '<svg class="bed" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18V6M3 14h18v4M21 14v-2a3 3 0 0 0-3-3h-7v5M7 11.5a1.5 1.5 0 1 0 0-.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   var FB_VERSION = '13.2.0';
   /* Places to stay, shown as the first stop in each city. Their address is set once booked. */
@@ -518,9 +521,9 @@ if (typeof module !== 'undefined') module.exports = Core;
   var legCache = {};
   try { legCache = JSON.parse(localStorage.getItem(LEGS_KEY) || '{}') || {}; } catch (e) {}
 
-  var ui = { tab: 'sd', undoOrder: null, linkOpen: null, linkEdit: null, showLog: false, adding: false, admin: false, adminOpen: false, share: false, sel: null, editing: null, editingExp: null, locFor: null, confirm: null, msg: '', importText: '' };
+  var ui = { tab: 'sd', albumEdit: null, undoOrder: null, linkOpen: null, linkEdit: null, showLog: false, adding: false, admin: false, adminOpen: false, share: false, sel: null, editing: null, editingExp: null, locFor: null, confirm: null, msg: '', importText: '' };
   try { ui.admin = sessionStorage.getItem(ADMIN_KEY) === '1'; } catch (e) {}
-  try { var savedTab = localStorage.getItem(TAB_KEY); if (savedTab && (savedTab === 'costs' || cityById(savedTab))) ui.tab = savedTab; } catch (e) {}
+  try { var savedTab = localStorage.getItem(TAB_KEY); if (savedTab && (savedTab === 'costs' || savedTab === 'photos' || cityById(savedTab))) ui.tab = savedTab; } catch (e) {}
 
   function save() {
     if (CLOUD.on) { if (CLOUD.state === 'ready') pushCloud(); return; }
@@ -587,6 +590,11 @@ if (typeof module !== 'undefined') module.exports = Core;
       data.log.forEach(function (o) { synced.log[o.id] = stable(body(o)); });
       softRender();
     }, function () {}));
+    CLOUD.unsub.push(fs.onSnapshot(fs.collection(db, 'trips', 'main', 'albums'), function (snap) {
+      CLOUD.albums = {};
+      snap.docs.forEach(function (d) { CLOUD.albums[d.id] = d.data(); });
+      softRender();
+    }, function () {}));
     CLOUD.unsub.push(fs.onSnapshot(fs.collection(db, 'trips', 'main', 'deleted'), function (snap) {
       CLOUD.deleted = {};
       snap.docs.forEach(function (d) { CLOUD.deleted[d.id] = 1; });
@@ -614,6 +622,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       snap.docs.forEach(function (d) { CLOUD.members[d.id] = d.data(); });
       var mine = CLOUD.members[user.uid];
       CLOUD.person = mine && isPerson(mine.person) ? mine.person : '';
+
       me = CLOUD.person;
       if (!CLOUD.person) { CLOUD.state = 'pickme'; render(); return; }
       if (CLOUD.state !== 'ready') { CLOUD.state = 'ready'; listen(); }
@@ -1025,13 +1034,13 @@ if (typeof module !== 'undefined') module.exports = Core;
     var tip = w.mode === 'forecast' ? 'Forecast ' + when + (row[2] !== null && row[2] !== undefined ? ', ' + row[2] + '% chance of rain' : '')
       : w.mode === 'past' ? 'Weather ' + when
       : 'Based on the same date last year ' + when + '. The real forecast replaces it about 16 days before.';
-    return { icon: look[0], label: look[1], temp: Math.round(row[0]), rain: w.mode === 'forecast' && row[2] >= 20 ? row[2] : null, tip: tip };
+    return { icon: look[0], label: look[1], temp: Math.round(row[0]), rain: w.mode === 'forecast' && row[2] >= 20 ? row[2] : null, tip: look[1] + '. ' + tip };
   }
   function wxInner(p) {
     var x = wxInfo(p);
     if (!x) return '';
     return '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">' + WX_ICONS[x.icon] + '</svg>' +
-      '<b class="wxt">' + x.temp + '°C</b><span class="wxl">' + esc(x.label) + (x.rain ? ' · ' + x.rain + '% rain' : '') + '</span>';
+      '<b class="wxt">' + x.temp + '°C</b>';
   }
   function fmtClock(t) { var m = toMin(t), h = Math.floor(m / 60), mm = m % 60; return ((h + 11) % 12 + 1) + (mm ? ':' + String(mm).padStart(2, '0') : '') + ' ' + (h < 12 ? 'AM' : 'PM'); }
   function wxHTML(p) {
@@ -1215,7 +1224,8 @@ if (typeof module !== 'undefined') module.exports = Core;
           (done < need.length ? ' · still to book: ' + esc(need.filter(function (x) { return !x.booked; }).map(function (x) { return x.name; }).join(', ')) : '') + '</div>' : '';
       })() +
       '<div class="sketch">' + (useRealMap() ? '<div id="map-slot" class="mapslot"></div>' + farChips(groups(list).far) : sketch(list)) + '</div>' +
-      (ui.undoOrder && ui.undoOrder.city === c.id ? '<div class="note row between"><span>' + esc(ui.undoOrder.text) + '</span><button type="button" class="link" data-act="undo-order">Undo</button></div>' : '');
+      (list.some(function (x) { return x.prevOrder; }) ? '<div class="note row between"><span>This order came from Shortest order. The order from before is saved.</span>' +
+        '<span class="row"><button type="button" class="link" data-act="undo-order">Restore previous order</button><button type="button" class="link muted" data-act="keep-order">Keep this order</button></span></div>' : '');
     h += '<div class="total" id="route-total">' + totalText(list) + '</div>' +
       (list.length > 10 ? '<div class="sub">The Google Maps route covers the first 10 stops.</div>' : '') +
       '<div class="sub">Drive distances come from OpenStreetMap road routing when the page can reach it. Ones marked "estimate" are straight-line distance with a road allowance.</div></section>';
@@ -1260,6 +1270,29 @@ if (typeof module !== 'undefined') module.exports = Core;
     return h;
   }
 
+  function albumRow(id, title, who) {
+    var a = CLOUD.albums && CLOUD.albums[id], mineRow = id === 'group', editing = ui.albumEdit === id;
+    var h = '<li class="albumrow">' + (who ? avatar(who, 34) : '<span class="pic none grp" style="width:34px;height:34px" aria-hidden="true">' + GROUP_ICON + '</span>') +
+      '<div class="main"><div class="ttl">' + esc(title) + '</div>' +
+      (a && a.url ? '<div class="sub">' + esc(hostOf(a.url)) + (a.by && a.by !== who ? ' · added by ' + esc(person(a.by)) : '') + '</div>' : '<div class="sub">No album link yet</div>') + '</div>';
+    if (editing) {
+      h += '<form class="albumform" data-id="' + id + '"><input id="album-' + id + '" class="grow" inputmode="url" placeholder="https://photos.app.goo.gl/…" value="' + esc(a && a.url || '') + '" aria-label="Album link for ' + esc(title) + '">' +
+        '<button class="primary" type="submit">Save</button><button type="button" class="link" data-act="album-cancel">Cancel</button><div class="err" data-err hidden style="flex-basis:100%"></div></form>';
+    } else {
+      h += '<div class="row">' + (a && a.url ? '<a class="btn primary" href="' + esc(a.url) + '" target="_blank" rel="noopener">Open album</a>' : '') +
+        (mineRow ? '<button type="button" data-act="album-edit" data-id="' + id + '">' + (a && a.url ? 'Change' : '+ Add link') + '</button>' : '') +
+        (mineRow && a && a.url ? '<button type="button" class="link danger" data-act="album-remove" data-id="' + id + '">Remove</button>' : '') + '</div>';
+    }
+    return h + '</li>';
+  }
+  function photosTab() {
+    if (!CLOUD.on || CLOUD.state !== 'ready') {
+      return '<section class="card"><h2 class="pagehead">Photos</h2><p class="sub" style="margin:0">The shared photos link is on the signed-in trip site. Open it from the GitHub link and sign in with Google.</p></section>';
+    }
+    return '<section class="card"><h2 class="pagehead">Photos</h2>' +
+      '<p class="sub" style="margin:0">One shared Google Photos album for the whole group. To make one: in Google Photos, create an album, tap Share, turn on the link, and paste it here. Everyone can then open it and add their photos.</p>' +
+      '<ul class="list albums">' + albumRow('group', 'Group photos', '') + '</ul></section>';
+  }
   function costsTab() {
     return '<section class="card splitwise sw-only"><h2 class="pagehead">Expenses</h2>' +
       '<p class="sub" style="margin:0">The group tracks shared costs in Splitwise. Add every cost there so there is one set of numbers and Splitwise works out who owes whom.</p>' +
@@ -1270,6 +1303,16 @@ if (typeof module !== 'undefined') module.exports = Core;
     var when = '';
     try { when = new Date(l.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (e) {}
     return '<li><div class="main"><div><b>' + esc(l.who ? person(l.who) : 'Someone') + '</b> ' + esc(l.act) + ' ' + esc(l.text) + '</div><div class="sub">' + esc(when) + '</div></div></li>';
+  }
+  function photoOf(pid) {
+    if (!CLOUD.on) return '';
+    var k = Object.keys(CLOUD.members).find(function (u) { return CLOUD.members[u].person === pid && CLOUD.members[u].photo; });
+    return k ? CLOUD.members[k].photo : '';
+  }
+  function avatar(pid, size) {
+    var ph = photoOf(pid), n = person(pid);
+    return ph ? '<img class="pic" src="' + esc(ph) + '" alt="" width="' + size + '" height="' + size + '" referrerpolicy="no-referrer" loading="lazy">'
+      : '<span class="pic none" style="width:' + size + 'px;height:' + size + 'px;font-size:' + Math.round(size * 0.45) + 'px" aria-hidden="true">' + esc(n.charAt(0)) + '</span>';
   }
   function activityHTML() {
     var log = data.log.slice().reverse();
@@ -1363,10 +1406,11 @@ if (typeof module !== 'undefined') module.exports = Core;
     var spent = data.expenses.reduce(function (a, e) { return a + e.amount; }, 0);
     h += '<div class="tabs" role="tablist">' + CITIES.map(function (c) {
       return '<button class="tab" role="tab" data-act="tab" data-id="' + c.id + '" aria-selected="' + (ui.tab === c.id) + '">' + esc(c.name) + ' <span class="count">' + cityPlaces(c.id).length + '</span></button>';
-    }).join('') + '<button class="tab" role="tab" data-act="tab" data-id="costs" aria-selected="' + (ui.tab === 'costs') + '">Expenses</button></div>';
+    }).join('') + '<button class="tab" role="tab" data-act="tab" data-id="costs" aria-selected="' + (ui.tab === 'costs') + '">Expenses</button>' +
+      '<button class="tab" role="tab" data-act="tab" data-id="photos" aria-selected="' + (ui.tab === 'photos') + '">Photos</button></div>';
 
     var c = cityById(ui.tab);
-    h += c ? cityTab(c) : costsTab();
+    h += c ? cityTab(c) : ui.tab === 'photos' ? photosTab() : costsTab();
     app.innerHTML = h;
     if (c) fetchLegs(cityPlaces(c.id));
     if (c) wxQueueFor(cityPlaces(c.id));
@@ -1431,19 +1475,42 @@ if (typeof module !== 'undefined') module.exports = Core;
     else if (a === 'admin-close') ui.adminOpen = false;
     else if (a === 'optimize') {
       var cl = cityPlaces(ui.tab), oldIds = cl.map(function (p) { return p.id; }), newIds = shortestOrder(ui.tab);
-      if (oldIds.join() === newIds.join()) { ui.undoOrder = null; ui.msg = 'This is already the shortest order.'; }
+      if (oldIds.join() === newIds.join()) { ui.msg = 'This is already the shortest order.'; }
       else {
         var before = driveMiles(cl);
+        /* Remember the order from before, unless an earlier one is still waiting to be restored. */
+        if (!cl.some(function (p) { return p.prevOrder; })) cl.forEach(function (p, i) { p.prevOrder = i + 1; });
         reorderCity(ui.tab, newIds);
         var after = driveMiles(cityPlaces(ui.tab));
-        ui.undoOrder = { city: ui.tab, ids: oldIds, text: 'Reordered for the shortest drive: about ' + Math.round(after) + ' mi instead of ' + Math.round(before) + ' mi.' };
+        ui.msg = 'Reordered for the shortest drive: about ' + Math.round(after) + ' mi instead of ' + Math.round(before) + ' mi. Restore previous order puts it back.';
         logIt('reordered', cityName(ui.tab) + ' for the shortest drive');
         LEAF.fitKey = '';
         save();
       }
     }
     else if (a === 'undo-order') {
-      if (ui.undoOrder) { reorderCity(ui.undoOrder.city, ui.undoOrder.ids); logIt('undid', 'the shortest-order change in ' + cityName(ui.undoOrder.city)); ui.undoOrder = null; save(); }
+      var rl = cityPlaces(ui.tab);
+      if (rl.some(function (p) { return p.prevOrder; })) {
+        var ids = rl.slice().sort(function (x, y) { return (x.prevOrder || 1e6) - (y.prevOrder || 1e6); }).map(function (p) { return p.id; });
+        rl.forEach(function (p) { delete p.prevOrder; });
+        reorderCity(ui.tab, ids);
+        logIt('restored', 'the previous order in ' + cityName(ui.tab));
+        LEAF.fitKey = '';
+        save();
+      }
+    }
+    else if (a === 'album-edit') ui.albumEdit = d.id;
+    else if (a === 'album-cancel') ui.albumEdit = null;
+    else if (a === 'album-remove') {
+      if (d.id !== 'group') return;
+      CLOUD.fs.deleteDoc(CLOUD.fs.doc(CLOUD.db, 'trips', 'main', 'albums', d.id)).then(function () {
+        logIt('removed', 'the group photos link'); save();
+      }, function (err) { ui.msg = 'Could not remove it (' + (err.code || err.message) + ').'; render(); });
+      return;
+    }
+    else if (a === 'keep-order') {
+      cityPlaces(ui.tab).forEach(function (p) { delete p.prevOrder; });
+      save();
     }
     else if (a === 'use-as-stay') {
       var src = placeById(d.id), stv = src && stayOf(src.city);
@@ -1583,6 +1650,13 @@ if (typeof module !== 'undefined') module.exports = Core;
     }).catch(function () { say('The screenshot could not be read here. Type the details in below.'); });
   }
 
+  app.addEventListener('error', function (ev) {
+    var im = ev.target;
+    if (im && im.tagName === 'IMG' && im.dataset.ini) {
+      var i = document.createElement('i'); i.className = 'ini'; i.textContent = im.dataset.ini; im.replaceWith(i);
+    }
+  }, true);
+
   app.addEventListener('change', function (ev) {
     var el = ev.target;
     if (el.id === 'place-shot' && el.files && el.files[0]) { readShot(el.files[0]); return; }
@@ -1613,6 +1687,16 @@ if (typeof module !== 'undefined') module.exports = Core;
         try { sessionStorage.setItem(ADMIN_KEY, '1'); } catch (e) {}
         render();
       }, function () { fail('This browser cannot check the PIN here.'); });
+      return;
+    }
+
+    if (form.classList.contains('albumform')) {
+      var aid = form.dataset.id, araw = val('album-' + aid), alink = cleanLink(araw);
+      if (!alink) return fail('Paste the album link, starting with https://');
+      if (aid !== 'group') return;
+      CLOUD.fs.setDoc(CLOUD.fs.doc(CLOUD.db, 'trips', 'main', 'albums', aid), { url: alink, by: me, at: new Date().toISOString() }).then(function () {
+        logIt('set', 'the group photos link'); ui.albumEdit = null; save(); render();
+      }, function (err) { fail('Could not save it (' + (err.code || err.message) + ').'); });
       return;
     }
 
