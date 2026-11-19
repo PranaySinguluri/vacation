@@ -3,6 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1A5FD6">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Trip Wallet">
 <title>Trip Wallet</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap">
 <style>
@@ -45,6 +51,35 @@ button:disabled { opacity: .35; cursor: default }
 .brand h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.02em }
 .travelers { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px }
 .av { font-size: 12px; font-weight: 600; background: var(--primary-soft); color: var(--primary); border-radius: 999px; padding: 2px 9px }
+.av { border: 0; cursor: pointer; font-family: inherit; line-height: 1.5 }
+.av.me { background: var(--primary); color: var(--primary-ink) }
+.by { font-size: 12px; color: var(--muted) }
+.sidetop { display: flex; gap: 6px; align-items: center }
+.trash { border: 0; background: var(--owe-soft); color: var(--owe); border-radius: 8px; padding: 5px 7px; opacity: 0; transition: opacity .15s }
+.stop:hover .trash, .stop:focus-within .trash, .item:hover .trash, .item:focus-within .trash, .trash:focus-visible { opacity: 1 }
+@media (hover: none) { .trash { opacity: 1 } }
+@media (prefers-reduced-motion: reduce) { .trash { transition: none } }
+.pagehead { font-size: 26px; font-weight: 800; letter-spacing: -0.02em }
+.daystrip { display: flex; flex-wrap: wrap; gap: 6px }
+.daychip { flex-direction: column; gap: 0; padding: 6px 10px; min-width: 64px; font-size: 13px; line-height: 1.25 }
+.daychip small { font-size: 11px; font-weight: 500 }
+.daychip.has { background: var(--primary-soft); border-color: transparent; color: var(--primary) }
+.daychip.none { border-style: dashed; color: var(--muted) }
+.day.emptyday { border-style: dashed; background: transparent }
+.items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column }
+.item { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line) }
+.items > .item:first-child, .list.drives > .item:first-child { border-top: 0 }
+.items .leg + .item { border-top: 0 }
+.item .main { flex: 1 1 200px; min-width: 0 }
+.tm { flex: none; width: 74px; font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; padding-top: 1px }
+.tm.any { color: var(--muted); font-weight: 500 }
+.ttlbtn { border: 0; background: none; padding: 0; font-weight: 700; text-align: left; color: var(--ink) }
+.ttlbtn:hover { color: var(--primary); text-decoration: underline }
+.item .ttl { display: flex; align-items: center; gap: 6px; font-weight: 700 }
+.item .ttl svg { color: var(--primary); flex: none }
+.ileg { padding-left: 86px }
+.ileg .line { margin-left: -50px; margin-right: 36px }
+.driveform { border: 1px dashed var(--line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 10px }
 .adminpill { font-size: 12px; font-weight: 700; background: var(--sun); color: var(--sun-ink); border-radius: 999px; padding: 4px 10px }
 
 .tabs { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 6px }
@@ -130,12 +165,14 @@ button:disabled { opacity: .35; cursor: default }
   .cityhead h2 { font-size: 22px }
   .stop { flex-wrap: wrap }
   .side { flex-direction: row; flex-wrap: wrap; align-items: center; width: 100%; padding-left: 74px }
+  .tm { width: 64px }
+  .ileg { padding-left: 76px }
 }
 </style>
 </head>
 <body>
 <div id="app"></div>
-<footer class="version">v4-2026-11-18 20:48 PST</footer>
+<footer class="version">v5-2026-11-18 21:00 PST</footer>
 
 <script id="core">
 /* Pure logic: money in integer cents, distances, link parsing, share codes. */
@@ -242,6 +279,22 @@ if (typeof module !== 'undefined') module.exports = Core;
   var SEARCH_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
   /* Search results are ranked near the city whose tab is open. */
   var CENTERS = { sd: [32.7157, -117.1611], la: [34.0522, -118.2437], lv: [36.1699, -115.1398], az: [36.2, -112.0] };
+  var ME_KEY = 'tripwallet.me';
+  var TRIP_DAYS = ['2026-12-24', '2026-12-25', '2026-12-26', '2026-12-27', '2026-12-28', '2026-12-29', '2026-12-30', '2026-12-31'];
+  var NIGHTS = { '2026-12-24': 'San Diego motel', '2026-12-25': 'San Diego motel', '2026-12-26': 'Los Angeles motel', '2026-12-27': 'Los Angeles motel', '2026-12-31': 'Las Vegas motel' };
+  /* Start and end points for drives between cities. */
+  var HUBS = {
+    sd: { name: 'San Diego', lat: 32.7157, lng: -117.1611 },
+    la: { name: 'Los Angeles', lat: 34.0522, lng: -118.2437 },
+    lv: { name: 'Las Vegas', lat: 36.1147, lng: -115.1728 },
+    gc: { name: 'Grand Canyon South Rim', lat: 36.0544, lng: -112.1401 },
+    pg: { name: 'Page (Antelope Canyon)', lat: 36.9147, lng: -111.4558 }
+  };
+  var HUB_ORDER = ['sd', 'la', 'lv', 'gc', 'pg'];
+  /* A first guess at the drives, worked out from the motel nights. Anyone can change them. */
+  var SEED_DRIVES = [['d-sd-la', 'sd', 'la', '2026-12-26', '09:00'], ['d-la-gc', 'la', 'gc', '2026-12-28', '07:00'], ['d-gc-pg', 'gc', 'pg', '2026-12-30', '09:00'], ['d-pg-lv', 'pg', 'lv', '2026-12-31', '09:00']];
+  var TRASH = '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  var CAR = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 16h14M6 16l1.5-5.5A2 2 0 0 1 9.4 9h5.2a2 2 0 0 1 1.9 1.5L18 16M5 16v3M19 16v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="16" r="1.4" fill="currentColor"/><circle cx="16" cy="16" r="1.4" fill="currentColor"/></svg>';
   var SPLITWISE_URL = 'https://secure.splitwise.com/#/groups/105847378';
   var ADMIN_HASH = 'df174295019980fadcb15ac944bdde3b3fc5aff2e92a0906afbc17a1a005044a';
   var PEOPLE = [['A', 'Akshaya'], ['D', 'DivyaTheja'], ['H', 'Haneela'], ['M', 'Megha'], ['P', 'Pranay'], ['R', 'Ramya'], ['S', 'Sahithi']]
@@ -323,13 +376,15 @@ if (typeof module !== 'undefined') module.exports = Core;
   function validExpense(e) {
     return !!(e && e.id && typeof e.desc === 'string' && Number.isInteger(e.amount) && e.amount > 0 && isPerson(e.paidBy) && Array.isArray(e.split) && e.split.length && e.split.every(isPerson));
   }
-  function cleanExpense(e) { return { id: String(e.id), desc: e.desc.slice(0, 80), amount: e.amount, paidBy: e.paidBy, split: e.split.slice(), date: e.date || '' }; }
+  function cleanExpense(e) { return { id: String(e.id), desc: e.desc.slice(0, 80), amount: e.amount, paidBy: e.paidBy, split: e.split.slice(), date: e.date || '', by: isPerson(e.by) ? e.by : '', at: String(e.at || '') }; }
+  function validDrive(d) { return !!(d && d.id && HUBS[d.from] && HUBS[d.to] && d.from !== d.to); }
+  function cleanDrive(d) { return { id: String(d.id), from: d.from, to: d.to, date: d.date || '', time: d.time || '', by: isPerson(d.by) ? d.by : '', at: String(d.at || '') }; }
   function validPayment(p) { return !!(p && p.id && Number.isInteger(p.amount) && p.amount > 0 && isPerson(p.from) && isPerson(p.to)); }
   function cleanPayment(p) { return { id: String(p.id), from: p.from, to: p.to, amount: p.amount, date: p.date || '' }; }
   function cleanPlace(p) {
     var ok = hasLL(p);
     return { id: String(p.id), city: p.city, name: String(p.name || '').slice(0, 80), lat: ok ? p.lat : null, lng: ok ? p.lng : null,
-      note: String(p.note || '').slice(0, 140), date: p.date || '', time: p.time || '', q: p.q || '', pin: !!p.pin };
+      note: String(p.note || '').slice(0, 140), date: p.date || '', time: p.time || '', q: p.q || '', pin: !!p.pin, by: isPerson(p.by) ? p.by : '', at: String(p.at || '') };
   }
 
   /* Brings over what someone already entered in the previous version of the page. */
@@ -357,13 +412,27 @@ if (typeof module !== 'undefined') module.exports = Core;
   try { data = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
   if (!data || data.v !== 3 || !Array.isArray(data.places)) { data = seedData(); migrateV2(data); }
   data.expenses = data.expenses || []; data.payments = data.payments || []; data.deleted = data.deleted || [];
+  if (!Array.isArray(data.drives)) data.drives = SEED_DRIVES.filter(function (s) { return data.deleted.indexOf(s[0]) < 0; }).map(function (s) { return { id: s[0], from: s[1], to: s[2], date: s[3], time: s[4], by: '', at: '' }; });
+  if (!Array.isArray(data.log)) data.log = [];
+
+  /* Who is using this browser, so the activity log can say who added or removed what. */
+  var me = '';
+  try { me = localStorage.getItem(ME_KEY) || ''; } catch (e) {}
+  if (!isPerson(me)) me = '';
+  function stamp(o) { o.by = me; o.at = new Date().toISOString(); return o; }
+  function logIt(act, text) {
+    data.log.push({ id: uid(), at: new Date().toISOString(), who: me, act: act, text: String(text).slice(0, 140) });
+    if (data.log.length > 500) data.log = data.log.slice(-500);
+  }
+  function cityName(id) { var c = cityById(id); return c ? c.name : ''; }
+  function driveName(d) { return HUBS[d.from].name + ' to ' + HUBS[d.to].name; }
 
   var legCache = {};
   try { legCache = JSON.parse(localStorage.getItem(LEGS_KEY) || '{}') || {}; } catch (e) {}
 
-  var ui = { tab: 'sd', adding: false, admin: false, adminOpen: false, share: false, sel: null, editing: null, editingExp: null, locFor: null, confirm: null, msg: '', importText: '' };
+  var ui = { tab: 'plan', addingDrive: false, logAll: false, adding: false, admin: false, adminOpen: false, share: false, sel: null, editing: null, editingExp: null, locFor: null, confirm: null, msg: '', importText: '' };
   try { ui.admin = sessionStorage.getItem(ADMIN_KEY) === '1'; } catch (e) {}
-  try { var savedTab = localStorage.getItem(TAB_KEY); if (savedTab && (savedTab === 'costs' || cityById(savedTab))) ui.tab = savedTab; } catch (e) {}
+  try { var savedTab = localStorage.getItem(TAB_KEY); if (savedTab && (savedTab === 'costs' || savedTab === 'plan' || cityById(savedTab))) ui.tab = savedTab; } catch (e) {}
 
   function save() { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {} }
   function saveLegs() { try { localStorage.setItem(LEGS_KEY, JSON.stringify(legCache)); } catch (e) {} }
@@ -372,13 +441,13 @@ if (typeof module !== 'undefined') module.exports = Core;
   function standalone() { try { return window.top === window.self && /^https?:$/.test(location.protocol); } catch (e) { return false; } }
 
   /* ---------- Merging codes from friends ---------- */
-  function exportData() { return { v: 3, places: data.places, expenses: data.expenses, payments: data.payments, deleted: data.deleted }; }
+  function exportData() { return { v: 3, places: data.places, expenses: data.expenses, payments: data.payments, drives: data.drives, log: data.log, deleted: data.deleted }; }
   function merge(inc) {
     if (!inc || inc.v !== 3 || !Array.isArray(inc.places)) throw new Error('bad code');
     var dead = {};
     data.deleted.concat(Array.isArray(inc.deleted) ? inc.deleted : []).forEach(function (id) { dead[id] = 1; });
     data.deleted = Object.keys(dead);
-    var count = { places: 0, expenses: 0 }, local = {};
+    var count = { places: 0, expenses: 0, drives: 0 }, local = {};
     data.places.forEach(function (p) { local[p.id] = p; });
     inc.places.forEach(function (p) {
       if (!p || !p.id || dead[p.id] || !cityById(p.city) || !p.name) return;
@@ -396,6 +465,17 @@ if (typeof module !== 'undefined') module.exports = Core;
     (inc.payments || []).forEach(function (p) { if (validPayment(p) && !haveP[p.id] && !dead[p.id]) data.payments.push(cleanPayment(p)); });
     data.expenses = data.expenses.filter(function (e) { return !dead[e.id]; });
     data.payments = data.payments.filter(function (p) { return !dead[p.id]; });
+    var haveD = {};
+    data.drives.forEach(function (d) { haveD[d.id] = 1; });
+    (inc.drives || []).forEach(function (d) { if (validDrive(d) && !haveD[d.id] && !dead[d.id]) { data.drives.push(cleanDrive(d)); count.drives++; } });
+    data.drives = data.drives.filter(function (d) { return !dead[d.id]; });
+    var haveL = {};
+    data.log.forEach(function (l) { haveL[l.id] = 1; });
+    (inc.log || []).forEach(function (l) {
+      if (l && l.id && !haveL[l.id] && typeof l.text === 'string') data.log.push({ id: String(l.id), at: String(l.at || ''), who: isPerson(l.who) ? l.who : '', act: String(l.act || '').slice(0, 20), text: l.text.slice(0, 140) });
+    });
+    data.log.sort(function (a, b) { return (a.at || '').localeCompare(b.at || ''); });
+    if (data.log.length > 500) data.log = data.log.slice(-500);
     save();
     return count;
   }
@@ -403,7 +483,8 @@ if (typeof module !== 'undefined') module.exports = Core;
     var parts = [];
     if (c.places) parts.push(c.places + (c.places === 1 ? ' stop' : ' stops'));
     if (c.expenses) parts.push(c.expenses + (c.expenses === 1 ? ' expense' : ' expenses'));
-    return parts.length ? 'Merged. Added ' + parts.join(' and ') + '.' : 'Merged. Nothing new in that code.';
+    if (c.drives) parts.push(c.drives + (c.drives === 1 ? ' drive' : ' drives'));
+    return parts.length ? 'Merged. Added ' + parts.join(', ') + '.' : 'Merged. Nothing new in that code.';
   }
   try {
     if (/^#t-/.test(location.hash)) {
@@ -423,13 +504,13 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   function fmtMin(m) { return m < 60 ? m + ' min' : Math.floor(m / 60) + ' hr' + (m % 60 ? ' ' + (m % 60) + ' min' : ''); }
   function fmtMi(mi) { return (mi < 10 ? mi.toFixed(1) : String(Math.round(mi))) + ' mi'; }
-  function legHTML(a, b, na, nb) {
+  function legHTML(a, b, la, lb) {
     var l = leg(a, b);
-    if (!l) return '<span class="line"></span><span>Distance shows once both stops have a location</span>';
+    if (!l) return '<span class="line"></span><span>Distance shows once both ends have a location</span>';
     var warn = '';
     if (a.date && a.date === b.date && toMin(a.time) !== null && toMin(b.time) !== null) {
       var gap = toMin(b.time) - toMin(a.time);
-      if (gap < 0) warn = 'Stop ' + nb + ' is set earlier than stop ' + na + ' on the same day.';
+      if (gap < 0) warn = lb.charAt(0).toUpperCase() + lb.slice(1) + ' is set earlier than ' + la + ' on the same day.';
       else if (gap < l.min) warn = 'Only ' + fmtMin(gap) + ' between these stops, but the drive takes about ' + fmtMin(l.min) + '.';
     }
     return '<span class="line"></span><span><b>' + fmtMi(l.mi) + '</b> · about ' + fmtMin(l.min) + ' drive' + (l.road ? '' : ' <span class="est" title="Straight-line distance with a road allowance">estimate</span>') + '</span>' +
@@ -440,10 +521,22 @@ if (typeof module !== 'undefined') module.exports = Core;
     for (var i = 1; i < list.length; i++) { var l = leg(list[i - 1], list[i]); if (l) { mi += l.mi; min += l.min; n++; } }
     return n ? 'Driving in this order: about ' + fmtMi(mi) + ' and ' + fmtMin(min) + ' in total' : '';
   }
+  function endpoint(key) { return key.indexOf('h:') === 0 ? HUBS[key.slice(2)] : placeById(key.slice(2)); }
+  function driveText(a, b) {
+    var l = leg(a, b);
+    return '<b>' + fmtMi(l.mi) + '</b> · about ' + fmtMin(l.min) + ' drive' + (l.road ? '' : ' <span class="est">estimate</span>');
+  }
   function refreshLegs() {
     Array.prototype.forEach.call(document.querySelectorAll('.leg[data-a]'), function (el) {
       var a = placeById(el.dataset.a), b = placeById(el.dataset.b);
       if (a && b) el.innerHTML = legHTML(a, b, el.dataset.na, el.dataset.nb);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.leg[data-ea]'), function (el) {
+      var a = endpoint(el.dataset.ea), b = endpoint(el.dataset.eb);
+      if (a && b) el.innerHTML = legHTML(a, b, el.dataset.na, el.dataset.nb);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.drivedist'), function (el) {
+      el.innerHTML = driveText(HUBS[el.dataset.from], HUBS[el.dataset.to]);
     });
     var tot = document.getElementById('route-total');
     if (tot && cityById(ui.tab)) tot.textContent = totalText(cityPlaces(ui.tab));
@@ -544,8 +637,9 @@ if (typeof module !== 'undefined') module.exports = Core;
     var r = results[i];
     if (!r) return;
     if (cityPlaces(ui.tab).some(function (p) { return p.name.toLowerCase() === r.name.toLowerCase(); })) { setStatus(r.name + ' is already on the list.'); return; }
-    var np = { id: 'u-' + uid(), city: ui.tab, name: r.name.slice(0, 80), lat: r.lat, lng: r.lng, note: '', date: '', time: '', q: r.name + (r.where ? ', ' + r.where : ''), pin: false };
+    var np = stamp({ id: 'u-' + uid(), city: ui.tab, name: r.name.slice(0, 80), lat: r.lat, lng: r.lng, note: '', date: '', time: '', q: r.name + (r.where ? ', ' + r.where : ''), pin: false });
     data.places.push(np);
+    logIt('added', np.name + ' in ' + cityName(ui.tab));
     results = []; active = -1;
     ui.adding = false; ui.sel = np.id;
     ui.msg = 'Added ' + np.name + ' as stop ' + cityPlaces(ui.tab).length + '. Set its day and time on the stop.';
@@ -647,12 +741,17 @@ if (typeof module !== 'undefined') module.exports = Core;
     return '<div class="loc' + (finding ? ' finding' : '') + '">' + (finding ? 'Finding the location…' : 'Location not found.') +
       ' <button type="button" class="link" data-act="set-loc" data-id="' + p.id + '">Set location</button></div>';
   }
+  /* Shows on hover (always on touch screens). Only the admin can remove; others are asked to unlock. */
+  function trashBtn(id, name) {
+    return '<button type="button" class="trash" data-act="' + (ui.admin ? 'ask' : 'need-admin') + '" data-id="' + id + '" aria-label="Remove ' + esc(name) + '" title="Remove">' + TRASH + '</button>';
+  }
   function stopHTML(p, i, n) {
     var h = '<li class="stop' + (ui.sel === p.id ? ' sel' : '') + '" data-id="' + p.id + '">' +
       '<button type="button" class="grip" aria-label="Drag ' + esc(p.name) + ' to reorder">' + GRIP + '</button>' +
       '<div class="num">' + (i + 1) + '</div><div class="main">' +
       '<button type="button" class="title" data-act="select" data-id="' + p.id + '">' + esc(p.name) + '</button>' +
       (p.note ? '<div class="sub">' + esc(p.note) + '</div>' : '') + locLine(p) +
+      (p.by ? '<div class="by">Added by ' + esc(person(p.by)) + '</div>' : '') +
       '<div class="when"><input type="date" id="date-' + p.id + '" data-place="' + p.id + '" data-field="date" value="' + esc(p.date) + '" aria-label="Day for ' + esc(p.name) + '">' +
       '<input type="time" id="time-' + p.id + '" data-place="' + p.id + '" data-field="time" value="' + esc(p.time) + '" aria-label="Time for ' + esc(p.name) + '"></div>';
     if (ui.locFor === p.id) {
@@ -662,10 +761,10 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (ui.confirm === p.id) {
       h += '<div class="row"><span class="sub">Remove this stop?</span><button type="button" class="link danger" data-act="delete-place" data-id="' + p.id + '">Yes, remove</button><button type="button" class="link" data-act="cancel">Keep</button></div>';
     }
-    h += '</div><div class="side"><a class="btn chipbtn" href="' + mapURL(p) + '" target="_blank" rel="noopener">Google Maps</a>' +
+    h += '</div><div class="side"><div class="sidetop"><a class="btn chipbtn" href="' + mapURL(p) + '" target="_blank" rel="noopener">Google Maps</a>' + trashBtn(p.id, p.name) + '</div>' +
       '<div class="updown"><button type="button" data-act="move" data-id="' + p.id + '" data-dir="-1" aria-label="Move ' + esc(p.name) + ' up"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
       '<button type="button" data-act="move" data-id="' + p.id + '" data-dir="1" aria-label="Move ' + esc(p.name) + ' down"' + (i === n - 1 ? ' disabled' : '') + '>↓</button></div>' +
-      (ui.admin && ui.confirm !== p.id ? '<div><button type="button" class="link" data-act="edit-place" data-id="' + p.id + '">Edit</button><button type="button" class="link danger" data-act="ask" data-id="' + p.id + '">Remove</button></div>' : '') +
+      (ui.admin && ui.confirm !== p.id ? '<div><button type="button" class="link" data-act="edit-place" data-id="' + p.id + '">Edit</button></div>' : '') +
       '</div></li>';
     return h;
   }
@@ -706,12 +805,123 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (list.length) {
       h += '<ol class="stops" id="stops" data-city="' + c.id + '">';
       list.forEach(function (p, i) {
-        if (i) h += '<li class="leg" data-a="' + list[i - 1].id + '" data-b="' + p.id + '" data-na="' + i + '" data-nb="' + (i + 1) + '">' + legHTML(list[i - 1], p, i, i + 1) + '</li>';
+        if (i) h += '<li class="leg" data-a="' + list[i - 1].id + '" data-b="' + p.id + '" data-na="stop ' + i + '" data-nb="stop ' + (i + 1) + '">' + legHTML(list[i - 1], p, 'stop ' + i, 'stop ' + (i + 1)) + '</li>';
         h += stopHTML(p, i, list.length);
       });
       h += '</ol>';
     } else h += '<div class="card"><p class="empty">No stops in ' + esc(c.name) + ' yet. Use Add stop to add the first one.</p></div>';
 
+    return h;
+  }
+
+  function fmtTime(t) {
+    var m = toMin(t);
+    if (m === null) return '';
+    var h = Math.floor(m / 60), mm = m % 60;
+    return ((h + 11) % 12 + 1) + ':' + String(mm).padStart(2, '0') + ' ' + (h < 12 ? 'AM' : 'PM');
+  }
+  function dayItems(day) {
+    var items = data.places.filter(function (p) { return p.date === day; }).map(function (p) { return { kind: 'stop', t: toMin(p.time), p: p }; })
+      .concat(data.drives.filter(function (d) { return d.date === day; }).map(function (d) { return { kind: 'drive', t: toMin(d.time), d: d }; }));
+    return items.sort(function (x, y) {
+      var a = x.t === null ? 1e4 : x.t, b = y.t === null ? 1e4 : y.t;
+      return a - b || (x.kind === 'drive' ? -1 : y.kind === 'drive' ? 1 : 0);
+    });
+  }
+  function endKey(it, start) {
+    if (it.kind === 'drive') return 'h:' + (start ? it.d.from : it.d.to);
+    return hasLL(it.p) ? 'p:' + it.p.id : null;
+  }
+  function itemLabel(it) { return it.kind === 'drive' ? 'the drive to ' + HUBS[it.d.to].name : it.p.name; }
+  function dirURL(d) {
+    return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&origin=' + encodeURIComponent(HUBS[d.from].name) + '&destination=' + encodeURIComponent(HUBS[d.to].name);
+  }
+  function itemHTML(it) {
+    if (it.kind === 'drive') {
+      var d = it.d;
+      return '<li class="item drive"><div class="tm' + (it.t === null ? ' any' : '') + '">' + (fmtTime(d.time) || 'Any time') + '</div>' +
+        '<div class="main"><div class="ttl">' + CAR + esc(driveName(d)) + '</div><div class="sub drivedist" data-from="' + d.from + '" data-to="' + d.to + '">' + driveText(HUBS[d.from], HUBS[d.to]) + '</div></div>' +
+        '<a class="btn chipbtn" href="' + dirURL(d) + '" target="_blank" rel="noopener">Directions</a></li>';
+    }
+    var p = it.p, ids = cityPlaces(p.city).map(function (x) { return x.id; });
+    return '<li class="item"><div class="tm' + (it.t === null ? ' any' : '') + '">' + (fmtTime(p.time) || 'Any time') + '</div>' +
+      '<div class="main"><button type="button" class="ttlbtn" data-act="goto" data-city="' + p.city + '" data-id="' + p.id + '">' + esc(p.name) + '</button>' +
+      '<div class="sub">' + esc(cityName(p.city)) + ' · stop ' + (ids.indexOf(p.id) + 1) + (p.note ? ' · ' + esc(p.note) : '') + '</div></div>' +
+      '<a class="btn chipbtn" href="' + mapURL(p) + '" target="_blank" rel="noopener">Google Maps</a></li>';
+  }
+  function dayList(items) {
+    var h = '<ol class="items">';
+    items.forEach(function (it, i) {
+      if (i) {
+        var ka = endKey(items[i - 1], false), kb = endKey(it, true);
+        if (ka && kb && ka !== kb) {
+          var a = endpoint(ka), b = endpoint(kb), la = itemLabel(items[i - 1]), lb = itemLabel(it);
+          if (Core.miles(a, b) > 0.1) h += '<li class="leg ileg" data-ea="' + ka + '" data-eb="' + kb + '" data-na="' + esc(la) + '" data-nb="' + esc(lb) + '">' + legHTML(a, b, la, lb) + '</li>';
+        }
+      }
+      h += itemHTML(it);
+    });
+    return h + '</ol>';
+  }
+  function logLine(l) {
+    var when = '';
+    try { when = new Date(l.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (e) {}
+    return '<li><div class="main"><div><b>' + esc(l.who ? person(l.who) : 'Someone') + '</b> ' + esc(l.act) + ' ' + esc(l.text) + '</div><div class="sub">' + esc(when) + '</div></div></li>';
+  }
+  function planTab() {
+    var h = '', planned = 0, cards = '';
+    TRIP_DAYS.forEach(function (day) {
+      var items = dayItems(day);
+      if (items.length) planned++;
+      var stops = items.filter(function (x) { return x.kind === 'stop'; }).length, drives = items.length - stops;
+      var count = [stops ? stops + (stops === 1 ? ' stop' : ' stops') : '', drives ? drives + (drives === 1 ? ' drive' : ' drives') : ''].filter(Boolean).join(', ');
+      cards += '<section class="card day' + (items.length ? '' : ' emptyday') + '" id="day-' + day + '"><div class="row between"><div><h3>' + niceDate(day) + '</h3>' +
+        '<div class="sub">' + (NIGHTS[day] ? 'Night: ' + NIGHTS[day] : 'No stay booked for this night') + '</div></div>' +
+        '<span class="pill ' + (items.length ? 'pos' : 'zero') + '">' + (count || 'Nothing planned') + '</span></div>' +
+        (items.length ? dayList(items) : '<p class="empty">Nothing planned yet. Give stops this day in the city tabs, or add a drive.</p>') + '</section>';
+    });
+    var undated = CITIES.map(function (c) { return { c: c, n: cityPlaces(c.id).filter(function (p) { return !p.date; }).length }; }).filter(function (x) { return x.n; });
+    var undatedTotal = undated.reduce(function (a, x) { return a + x.n; }, 0);
+    h += '<section class="card"><div><h2 class="pagehead">Itinerary</h2><div class="sub">Dec 24 to 31. Stops show up here once they have a day.</div></div>' +
+      '<div class="daystrip">' + TRIP_DAYS.map(function (day) {
+        var n = dayItems(day).length, dt = new Date(+day.slice(0, 4), +day.slice(5, 7) - 1, +day.slice(8, 10));
+        return '<button type="button" class="daychip ' + (n ? 'has' : 'none') + '" data-act="jump" data-id="' + day + '">' + dt.toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + dt.getDate() + '<small>' + (n ? n + ' planned' : 'empty') + '</small></button>';
+      }).join('') + '</div>' +
+      '<div class="total">' + planned + ' of ' + TRIP_DAYS.length + ' days have plans' + (undatedTotal ? '. ' + undatedTotal + ' stops have no day yet.' : '.') + '</div>' +
+      (undated.length ? '<div class="chips">' + undated.map(function (x) { return '<button type="button" class="chip" data-act="tab" data-id="' + x.c.id + '">' + esc(x.c.name) + ': ' + x.n + ' without a day</button>'; }).join('') + '</div>' : '') +
+      '</section>';
+    h += cards;
+    var other = data.places.filter(function (p) { return p.date && TRIP_DAYS.indexOf(p.date) < 0; });
+    if (other.length) h += '<section class="card"><h3>Outside Dec 24 to 31</h3>' + dayList(other.map(function (p) { return { kind: 'stop', t: toMin(p.time), p: p }; })) + '</section>';
+
+    var drives = data.drives.slice().sort(function (a, b) { return ((a.date || '9') + (a.time || '99')).localeCompare((b.date || '9') + (b.time || '99')); });
+    h += '<section class="card" id="drives"><div class="row between"><div class="grow"><h3>Drives between cities</h3>' +
+      '<div class="sub">A first guess from the motel nights. Change the day and time to match your plan, or add your own.</div></div>' +
+      '<button type="button" class="primary" data-act="add-drive">+ Add drive</button></div>';
+    if (ui.addingDrive) {
+      var opts = function (sel) { return HUB_ORDER.map(function (k) { return '<option value="' + k + '"' + (k === sel ? ' selected' : '') + '>' + esc(HUBS[k].name) + '</option>'; }).join(''); };
+      h += '<form id="drive-form" class="driveform"><div class="row"><label class="field">From<select id="drive-from">' + opts('la') + '</select></label>' +
+        '<label class="field">To<select id="drive-to">' + opts('lv') + '</select></label>' +
+        '<label class="field">Day<input id="drive-date" type="date" min="2026-12-24" max="2026-12-31"></label>' +
+        '<label class="field">Leave at<input id="drive-time" type="time"></label></div><div class="err" data-err hidden></div>' +
+        '<div class="row"><button class="primary" type="submit">Add drive</button><button type="button" class="link" data-act="cancel-drive">Cancel</button></div></form>';
+    }
+    h += drives.length ? '<ul class="list drives">' + drives.map(function (d) {
+      return '<li class="item"><div class="main"><div class="ttl">' + CAR + esc(driveName(d)) + '</div><div class="sub drivedist" data-from="' + d.from + '" data-to="' + d.to + '">' + driveText(HUBS[d.from], HUBS[d.to]) + '</div>' +
+        '<div class="when"><input type="date" id="ddate-' + d.id + '" data-drive="' + d.id + '" data-field="date" value="' + esc(d.date) + '" aria-label="Day for ' + esc(driveName(d)) + '">' +
+        '<input type="time" id="dtime-' + d.id + '" data-drive="' + d.id + '" data-field="time" value="' + esc(d.time) + '" aria-label="Leave time for ' + esc(driveName(d)) + '"></div>' +
+        (d.by ? '<div class="by">Added by ' + esc(person(d.by)) + '</div>' : '') +
+        (ui.confirm === d.id ? '<div class="row"><span class="sub">Remove this drive?</span><button type="button" class="link danger" data-act="delete-drive" data-id="' + d.id + '">Yes, remove</button><button type="button" class="link" data-act="cancel">Keep</button></div>' : '') +
+        '</div><div class="sidetop"><a class="btn chipbtn" href="' + dirURL(d) + '" target="_blank" rel="noopener">Directions</a>' + trashBtn(d.id, driveName(d)) + '</div></li>';
+    }).join('') + '</ul>' : '<p class="empty">No drives yet.</p>';
+    h += '</section>';
+
+    var log = data.log.slice().reverse(), shown = ui.logAll ? log : log.slice(0, 15);
+    h += '<section class="card" id="activity"><h3>Activity</h3>' +
+      (log.length ? '<ul class="list">' + shown.map(logLine).join('') + '</ul>' +
+        (log.length > 15 ? '<div><button type="button" class="link" data-act="toggle-log">' + (ui.logAll ? 'Show fewer' : 'Show all ' + log.length) + '</button></div>' : '')
+        : '<p class="empty">Nothing yet. Adding and removing stops, drives and expenses shows up here with who did it.</p>') +
+      '<div class="sub">Shows changes made in this browser plus any merged from shared codes.</div></section>';
     return h;
   }
 
@@ -766,7 +976,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   function render() {
     pendingRender = false;
     var h = '<header class="appbar"><div class="brand"><div class="eyebrow">Group trip · Dec 24 to 31</div><h1>San Diego, LA and Las Vegas</h1>' +
-      '<div class="travelers">' + PEOPLE.map(function (p) { return '<span class="av">' + esc(p.name) + '</span>'; }).join('') + '</div></div>' +
+      '<div class="travelers">' + PEOPLE.map(function (p) { return '<button type="button" class="av' + (p.id === me ? ' me' : '') + '" data-act="set-me" data-id="' + p.id + '" aria-pressed="' + (p.id === me) + '" title="' + (p.id === me ? 'This is you' : 'Tap if this is you') + '">' + esc(p.name) + (p.id === me ? ' (you)' : '') + '</button>'; }).join('') + '</div></div>' +
       '<div class="row"><button data-act="toggle-share">Share</button>' +
       (ui.admin ? '<span class="adminpill">Admin</span><button class="link" data-act="lock">Lock</button>' : '<button data-act="admin-open">Admin</button>') + '</div></header>';
 
@@ -774,6 +984,10 @@ if (typeof module !== 'undefined') module.exports = Core;
       h += '<form class="card" id="admin-form"><h3>Admin sign-in</h3><p class="sub" style="margin:0">Only the admin can remove or edit stops and expenses. Everyone can add.</p>' +
         '<div class="row"><input id="admin-pin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN" aria-label="Admin PIN" style="width:140px">' +
         '<button class="primary" type="submit">Unlock</button><button type="button" class="link" data-act="admin-close">Cancel</button></div><div class="err" data-err hidden></div></form>';
+    }
+    if (!me) {
+      h += '<section class="card whoami"><h3>Who are you?</h3><p class="sub" style="margin:0">Tap your name so the activity log shows who added and removed things. You can change it later by tapping your name at the top.</p>' +
+        '<div class="chips">' + PEOPLE.map(function (p) { return '<button type="button" class="btn chipbtn" data-act="set-me" data-id="' + p.id + '">' + esc(p.name) + '</button>'; }).join('') + '</div></section>';
     }
     if (ui.msg) h += '<div class="note" role="status">' + esc(ui.msg) + '</div>';
     if (ui.share) {
@@ -789,14 +1003,22 @@ if (typeof module !== 'undefined') module.exports = Core;
     }
 
     var spent = data.expenses.reduce(function (a, e) { return a + e.amount; }, 0);
-    h += '<div class="tabs" role="tablist">' + CITIES.map(function (c) {
+    var plannedDays = TRIP_DAYS.filter(function (day) { return dayItems(day).length; }).length;
+    h += '<div class="tabs" role="tablist"><button class="tab" role="tab" data-act="tab" data-id="plan" aria-selected="' + (ui.tab === 'plan') + '">Itinerary <span class="count">' + plannedDays + '/' + TRIP_DAYS.length + '</span></button>' + CITIES.map(function (c) {
       return '<button class="tab" role="tab" data-act="tab" data-id="' + c.id + '" aria-selected="' + (ui.tab === c.id) + '">' + esc(c.name) + ' <span class="count">' + cityPlaces(c.id).length + '</span></button>';
     }).join('') + '<button class="tab" role="tab" data-act="tab" data-id="costs" aria-selected="' + (ui.tab === 'costs') + '">Expenses <span class="count">' + fmt(spent) + '</span></button></div>';
 
     var c = cityById(ui.tab);
-    h += c ? cityTab(c) : costsTab();
+    h += ui.tab === 'plan' ? planTab() : c ? cityTab(c) : costsTab();
     app.innerHTML = h;
     if (c) fetchLegs(cityPlaces(c.id));
+    if (ui.tab === 'plan') {
+      data.drives.forEach(function (d) { fetchLegs([HUBS[d.from], HUBS[d.to]]); });
+      Array.prototype.forEach.call(document.querySelectorAll('.leg[data-ea]'), function (el) {
+        var a = endpoint(el.dataset.ea), b = endpoint(el.dataset.eb);
+        if (a && b) fetchLegs([a, b]);
+      });
+    }
     geocodeMissing();
   }
 
@@ -808,7 +1030,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     data.places = data.places.filter(function (p) { return p.city !== cid; }).concat(moved);
     save();
   }
-  var ADMIN_ONLY = ['edit-place', 'delete-place', 'edit-expense', 'delete-expense', 'undo-pay', 'ask'];
+  var ADMIN_ONLY = ['edit-place', 'delete-place', 'edit-expense', 'delete-expense', 'undo-pay', 'ask', 'delete-drive'];
   function act(a, d) {
     if (ADMIN_ONLY.indexOf(a) >= 0 && !ui.admin) return;
     if (a !== 'ask') ui.confirm = null;
@@ -829,7 +1051,26 @@ if (typeof module !== 'undefined') module.exports = Core;
     else if (a === 'add-stop') { ui.adding = !(ui.adding || ui.editing); ui.editing = null; results = []; active = -1; searchSeq++; }
     else if (a === 'edit-place') { ui.editing = d.id; ui.adding = false; }
     else if (a === 'cancel-edit') { ui.adding = false; ui.editing = null; ui.editingExp = null; results = []; active = -1; searchSeq++; }
+    else if (a === 'set-me') { me = d.id; try { localStorage.setItem(ME_KEY, me); } catch (e) {} }
+    else if (a === 'need-admin') { ui.adminOpen = true; ui.msg = 'Only the admin can remove things. Unlock with the admin PIN, or ask Pranay.'; }
+    else if (a === 'goto') {
+      ui.tab = d.city; ui.sel = d.id; ui.adding = false; ui.editing = null; ui.locFor = null;
+      try { localStorage.setItem(TAB_KEY, d.city); } catch (e) {}
+    }
+    else if (a === 'jump') { var dayEl = document.getElementById('day-' + d.id); if (dayEl && dayEl.scrollIntoView) dayEl.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
+    else if (a === 'add-drive') ui.addingDrive = !ui.addingDrive;
+    else if (a === 'cancel-drive') ui.addingDrive = false;
+    else if (a === 'toggle-log') ui.logAll = !ui.logAll;
+    else if (a === 'delete-drive') {
+      var gone = data.drives.find(function (x) { return x.id === d.id; });
+      data.drives = data.drives.filter(function (x) { return x.id !== d.id; });
+      data.deleted.push(d.id);
+      if (gone) logIt('removed', 'the drive ' + driveName(gone) + (gone.date ? ' on ' + niceDate(gone.date) : ''));
+      save();
+    }
     else if (a === 'delete-place') {
+      var gp = placeById(d.id);
+      if (gp) logIt('removed', gp.name + ' in ' + cityName(gp.city));
       data.places = data.places.filter(function (p) { return p.id !== d.id; });
       data.deleted.push(d.id);
       if (ui.editing === d.id) ui.editing = null;
@@ -837,9 +1078,20 @@ if (typeof module !== 'undefined') module.exports = Core;
       save();
     }
     else if (a === 'edit-expense') ui.editingExp = d.id;
-    else if (a === 'delete-expense') { data.expenses = data.expenses.filter(function (e) { return e.id !== d.id; }); data.deleted.push(d.id); if (ui.editingExp === d.id) ui.editingExp = null; save(); }
-    else if (a === 'pay') { data.payments.push({ id: uid(), from: d.from, to: d.to, amount: +d.amount, date: today() }); save(); }
-    else if (a === 'undo-pay') { data.payments = data.payments.filter(function (p) { return p.id !== d.id; }); data.deleted.push(d.id); save(); }
+    else if (a === 'delete-expense') {
+      var ge = data.expenses.find(function (e) { return e.id === d.id; });
+      if (ge) logIt('removed', 'the expense ' + ge.desc + ' (' + fmt(ge.amount) + ')');
+      data.expenses = data.expenses.filter(function (e) { return e.id !== d.id; }); data.deleted.push(d.id); if (ui.editingExp === d.id) ui.editingExp = null; save(); }
+    else if (a === 'pay') {
+      data.payments.push({ id: uid(), from: d.from, to: d.to, amount: +d.amount, date: today() });
+      logIt('recorded', 'a payment: ' + person(d.from) + ' paid ' + person(d.to) + ' ' + fmt(+d.amount));
+      save();
+    }
+    else if (a === 'undo-pay') {
+      var gpay = data.payments.find(function (p) { return p.id === d.id; });
+      if (gpay) logIt('undid', 'a payment: ' + person(gpay.from) + ' paid ' + person(gpay.to) + ' ' + fmt(gpay.amount));
+      data.payments = data.payments.filter(function (p) { return p.id !== d.id; }); data.deleted.push(d.id); save();
+    }
     else if (a === 'toggle-share') ui.share = !ui.share;
     else if (a === 'admin-open') ui.adminOpen = true;
     else if (a === 'admin-close') ui.adminOpen = false;
@@ -856,6 +1108,8 @@ if (typeof module !== 'undefined') module.exports = Core;
     }
     render();
     if (a === 'add-stop' && ui.adding) { var nm = document.getElementById('place-name'); if (nm) nm.focus(); }
+    if (a === 'need-admin') { window.scrollTo(0, 0); var pinEl = document.getElementById('admin-pin'); if (pinEl) pinEl.focus(); }
+    if (a === 'goto') { var st = document.querySelector('.stop.sel'); if (st && st.scrollIntoView) st.scrollIntoView({ block: 'center' }); }
     if (a === 'edit-place' || a === 'edit-expense') {
       var f = document.getElementById(a === 'edit-place' ? 'place-form' : 'expense-form');
       if (f && f.scrollIntoView) f.scrollIntoView({ block: 'start' });
@@ -882,6 +1136,10 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (el.dataset && el.dataset.place) {
       var p = placeById(el.dataset.place);
       if (p) { p[el.dataset.field] = el.value; save(); refreshLegs(); }
+    }
+    else if (el.dataset && el.dataset.drive) {
+      var dr = data.drives.find(function (x) { return x.id === el.dataset.drive; });
+      if (dr) { dr[el.dataset.field] = el.value; save(); render(); }
     }
   });
 
@@ -928,13 +1186,26 @@ if (typeof module !== 'undefined') module.exports = Core;
         if (pll) { old.lat = pll.lat; old.lng = pll.lng; old.pin = true; delete old.geo; }
         else if (old.name !== name && !old.pin) { old.lat = null; old.lng = null; old.q = ''; delete old.geo; delete geoTried[old.id]; }
         Object.assign(old, rec);
+        logIt('edited', old.name + ' in ' + cityName(old.city));
         ui.editing = null;
       } else {
-        var np = Object.assign({ id: 'u-' + uid(), city: ui.tab, lat: pll ? pll.lat : null, lng: pll ? pll.lng : null, q: '', pin: !!pll }, rec);
+        var np = stamp(Object.assign({ id: 'u-' + uid(), city: ui.tab, lat: pll ? pll.lat : null, lng: pll ? pll.lng : null, q: '', pin: !!pll }, rec));
         data.places.push(np);
+        logIt('added', np.name + ' in ' + cityName(ui.tab));
         ui.sel = np.id;
         ui.adding = false;
       }
+      save(); render(); return;
+    }
+
+    if (form.id === 'drive-form') {
+      var from = val('drive-from'), to = val('drive-to'), dday = val('drive-date');
+      if (!HUBS[from] || !HUBS[to] || from === to) return fail('Pick two different places.');
+      if (!dday) return fail('Pick the day of the drive.');
+      var nd = stamp({ id: 'd-' + uid(), from: from, to: to, date: dday, time: val('drive-time') });
+      data.drives.push(nd);
+      logIt('added', 'the drive ' + driveName(nd) + ' on ' + niceDate(dday));
+      ui.addingDrive = false;
       save(); render(); return;
     }
 
@@ -946,7 +1217,8 @@ if (typeof module !== 'undefined') module.exports = Core;
       if (!split.length) return fail('Pick at least one person to split it between.');
       var e = { desc: desc, amount: amount, paidBy: val('exp-payer'), split: split, date: val('exp-date') || today() };
       var oldE = ui.editingExp && ui.admin ? data.expenses.find(function (x) { return x.id === ui.editingExp; }) : null;
-      if (oldE) Object.assign(oldE, e); else data.expenses.push(Object.assign({ id: uid() }, e));
+      if (oldE) { Object.assign(oldE, e); logIt('edited', 'the expense ' + desc + ' (' + fmt(amount) + ')'); }
+      else { data.expenses.push(stamp(Object.assign({ id: uid() }, e))); logIt('added', 'the expense ' + desc + ' (' + fmt(amount) + ')'); }
       ui.editingExp = null;
       save(); render();
     }
@@ -987,6 +1259,11 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   app.addEventListener('pointerup', endDrag);
   app.addEventListener('pointercancel', endDrag);
+
+  /* Offline support on the hosted site: a service worker keeps a copy of the page. */
+  if (standalone() && location.protocol === 'https:' && 'serviceWorker' in navigator) {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+  }
 
   save();
   render();
