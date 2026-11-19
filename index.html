@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Trip Wallet</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap">
+<style>
+/* Layout: one narrow working column like a travel ledger; three tabs: places, plan, expenses. */
+:root {
+  --bg: #F2F5F9; --surface: #FFFFFF; --ink: #13233A; --muted: #5B6B80; --line: #D9E0EA;
+  --accent: #B8245C; --accent-ink: #FFFFFF; --accent-soft: #FBE6EE;
+  --good: #1B7A4B; --good-soft: #E2F4EA; --owe: #B4371F; --owe-soft: #FBE9E4; --note: #FFF3CC; --note-ink: #6B4A00;
+  --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0E1622; --surface: #172233; --ink: #E8EEF6; --muted: #9AA9BD; --line: #2A3950;
+  --accent: #F0709E; --accent-ink: #2A0513; --accent-soft: #3A1A28;
+  --good: #6FD39B; --good-soft: #143424; --owe: #FF9A84; --owe-soft: #3D1D16; --note: #3A3010; --note-ink: #F3D98A;
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0E1622; --surface: #172233; --ink: #E8EEF6; --muted: #9AA9BD; --line: #2A3950;
+  --accent: #F0709E; --accent-ink: #2A0513; --accent-soft: #3A1A28;
+  --good: #6FD39B; --good-soft: #143424; --owe: #FF9A84; --owe-soft: #3D1D16; --note: #3A3010; --note-ink: #F3D98A;
+  color-scheme: dark }
+* { box-sizing: border-box }
+[hidden] { display: none !important }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body);
+  padding-block: 20px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+#app { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px }
+h1, h2, .num { font-family: var(--display) }
+h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em }
+h2 { font-size: 16px; margin: 0; text-wrap: balance }
+.top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
+.top h1 { margin-right: auto }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
+.grow { flex: 1 1 160px; min-width: 0 }
+input, select, textarea, button { font: inherit; color: inherit }
+input, select, textarea { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-width: 0; max-width: 100% }
+textarea { width: 100%; resize: vertical; font-size: 13px; word-break: break-all }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+button { cursor: pointer; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 12px; font-weight: 500 }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent) }
+button.link { border: 0; background: none; padding: 4px 6px; color: var(--muted); font-size: 13px }
+button.link.danger { color: var(--owe) }
+.tripname { font-family: var(--display); font-size: 26px; font-weight: 700; letter-spacing: -0.02em; border-color: transparent; background: transparent; padding: 4px 6px; margin-left: -6px; width: 100% }
+.tripname:hover { border-color: var(--line) }
+.note { background: var(--note); color: var(--note-ink); border-radius: 8px; padding: 8px 12px; font-size: 13px }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 12px; background: var(--surface) }
+.stat { padding: 12px 14px; min-width: 0 }
+.stat + .stat { border-left: 1px solid var(--line) }
+.stat .lbl { font-size: 12px; color: var(--muted) }
+.stat .num { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto }
+.tabs button { border: 0; background: none; border-radius: 0; padding: 10px 12px; color: var(--muted); border-bottom: 2px solid transparent; white-space: nowrap }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600 }
+.panel { display: flex; flex-direction: column; gap: 14px }
+.box { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); flex: 1 1 140px; min-width: 0 }
+.field input, .field select { font-size: 15px; color: var(--ink); width: 100% }
+.chips { display: flex; flex-wrap: wrap; gap: 6px }
+.chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: 13px; color: var(--ink); background: var(--bg) }
+.chip input { margin: 0; padding: 0 }
+.err { color: var(--owe); font-size: 13px }
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column }
+.list li { display: flex; gap: 10px; align-items: baseline; padding: 10px 0; border-top: 1px solid var(--line) }
+.list li:first-child { border-top: 0 }
+.list .main { flex: 1; min-width: 0 }
+.list .title { font-weight: 500; overflow-wrap: anywhere }
+.sub { font-size: 13px; color: var(--muted); overflow-wrap: anywhere }
+.amt { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap }
+.pos { color: var(--good) } .neg { color: var(--owe) }
+.pill { font-size: 12px; border-radius: 999px; padding: 2px 8px; white-space: nowrap }
+.pill.pos { background: var(--good-soft) } .pill.neg { background: var(--owe-soft) } .pill.zero { background: var(--bg); color: var(--muted) }
+.day { font-family: var(--display); font-weight: 600; font-size: 13px; color: var(--accent); padding-top: 6px }
+.time { font-variant-numeric: tabular-nums; color: var(--muted); width: 48px; flex: none; font-size: 13px }
+.empty { color: var(--muted); font-size: 14px }
+.chip .x { border: 0; background: none; padding: 0 2px; color: var(--muted); font-size: 16px; line-height: 1 }
+.votes { flex: none; width: 28px; height: 28px; border-radius: 14px; background: var(--accent-soft); color: var(--accent); font-family: var(--display); font-weight: 600; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; align-self: flex-start; font-variant-numeric: tabular-nums }
+.votes.none { background: var(--bg); color: var(--muted) }
+.count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums }
+.dayhead { color: var(--accent) }
+.planrow { flex-wrap: wrap; align-items: center }
+.planrow .main { flex: 1 1 200px }
+.when { display: flex; gap: 6px; flex-wrap: wrap }
+.when input { padding: 6px 8px; font-size: 13px }
+h2 .sub { font-family: var(--body); font-weight: 400 }
+@media (max-width: 480px) { .stat .num { font-size: 18px } .stat { padding: 10px } .tripname { font-size: 22px } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script id="core">
+/* Pure money logic. Amounts are integers in the currency's smallest unit (cents). */
+var Core = (function () {
+  function digits(currency) {
+    try { return new Intl.NumberFormat('en', { style: 'currency', currency: currency }).resolvedOptions().maximumFractionDigits; }
+    catch (e) { return 2; }
+  }
+  function toMinor(text, currency) {
+    var clean = String(text).replace(/[^0-9.,-]/g, '').replace(/,/g, '');
+    if (clean === '' || isNaN(Number(clean))) return null;
+    return Math.round(Number(clean) * Math.pow(10, digits(currency)));
+  }
+  function fmt(minor, currency) {
+    var d = digits(currency);
+    try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency }).format(minor / Math.pow(10, d)); }
+    catch (e) { return (minor / Math.pow(10, d)).toFixed(d) + ' ' + currency; }
+  }
+  /* Equal split; leftover units go one each to the first people so shares always add up to the total. */
+  function shares(total, ids) {
+    var n = ids.length, base = Math.floor(total / n), extra = total - base * n, out = {};
+    ids.forEach(function (id, i) { out[id] = base + (i < extra ? 1 : 0); });
+    return out;
+  }
+  /* Positive balance = should receive money. Negative = owes money. */
+  function balances(trip) {
+    var b = {};
+    trip.people.forEach(function (p) { b[p.id] = 0; });
+    trip.expenses.forEach(function (e) {
+      if (!e.split.length) return;
+      b[e.paidBy] = (b[e.paidBy] || 0) + e.amount;
+      var s = shares(e.amount, e.split);
+      Object.keys(s).forEach(function (id) { b[id] = (b[id] || 0) - s[id]; });
+    });
+    (trip.payments || []).forEach(function (p) {
+      b[p.from] = (b[p.from] || 0) + p.amount;
+      b[p.to] = (b[p.to] || 0) - p.amount;
+    });
+    return b;
+  }
+  /* Fewest-ish transfers: biggest debtor pays biggest creditor until everyone is at zero. */
+  function settle(bal) {
+    var debt = [], cred = [], out = [];
+    Object.keys(bal).forEach(function (id) {
+      if (bal[id] < 0) debt.push({ id: id, v: -bal[id] });
+      else if (bal[id] > 0) cred.push({ id: id, v: bal[id] });
+    });
+    var byV = function (a, b) { return b.v - a.v || (a.id < b.id ? -1 : 1); };
+    while (debt.length && cred.length) {
+      debt.sort(byV); cred.sort(byV);
+      var pay = Math.min(debt[0].v, cred[0].v);
+      out.push({ from: debt[0].id, to: cred[0].id, amount: pay });
+      debt[0].v -= pay; cred[0].v -= pay;
+      if (!debt[0].v) debt.shift();
+      if (!cred[0].v) cred.shift();
+    }
+    return out;
+  }
+  function totals(trip) {
+    var spent = 0, paid = {}, share = {};
+    trip.people.forEach(function (p) { paid[p.id] = 0; share[p.id] = 0; });
+    trip.expenses.forEach(function (e) {
+      spent += e.amount;
+      paid[e.paidBy] = (paid[e.paidBy] || 0) + e.amount;
+      var s = shares(e.amount, e.split);
+      Object.keys(s).forEach(function (id) { share[id] = (share[id] || 0) + s[id]; });
+    });
+    return { spent: spent, paid: paid, share: share };
+  }
+  function encode(trip) {
+    var bytes = new TextEncoder().encode(JSON.stringify(trip)), bin = '';
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function decode(code) {
+    var b64 = String(code).trim().replace(/^.*#t-/, '').replace(/-/g, '+').replace(/_/g, '/');
+    var bin = atob(b64), bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    var t = JSON.parse(new TextDecoder().decode(bytes));
+    if (!t || typeof t.name !== 'string' || !Array.isArray(t.people) || !Array.isArray(t.expenses)) throw new Error('bad trip');
+    t.payments = Array.isArray(t.payments) ? t.payments : [];
+    t.plan = Array.isArray(t.plan) ? t.plan : [];
+    return t;
+  }
+  return { digits: digits, toMinor: toMinor, fmt: fmt, shares: shares, balances: balances, settle: settle, totals: totals, encode: encode, decode: decode };
+})();
+if (typeof module !== 'undefined') module.exports = Core;
+</script>
+
+<script>
+(function () {
+  var KEY = 'tripwallet.v2', OLD_KEY = 'tripwallet.v1';
+  var CURRENCIES = ['USD', 'EUR', 'GBP', 'INR', 'CAD', 'AUD', 'JPY', 'MXN', 'AED', 'SGD'];
+  var app = document.getElementById('app');
+  var uid = function () { return Math.random().toString(36).slice(2, 10); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var today = function () { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  var niceDate = function (iso) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+    if (!m) return 'No date';
+    return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  };
+
+  /* The group's trip, taken from the "Places of Interest" sheet. */
+  function groupTrip() {
+    var names = { A: 'Akshaya', D: 'DivyaTheja', H: 'Haneela', M: 'Megha', P: 'Pranay', R: 'Ramya', S: 'Sahithi' };
+    var rows = [
+      ['San Diego', 'La Jolla Cove', 'ADHMP'], ['San Diego', 'Balboa Park', 'DHMP'], ['San Diego', 'Whale watching', 'DHMP', '', '', 'Needs booking'],
+      ['San Diego', 'Sunset Cliffs', 'DHMP'], ['San Diego', 'Old Town San Diego', 'DMP'], ['San Diego', 'Gaslamp Quarter', 'DMP'],
+      ['San Diego', 'Coronado Beach', 'DMP'], ['San Diego', 'Little Italy', 'DMP'], ['San Diego', 'Torrey Pines', 'AH'],
+      ['San Diego', 'Annie\'s Canyon Trail', 'A'], ['San Diego', 'Heisler Park, Laguna Beach', 'A', '', '', 'On the drive up to Los Angeles'],
+      ['Los Angeles', 'Santa Monica Pier', 'ADHMP'], ['Los Angeles', 'Griffith Observatory', 'ADHM'], ['Los Angeles', 'Urban Light at LACMA', 'ADHP'],
+      ['Los Angeles', 'Venice Beach and canals', 'DHMP'], ['Los Angeles', 'Hollywood Sign and Walk of Fame', 'ADHM'], ['Los Angeles', 'The Broad', 'DHP'],
+      ['Los Angeles', 'Beverly Hills', 'DH'], ['Los Angeles', 'Getty Center', 'DH'], ['Los Angeles', 'Runyon Canyon', 'MP'],
+      ['Los Angeles', 'Grand Central Market', 'MP'], ['Los Angeles', 'Malibu and El Matador Beach', 'AP'],
+      ['Las Vegas', 'Seven Magic Mountains', 'AHMP'], ['Las Vegas', 'Death Valley', 'AHMP'], ['Las Vegas', 'Sphere', 'HMP'],
+      ['Las Vegas', 'Bellagio Fountains', 'DHP'], ['Las Vegas', 'Fremont Street Experience', 'DHP'], ['Las Vegas', 'High Roller', 'DMP'],
+      ['Las Vegas', 'Red Rock Canyon', 'HMP'], ['Las Vegas', 'Hoover Dam', 'AMP'], ['Las Vegas', 'Vegas Strip', 'AM'],
+      ['Las Vegas', 'Valley of Fire', 'MP'], ['Las Vegas', 'Neon Museum', 'MP'],
+      ['Las Vegas', 'Omnia Nightclub', 'AH', '2026-12-31', '', 'Terrace view, $90 per person'],
+      ['Las Vegas', 'Area 15', 'H'], ['Las Vegas', 'Bellagio Conservatory', 'H'],
+      ['Arizona', 'Grand Canyon', '', '', '', 'From the booking list'], ['Arizona', 'Antelope Canyon', '', '', '', 'From the booking list. Needs booking'],
+      ['Stays', 'San Diego motel', '', '2026-12-24', '', 'Nights of the 24th and 25th'],
+      ['Stays', 'Los Angeles motel', '', '2026-12-26', '', 'Nights of the 26th and 27th'],
+      ['Stays', 'Las Vegas motel', '', '2026-12-31', '', 'Night of the 31st']
+    ];
+    return {
+      id: uid(), name: 'San Diego, LA and Las Vegas', currency: 'USD',
+      info: 'Loaded from your Places of Interest sheet. Sahithi chose "all the above", so she counts for every listed place. Dates assume December 2026; change them in the Plan tab.',
+      people: Object.keys(names).map(function (k) { return { id: k, name: names[k] }; }),
+      places: rows.map(function (r) {
+        var voters = r[2].split('');
+        if (voters.length) voters.push('S');
+        return { id: uid(), city: r[0], name: r[1], voters: voters, date: r[3] || '', time: r[4] || '', note: r[5] || '' };
+      }),
+      expenses: [], payments: []
+    };
+  }
+  function blankTrip(name) { return { id: uid(), name: name || 'New trip', currency: 'USD', people: [], places: [], expenses: [], payments: [] }; }
+  function upgrade(t) {
+    if (!Array.isArray(t.places)) {
+      t.places = (t.plan || []).map(function (p) { return { id: p.id || uid(), city: '', name: p.title || '', voters: [], date: p.date || '', time: p.time || '', note: p.note || '' }; });
+    }
+    delete t.plan;
+    t.payments = t.payments || []; t.expenses = t.expenses || []; t.people = t.people || [];
+    return t;
+  }
+
+  var store = null;
+  try { store = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
+  if (!store || !Array.isArray(store.trips) || !store.trips.length) {
+    var g = groupTrip();
+    store = { trips: [g], current: g.id };
+    try {
+      var old = JSON.parse(localStorage.getItem(OLD_KEY) || 'null');
+      if (old && Array.isArray(old.trips)) old.trips.forEach(function (t) { if (!t.example) store.trips.push(upgrade(t)); });
+    } catch (e) {}
+  }
+  store.trips.forEach(upgrade);
+  var ui = { tab: 'places', share: false, editing: null, editingPlace: null, confirm: null, err: {}, msg: '', importText: '' };
+
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {} }
+  function trip() {
+    var t = store.trips.find(function (x) { return x.id === store.current; });
+    if (!t) { t = store.trips[0]; store.current = t.id; }
+    return t;
+  }
+  function nameOf(t, id) { var p = t.people.find(function (x) { return x.id === id; }); return p ? p.name : 'Someone'; }
+  function cities(t) {
+    var out = [];
+    t.places.forEach(function (p) { var c = p.city || 'Other'; if (out.indexOf(c) < 0) out.push(c); });
+    return out;
+  }
+
+  /* A shared link opened on your own hosted copy imports the trip. */
+  try {
+    if (/^#t-/.test(location.hash)) {
+      var incoming = upgrade(Core.decode(location.hash));
+      incoming.id = uid();
+      store.trips.push(incoming); store.current = incoming.id; save();
+      history.replaceState(null, '', location.pathname + location.search);
+      ui.msg = 'Imported "' + incoming.name + '" from the link.';
+    }
+  } catch (e) {}
+
+  function list(items, empty) { return items.length ? '<ul class="list">' + items.join('') + '</ul>' : '<p class="empty" style="margin:0">' + empty + '</p>'; }
+
+  function placesTab(t) {
+    var h = '';
+    h += '<form class="box" id="person-form"><h2>People on this trip</h2>' +
+      (t.people.length ? '<div class="chips">' + t.people.map(function (p) { return '<span class="chip">' + esc(p.name) + '<button type="button" class="x" data-act="remove-person" data-id="' + p.id + '" aria-label="Remove ' + esc(p.name) + '">×</button></span>'; }).join('') + '</div>' : '<p class="empty" style="margin:0">Nobody yet. Add yourself first.</p>') +
+      '<div class="row"><input id="person-name" class="grow" maxlength="30" placeholder="Add a person" aria-label="Person name"><button type="submit">Add person</button></div>' +
+      '<div class="err" data-err' + (ui.err.person ? '>' + esc(ui.err.person) : ' hidden>') + '</div></form>';
+
+    var ed = ui.editingPlace ? t.places.find(function (p) { return p.id === ui.editingPlace; }) : null;
+    h += '<form class="box" id="place-form"><h2>' + (ed ? 'Edit place' : 'Add a place') + '</h2><div class="row">' +
+      '<label class="field" style="flex:2 1 200px">Place<input id="place-name" maxlength="80" placeholder="Griffith Observatory" value="' + esc(ed ? ed.name : '') + '"></label>' +
+      '<label class="field">City or area<input id="place-city" maxlength="40" list="city-list" placeholder="Los Angeles" value="' + esc(ed ? ed.city : '') + '"></label></div>' +
+      '<datalist id="city-list">' + cities(t).map(function (c) { return '<option value="' + esc(c) + '">'; }).join('') + '</datalist>' +
+      '<label class="field">Note<input id="place-note" maxlength="140" placeholder="Needs booking, opening hours, price" value="' + esc(ed ? ed.note : '') + '"></label>' +
+      '<div class="row"><label class="field">Day to visit<input id="place-date" type="date" value="' + esc(ed ? ed.date : '') + '"></label>' +
+      '<label class="field">Time<input id="place-time" type="time" value="' + esc(ed ? ed.time : '') + '"></label></div>' +
+      (t.people.length ? '<div class="field">Who wants to go<div class="chips">' + t.people.map(function (p) { return '<label class="chip"><input type="checkbox" name="place-voter" id="place-voter-' + p.id + '" value="' + p.id + '"' + (ed && ed.voters.indexOf(p.id) >= 0 ? ' checked' : '') + '>' + esc(p.name) + '</label>'; }).join('') + '</div></div>' : '') +
+      '<div class="err" data-err hidden></div>' +
+      '<div class="row"><button class="primary" type="submit">' + (ed ? 'Save changes' : 'Add place') + '</button>' + (ed ? '<button type="button" class="link" data-act="cancel-edit">Cancel</button>' : '') + '</div></form>';
+
+    if (!t.places.length) h += '<div class="box"><p class="empty" style="margin:0">No places yet. Add the first one above.</p></div>';
+    cities(t).forEach(function (c) {
+      var rows = t.places.filter(function (p) { return (p.city || 'Other') === c; }).sort(function (a, b) { return b.voters.length - a.voters.length || a.name.localeCompare(b.name); });
+      h += '<div class="box"><h2>' + esc(c) + ' <span class="sub">' + rows.length + (rows.length === 1 ? ' place' : ' places') + '</span></h2>' + list(rows.map(function (p) {
+        var who = p.voters.map(function (id) { return nameOf(t, id); }).join(', ');
+        return '<li><span class="votes' + (p.voters.length ? '' : ' none') + '" title="People who want to go">' + p.voters.length + '</span><div class="main"><div class="title">' + esc(p.name) + '</div>' +
+          '<div class="sub">' + esc(who || 'No votes yet') + (p.note ? ' · ' + esc(p.note) : '') + (p.date ? ' · planned ' + niceDate(p.date) + (p.time ? ' ' + esc(p.time) : '') : '') + '</div>' +
+          '<div>' + (ui.confirm === p.id ? '<button class="link danger" data-act="delete-place" data-id="' + p.id + '">Yes, delete</button><button class="link" data-act="cancel">Keep</button>'
+            : '<button class="link" data-act="edit-place" data-id="' + p.id + '">Edit</button><button class="link danger" data-act="ask" data-id="' + p.id + '">Delete</button>') + '</div></div></li>';
+      }), '') + '</div>';
+    });
+    return h;
+  }
+
+  function planTab(t) {
+    if (!t.places.length) return '<div class="box"><p class="empty" style="margin:0">Add places in the Places tab, then give each one a day and time here.</p></div>';
+    var row = function (p) {
+      return '<li class="planrow"><div class="main"><div class="title">' + esc(p.name) + '</div><div class="sub">' + esc(p.city || 'Other') + ' · ' + p.voters.length + (p.voters.length === 1 ? ' vote' : ' votes') + (p.note ? ' · ' + esc(p.note) : '') + '</div></div>' +
+        '<div class="when"><input type="date" id="date-' + p.id + '" data-place="' + p.id + '" data-field="date" value="' + esc(p.date) + '" aria-label="Day for ' + esc(p.name) + '">' +
+        '<input type="time" id="time-' + p.id + '" data-place="' + p.id + '" data-field="time" value="' + esc(p.time) + '" aria-label="Time for ' + esc(p.name) + '"></div></li>';
+    };
+    var dated = t.places.filter(function (p) { return p.date; }).sort(function (a, b) { return (a.date + (a.time || '99')).localeCompare(b.date + (b.time || '99')) || a.name.localeCompare(b.name); });
+    var open = t.places.filter(function (p) { return !p.date; }).sort(function (a, b) { return b.voters.length - a.voters.length || a.name.localeCompare(b.name); });
+    var h = '', days = [];
+    dated.forEach(function (p) { if (days.indexOf(p.date) < 0) days.push(p.date); });
+    days.forEach(function (d) {
+      h += '<div class="box"><h2 class="dayhead">' + niceDate(d) + '</h2>' + list(dated.filter(function (p) { return p.date === d; }).map(row), '') + '</div>';
+    });
+    if (open.length) h += '<div class="box"><h2>No day yet <span class="sub">' + open.length + ' to place, most wanted first</span></h2>' + list(open.map(row), '') + '</div>';
+    return h;
+  }
+
+  function costsTab(t) {
+    var f = function (n) { return Core.fmt(n, t.currency); };
+    var bal = Core.balances(t), tot = Core.totals(t), plan = Core.settle(bal);
+    var open = plan.reduce(function (a, x) { return a + x.amount; }, 0), h = '';
+    h += '<div class="stats"><div class="stat"><div class="lbl">Total spent</div><div class="num">' + f(tot.spent) + '</div></div>' +
+      '<div class="stat"><div class="lbl">Per person, average</div><div class="num">' + (t.people.length ? f(Math.round(tot.spent / t.people.length)) : f(0)) + '</div></div>' +
+      '<div class="stat"><div class="lbl">Still to settle</div><div class="num">' + f(open) + '</div></div></div>';
+
+    var ed = ui.editing ? t.expenses.find(function (e) { return e.id === ui.editing; }) : null;
+    if (!t.people.length) h += '<div class="box"><p class="empty" style="margin:0">Add the people on this trip first, in the Places tab.</p></div>';
+    else h += '<form class="box" id="expense-form"><h2>' + (ed ? 'Edit expense' : 'Add an expense') + '</h2><div class="row">' +
+      '<label class="field" style="flex:2 1 200px">What was it?<input id="exp-desc" maxlength="80" placeholder="Motel, fuel, tickets" value="' + esc(ed ? ed.desc : '') + '"></label>' +
+      '<label class="field">Amount (' + t.currency + ')<input id="exp-amount" inputmode="decimal" placeholder="0.00" value="' + (ed ? (ed.amount / Math.pow(10, Core.digits(t.currency))).toFixed(Core.digits(t.currency)) : '') + '"></label></div><div class="row">' +
+      '<label class="field">Paid by<select id="exp-payer">' + t.people.map(function (p) { return '<option value="' + p.id + '"' + (ed && ed.paidBy === p.id ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</select></label>' +
+      '<label class="field">Date<input id="exp-date" type="date" value="' + esc(ed ? ed.date : today()) + '"></label></div>' +
+      '<div class="field">Split equally between<div class="chips">' + t.people.map(function (p) { return '<label class="chip"><input type="checkbox" name="exp-split" id="exp-split-' + p.id + '" value="' + p.id + '"' + (!ed || ed.split.indexOf(p.id) >= 0 ? ' checked' : '') + '>' + esc(p.name) + '</label>'; }).join('') + '</div></div>' +
+      '<div class="err" data-err hidden></div>' +
+      '<div class="row"><button class="primary" type="submit">' + (ed ? 'Save changes' : 'Add expense') + '</button>' + (ed ? '<button type="button" class="link" data-act="cancel-edit">Cancel</button>' : '') + '</div></form>';
+
+    var ex = t.expenses.slice().sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); });
+    h += '<div class="box"><h2>Expenses so far</h2>' + list(ex.map(function (e) {
+      var who = e.split.length === t.people.length ? 'everyone' : e.split.map(function (id) { return nameOf(t, id); }).join(', ');
+      return '<li><div class="main"><div class="title">' + esc(e.desc) + '</div><div class="sub">' + esc(nameOf(t, e.paidBy)) + ' paid · split between ' + esc(who) + ' · ' + niceDate(e.date) + '</div>' +
+        '<div>' + (ui.confirm === e.id ? '<button class="link danger" data-act="delete-expense" data-id="' + e.id + '">Yes, delete</button><button class="link" data-act="cancel">Keep</button>'
+          : '<button class="link" data-act="edit-expense" data-id="' + e.id + '">Edit</button><button class="link danger" data-act="ask" data-id="' + e.id + '">Delete</button>') + '</div></div><div class="amt">' + f(e.amount) + '</div></li>';
+    }), 'Nothing logged yet.') + '</div>';
+
+    if (t.people.length) h += '<div class="box"><h2>Where everyone stands</h2>' + list(t.people.map(function (p) {
+      var v = bal[p.id] || 0;
+      return '<li><div class="main"><div class="title">' + esc(p.name) + '</div><div class="sub">Paid ' + f(tot.paid[p.id] || 0) + ' · share ' + f(tot.share[p.id] || 0) + '</div></div>' +
+        '<span class="pill ' + (v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero') + '">' + (v > 0 ? 'gets back ' + f(v) : v < 0 ? 'owes ' + f(-v) : 'settled') + '</span></li>';
+    }), '') + '</div>';
+    h += '<div class="box"><h2>Settle up</h2>' + (plan.length ? '<p class="sub" style="margin:0">The fewest payments that bring everyone to zero.</p>' : '') + list(plan.map(function (x) {
+      return '<li><div class="main"><div class="title">' + esc(nameOf(t, x.from)) + ' pays ' + esc(nameOf(t, x.to)) + '</div></div><div class="amt">' + f(x.amount) + '</div>' +
+        '<button data-act="pay" data-from="' + x.from + '" data-to="' + x.to + '" data-amount="' + x.amount + '">Mark as paid</button></li>';
+    }), t.expenses.length ? 'Everyone is settled.' : 'Log some expenses and the payments will show here.') + '</div>';
+    if (t.payments.length) h += '<div class="box"><h2>Payments made</h2>' + list(t.payments.map(function (p) {
+      return '<li><div class="main"><div class="title">' + esc(nameOf(t, p.from)) + ' paid ' + esc(nameOf(t, p.to)) + '</div><div class="sub">' + niceDate(p.date) + '</div></div><div class="amt">' + f(p.amount) + '</div><button class="link" data-act="undo-pay" data-id="' + p.id + '">Undo</button></li>';
+    }), '') + '</div>';
+    return h;
+  }
+
+  function render() {
+    var t = trip(), h = '';
+    h += '<header class="top"><h1>Trip Wallet</h1>' +
+      '<select id="trip-select" aria-label="Choose a trip">' + store.trips.map(function (x) { return '<option value="' + x.id + '"' + (x.id === t.id ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') + '</select>' +
+      '<button data-act="new-trip">New trip</button><button data-act="toggle-share" class="primary">Share</button></header>';
+    h += '<div><input id="trip-name" class="tripname" aria-label="Trip name" value="' + esc(t.name) + '" maxlength="60">' +
+      '<div class="row"><label class="sub" for="trip-currency">Currency</label><select id="trip-currency">' + CURRENCIES.map(function (c) { return '<option' + (c === t.currency ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select>' +
+      (ui.confirm === 'trip'
+        ? '<span class="sub">Delete this trip and everything in it?</span><button class="link danger" data-act="delete-trip">Yes, delete</button><button class="link" data-act="cancel">Keep it</button>'
+        : '<button class="link danger" data-act="ask" data-id="trip">Delete trip</button>') + '</div></div>';
+    if (t.info) h += '<div class="note">' + esc(t.info) + ' <button class="link" data-act="dismiss-info">Got it</button></div>';
+    if (ui.msg) h += '<div class="note" role="status">' + esc(ui.msg) + '</div>';
+
+    if (ui.share) {
+      var code = Core.encode(t), standalone = false;
+      try { standalone = window.top === window.self && /^https?:$/.test(location.protocol); } catch (e) {}
+      h += '<section class="box"><h2>Share this trip</h2>' +
+        '<p class="sub" style="margin:0">Trips are saved in this browser only. To give friends a copy, send them the ' + (standalone ? 'link' : 'trip code') + '. They get the trip as it is right now; later changes need a new ' + (standalone ? 'link' : 'code') + '.</p>' +
+        (standalone ? '<div class="row"><input id="share-link" class="grow" readonly value="' + esc(location.origin + location.pathname + '#t-' + code) + '"><button data-act="copy" data-target="share-link">Copy link</button></div>' : '') +
+        '<label class="field">Trip code<textarea id="share-code" rows="3" readonly>' + code + '</textarea></label>' +
+        '<div class="row"><button data-act="copy" data-target="share-code">Copy code</button></div>' +
+        '<label class="field">Got a code from a friend? Paste it here<textarea id="import-code" rows="2" placeholder="Paste a trip code">' + esc(ui.importText) + '</textarea></label>' +
+        (ui.err.imp ? '<div class="err">' + esc(ui.err.imp) + '</div>' : '') +
+        '<div class="row"><button data-act="import">Add trip from code</button><button class="link" data-act="toggle-share">Close</button></div></section>';
+    }
+
+    var planned = t.places.filter(function (p) { return p.date; }).length;
+    var tabs = [['places', 'Places', t.places.length], ['plan', 'Plan', planned + '/' + t.places.length], ['costs', 'Expenses', t.expenses.length]];
+    h += '<div class="tabs" role="tablist">' + tabs.map(function (x) { return '<button role="tab" data-act="tab" data-id="' + x[0] + '" aria-selected="' + (ui.tab === x[0]) + '">' + x[1] + ' <span class="count">' + x[2] + '</span></button>'; }).join('') + '</div><div class="panel">';
+    h += ui.tab === 'places' ? placesTab(t) : ui.tab === 'plan' ? planTab(t) : costsTab(t);
+    app.innerHTML = h + '</div>';
+  }
+
+  function act(a, d) {
+    var t = trip();
+    ui.err = {};
+    if (a !== 'ask') ui.confirm = null;
+    if (a === 'tab') { ui.tab = d.id; ui.editing = null; ui.editingPlace = null; }
+    else if (a === 'toggle-share') { ui.share = !ui.share; ui.msg = ''; }
+    else if (a === 'new-trip') { var n = blankTrip('New trip'); store.trips.push(n); store.current = n.id; ui.tab = 'places'; ui.msg = ''; save(); }
+    else if (a === 'ask') ui.confirm = d.id;
+    else if (a === 'cancel') ui.confirm = null;
+    else if (a === 'dismiss-info') { delete t.info; save(); }
+    else if (a === 'delete-trip') {
+      store.trips = store.trips.filter(function (x) { return x.id !== t.id; });
+      if (!store.trips.length) store.trips.push(blankTrip('New trip'));
+      store.current = store.trips[0].id; save();
+    }
+    else if (a === 'edit-place') ui.editingPlace = d.id;
+    else if (a === 'delete-place') { t.places = t.places.filter(function (p) { return p.id !== d.id; }); if (ui.editingPlace === d.id) ui.editingPlace = null; save(); }
+    else if (a === 'edit-expense') ui.editing = d.id;
+    else if (a === 'cancel-edit') { ui.editing = null; ui.editingPlace = null; }
+    else if (a === 'delete-expense') { t.expenses = t.expenses.filter(function (e) { return e.id !== d.id; }); if (ui.editing === d.id) ui.editing = null; save(); }
+    else if (a === 'pay') { t.payments.push({ id: uid(), from: d.from, to: d.to, amount: +d.amount, date: today() }); save(); }
+    else if (a === 'undo-pay') { t.payments = t.payments.filter(function (p) { return p.id !== d.id; }); save(); }
+    else if (a === 'remove-person') {
+      var used = t.expenses.some(function (e) { return e.paidBy === d.id || e.split.indexOf(d.id) >= 0; }) || t.payments.some(function (p) { return p.from === d.id || p.to === d.id; });
+      if (used) ui.err.person = nameOf(t, d.id) + ' is part of an expense or payment. Remove those first.';
+      else {
+        t.people = t.people.filter(function (p) { return p.id !== d.id; });
+        t.places.forEach(function (p) { p.voters = p.voters.filter(function (v) { return v !== d.id; }); });
+        save();
+      }
+    }
+    else if (a === 'import') {
+      var box = document.getElementById('import-code');
+      ui.importText = box ? box.value : '';
+      try {
+        var inc = upgrade(Core.decode(ui.importText));
+        inc.id = uid();
+        store.trips.push(inc); store.current = inc.id; save();
+        ui.share = false; ui.importText = ''; ui.msg = 'Added "' + inc.name + '".';
+      } catch (e) { ui.err.imp = 'That code could not be read. Copy the whole code and try again.'; }
+    }
+    render();
+    if (a === 'edit-place' || a === 'edit-expense') {
+      var form = document.getElementById(a === 'edit-place' ? 'place-form' : 'expense-form');
+      if (form && form.scrollIntoView) form.scrollIntoView({ block: 'start' });
+    }
+  }
+
+  app.addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-act]');
+    if (!b) return;
+    var a = b.getAttribute('data-act');
+    if (a === 'copy') {
+      var el = document.getElementById(b.getAttribute('data-target')), label = b.textContent;
+      var done = function () { b.textContent = 'Copied'; setTimeout(function () { b.textContent = label; }, 1500); };
+      var fallback = function () { el.focus(); el.select(); b.textContent = 'Selected. Press copy'; };
+      try { navigator.clipboard.writeText(el.value).then(done, fallback); } catch (e) { fallback(); }
+      return;
+    }
+    act(a, b.dataset);
+  });
+
+  app.addEventListener('change', function (ev) {
+    var t = trip(), el = ev.target;
+    if (el.dataset && el.dataset.place) {
+      var p = t.places.find(function (x) { return x.id === el.dataset.place; });
+      if (p) { p[el.dataset.field] = el.value; save(); render(); }
+    }
+    else if (el.id === 'trip-select') { store.current = el.value; ui.editing = null; ui.editingPlace = null; ui.confirm = null; ui.msg = ''; save(); render(); }
+    else if (el.id === 'trip-currency') {
+      var shift = Math.pow(10, Core.digits(el.value) - Core.digits(t.currency));
+      t.expenses.forEach(function (e) { e.amount = Math.round(e.amount * shift); });
+      t.payments.forEach(function (p) { p.amount = Math.round(p.amount * shift); });
+      t.currency = el.value; save(); render();
+    }
+    else if (el.id === 'trip-name') { t.name = el.value.trim() || 'Untitled trip'; save(); render(); }
+  });
+
+  app.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var t = trip(), val = function (id) { var e = document.getElementById(id); return e ? e.value.trim() : ''; };
+    var checked = function (name) { return Array.prototype.slice.call(document.querySelectorAll('input[name="' + name + '"]:checked')).map(function (c) { return c.value; }); };
+    var problem = '';
+    if (ev.target.id === 'person-form') {
+      var name = val('person-name');
+      if (!name) problem = 'Type a name first.';
+      else if (t.people.some(function (p) { return p.name.toLowerCase() === name.toLowerCase(); })) problem = name + ' is already on this trip.';
+      else t.people.push({ id: uid(), name: name });
+    }
+    if (ev.target.id === 'place-form') {
+      var pname = val('place-name'), city = val('place-city');
+      var clash = t.places.some(function (p) { return p.id !== ui.editingPlace && p.name.toLowerCase() === pname.toLowerCase() && (p.city || '').toLowerCase() === city.toLowerCase(); });
+      if (!pname) problem = 'Type the name of the place.';
+      else if (clash) problem = pname + ' is already on the list.';
+      else {
+        var rec = { name: pname, city: city, note: val('place-note'), voters: checked('place-voter'), date: val('place-date'), time: val('place-time') };
+        var oldP = ui.editingPlace ? t.places.find(function (p) { return p.id === ui.editingPlace; }) : null;
+        if (oldP) Object.assign(oldP, rec); else t.places.push(Object.assign({ id: uid(), date: '', time: '' }, rec));
+        ui.editingPlace = null;
+      }
+    }
+    if (ev.target.id === 'expense-form') {
+      var desc = val('exp-desc'), amount = Core.toMinor(val('exp-amount'), t.currency), split = checked('exp-split');
+      if (!desc) problem = 'Say what the expense was.';
+      else if (amount === null || amount <= 0) problem = 'Enter an amount above zero.';
+      else if (!split.length) problem = 'Pick at least one person to split it between.';
+      else {
+        var e = { desc: desc, amount: amount, paidBy: val('exp-payer'), split: split, date: val('exp-date') || today() };
+        var oldE = ui.editing ? t.expenses.find(function (x) { return x.id === ui.editing; }) : null;
+        if (oldE) Object.assign(oldE, e); else t.expenses.push(Object.assign({ id: uid() }, e));
+        ui.editing = null;
+      }
+    }
+    /* On a validation error, keep what was typed and show the message in place. */
+    if (problem) {
+      var slot = ev.target.querySelector('[data-err]');
+      if (slot) { slot.textContent = problem; slot.hidden = false; }
+      return;
+    }
+    ui.err = {};
+    save(); render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
