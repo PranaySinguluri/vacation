@@ -225,6 +225,7 @@ if (typeof module !== 'undefined') module.exports = Core;
 (function () {
   var KEY = 'tripwallet.v3', LEGS_KEY = 'tripwallet.legs', ADMIN_KEY = 'tripwallet.admin', TAB_KEY = 'tripwallet.tab';
   /* SHA-256 of "tripwallet:" + the admin PIN. The PIN itself is not in the page. */
+  var SPLITWISE_URL = 'https://secure.splitwise.com/#/groups/105847378';
   var ADMIN_HASH = 'df174295019980fadcb15ac944bdde3b3fc5aff2e92a0906afbc17a1a005044a';
   var PEOPLE = [['A', 'Akshaya'], ['D', 'DivyaTheja'], ['H', 'Haneela'], ['M', 'Megha'], ['P', 'Pranay'], ['R', 'Ramya'], ['S', 'Sahithi']]
     .map(function (p) { return { id: p[0], name: p[1] }; });
@@ -618,6 +619,9 @@ if (typeof module !== 'undefined') module.exports = Core;
     var bal = Core.balances(trip), tot = Core.totals(trip), plan = Core.settle(bal);
     var open = plan.reduce(function (a, x) { return a + x.amount; }, 0), h = '';
     var list = function (items, empty) { return items.length ? '<ul class="list">' + items.join('') + '</ul>' : '<p class="empty">' + empty + '</p>'; };
+    h += '<section class="card splitwise"><div class="row between"><div class="grow"><h3>Splitwise group</h3>' +
+      '<p class="sub" style="margin:0">The group also tracks costs in Splitwise. Costs logged here are not sent there, so pick one place for each cost.</p></div>' +
+      '<a class="btn primary" href="' + SPLITWISE_URL + '" target="_blank" rel="noopener">Open in Splitwise</a></div></section>';
     h += '<div class="stats"><div class="stat"><div class="lbl">Total spent</div><div class="val">' + fmt(tot.spent) + '</div></div>' +
       '<div class="stat"><div class="lbl">Per person, average</div><div class="val">' + fmt(Math.round(tot.spent / PEOPLE.length)) + '</div></div>' +
       '<div class="stat"><div class="lbl">Still to settle</div><div class="val">' + fmt(open) + '</div></div></div>';
