@@ -53,6 +53,10 @@ button:disabled { opacity: .35; cursor: default }
 .logscroll { max-height: min(60vh, 460px); overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--line); border-radius: 12px; padding: 0 12px }
 #activity-card h3 .count { font-size: 12px; font-weight: 600; background: var(--primary-soft); color: var(--primary); border-radius: 999px; padding: 1px 8px; vertical-align: 2px }
 .by { font-size: 12px; color: var(--muted) }
+.wx { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; font-size: 13px; color: var(--ink); margin-top: 2px }
+.wx svg { flex: none }
+.wx b { font-variant-numeric: tabular-nums }
+.wxnote { color: var(--muted); font-size: 12px; flex-basis: 100%; padding-left: 26px }
 .booking { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 2px }
 .bpill { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 10px }
 .bpill.no { background: var(--owe-soft); color: var(--owe) }
@@ -170,7 +174,7 @@ button:disabled { opacity: .35; cursor: default }
 </head>
 <body>
 <div id="app"></div>
-<footer class="version">v14-2026-11-18 21:52 PST</footer>
+<footer class="version">v15-2026-11-18 21:57 PST</footer>
 
 <script id="core">
 /* Pure logic: money in integer cents, distances, link parsing, share codes. */
@@ -907,6 +911,91 @@ if (typeof module !== 'undefined') module.exports = Core;
     return g + farChips(far);
   }
 
+  /* ---------- Weather for each stop (Open-Meteo, free, no key) ---------- */
+  var WX_KEY = 'tripwallet.wx', wxCache = {}, wxQueue = [], wxBusy = false, wxDown = false;
+  try { wxCache = JSON.parse(localStorage.getItem(WX_KEY) || '{}') || {}; } catch (e) {}
+  function isoDay(dt) { return dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0'); }
+  function daysAhead(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso), t = new Date(); t.setHours(0, 0, 0, 0); return m ? Math.round((new Date(+m[1], +m[2] - 1, +m[3]) - t) / 864e5) : null; }
+  /* Forecasts reach 16 days ahead. Further out, show the same date last year from the weather archive. */
+  function wxPlan(p) {
+    if (!p.date || !hasLL(p)) return null;
+    var ahead = daysAhead(p.date);
+    if (ahead === null) return null;
+    var mode = ahead >= 0 && ahead <= 15 ? 'forecast' : ahead < -5 ? 'past' : ahead > 15 ? 'lastyear' : 'forecast';
+    var day = mode === 'lastyear' ? (+p.date.slice(0, 4) - 1) + p.date.slice(4) : p.date;
+    return { mode: mode, day: day, key: mode + '|' + p.lat.toFixed(2) + ',' + p.lng.toFixed(2) + '|' + day, lat: p.lat, lng: p.lng };
+  }
+  function wxFresh(entry, mode) { return entry && (mode !== 'forecast' || Date.now() - entry.at < 3 * 3600e3); }
+  function wxQueueFor(list) {
+    list.forEach(function (p) {
+      var w = wxPlan(p);
+      if (!w || wxFresh(wxCache[w.key], w.mode) || wxQueue.some(function (q) { return q.key === w.key; })) return;
+      wxQueue.push(w);
+    });
+    wxNext();
+  }
+  function wxNext() {
+    if (wxBusy || wxDown || !wxQueue.length || typeof fetch !== 'function') return;
+    var w = wxQueue.shift();
+    wxBusy = true;
+    var base = w.mode === 'forecast' ? 'https://api.open-meteo.com/v1/forecast' : 'https://archive-api.open-meteo.com/v1/archive';
+    var url = base + '?latitude=' + w.lat + '&longitude=' + w.lng + '&start_date=' + w.day + '&end_date=' + w.day +
+      '&hourly=temperature_2m,weather_code' + (w.mode === 'forecast' ? ',precipitation_probability' : '') + '&temperature_unit=fahrenheit&timezone=auto';
+    fetch(url).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('wx')); }).then(function (js) {
+      var h = js && js.hourly, hours = {};
+      if (h && h.time) h.time.forEach(function (t, i) {
+        hours[+t.slice(11, 13)] = [h.temperature_2m[i], h.weather_code[i], h.precipitation_probability ? h.precipitation_probability[i] : null];
+      });
+      wxCache[w.key] = { at: Date.now(), hours: hours };
+      try { localStorage.setItem(WX_KEY, JSON.stringify(wxCache)); } catch (e) {}
+      wxBusy = false; refreshWx(); wxNext();
+    }).catch(function () { wxBusy = false; wxDown = true; });
+  }
+  var WX_ICONS = {
+    sun: '<circle cx="12" cy="12" r="4.5" fill="#F4B400"/><g stroke="#F4B400" stroke-width="2" stroke-linecap="round"><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></g>',
+    moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="#7C8BA8"/>',
+    partly: '<circle cx="9" cy="9" r="4" fill="#F4B400"/><path d="M8 19h9a4 4 0 0 0 0-8 5 5 0 0 0-9.6 1.5A3.3 3.3 0 0 0 8 19z" fill="#B8C3D6"/>',
+    cloud: '<path d="M7 19h10a4.5 4.5 0 0 0 0-9 6 6 0 0 0-11.5 2A3.6 3.6 0 0 0 7 19z" fill="#9AA8BF"/>',
+    fog: '<g stroke="#9AA8BF" stroke-width="2" stroke-linecap="round"><path d="M4 9h16M6 13h12M4 17h16"/></g>',
+    rain: '<path d="M7 14h10a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.5 1.8A3.2 3.2 0 0 0 7 14z" fill="#8C9BB5"/><g stroke="#1A5FD6" stroke-width="2" stroke-linecap="round"><path d="M8 17l-1 3M12 17l-1 3M16 17l-1 3"/></g>',
+    snow: '<path d="M7 14h10a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.5 1.8A3.2 3.2 0 0 0 7 14z" fill="#9AA8BF"/><g fill="#5B8DEF"><circle cx="8" cy="18" r="1.3"/><circle cx="12" cy="20" r="1.3"/><circle cx="16" cy="18" r="1.3"/></g>',
+    storm: '<path d="M7 13h10a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.5 1.8A3.2 3.2 0 0 0 7 13z" fill="#7C8BA8"/><path d="M12 13l-2.5 5h3l-1.5 4 4.5-6h-3l1.5-3z" fill="#F4B400"/>'
+  };
+  function wxLook(code, hour) {
+    var night = hour < 6 || hour >= 18;
+    if (code === 0) return night ? ['moon', 'Clear'] : ['sun', 'Sunny'];
+    if (code === 1) return night ? ['moon', 'Mostly clear'] : ['sun', 'Mostly sunny'];
+    if (code === 2) return night ? ['cloud', 'Partly cloudy'] : ['partly', 'Partly cloudy'];
+    if (code === 3) return ['cloud', 'Cloudy'];
+    if (code === 45 || code === 48) return ['fog', 'Foggy'];
+    if (code >= 51 && code <= 57) return ['rain', 'Drizzle'];
+    if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return ['rain', code === 65 || code === 82 ? 'Heavy rain' : 'Rain'];
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86) return ['snow', 'Snow'];
+    if (code >= 95) return ['storm', 'Thunderstorms'];
+    return ['cloud', 'Mixed'];
+  }
+  function wxText(p) {
+    var w = wxPlan(p);
+    if (!w) return '';
+    var hour = toMin(p.time) !== null ? Math.floor(toMin(p.time) / 60) : 12;
+    var e = wxCache[w.key], row = e && e.hours && e.hours[hour];
+    if (!row || row[0] === null || row[0] === undefined) return '';
+    var look = wxLook(row[1], hour), when = toMin(p.time) !== null ? 'at ' + fmtClock(p.time) : 'around noon';
+    var extra = w.mode === 'forecast' ? 'Forecast ' + when + (row[2] >= 20 ? ' · ' + row[2] + '% chance of rain' : '')
+      : w.mode === 'past' ? 'Weather ' + when
+      : 'Same day last year ' + when + ' · forecast from ' + new Date(new Date(+p.date.slice(0, 4), +p.date.slice(5, 7) - 1, +p.date.slice(8, 10)) - 15 * 864e5).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">' + WX_ICONS[look[0]] + '</svg><b>' + Math.round(row[0]) + '°F</b> ' + look[1] + '<span class="wxnote">' + esc(extra) + '</span>';
+  }
+  function fmtClock(t) { var m = toMin(t), h = Math.floor(m / 60), mm = m % 60; return ((h + 11) % 12 + 1) + (mm ? ':' + String(mm).padStart(2, '0') : '') + ' ' + (h < 12 ? 'AM' : 'PM'); }
+  function wxHTML(p) { var t = wxText(p); return '<div class="wx" data-wx="' + p.id + '"' + (t ? '' : ' hidden') + '>' + t + '</div>'; }
+  function refreshWx() {
+    Array.prototype.forEach.call(document.querySelectorAll('.wx[data-wx]'), function (el) {
+      var p = placeById(el.dataset.wx);
+      var t = p ? wxText(p) : '';
+      el.innerHTML = t; el.hidden = !t;
+    });
+  }
+
   /* ---------- Real street map (Leaflet + OpenStreetMap), on the hosted site ---------- */
   var LEAF = { L: null, loading: false, failed: false, map: null, el: null, layer: null, fitKey: '', selShown: null };
   function useRealMap() { return standalone() && !LEAF.failed && !window.__tripwalletNoMap; }
@@ -1042,7 +1131,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       (p.by ? '<div class="by">Added by ' + esc(person(p.by)) + '</div>' : '') +
       '<div class="when"><input type="date" id="date-' + p.id + '" data-place="' + p.id + '" data-field="date" value="' + esc(p.date) + '" aria-label="Day for ' + esc(p.name) + '">' +
       '<input type="time" id="time-' + p.id + '" data-place="' + p.id + '" data-field="time" value="' + esc(p.time) + '" aria-label="Time for ' + esc(p.name) + '"></div>' +
-      bookingHTML(p);
+      wxHTML(p) + bookingHTML(p);
     if (ui.locFor === p.id) {
       h += '<form class="locform" data-id="' + p.id + '"><input id="loc-' + p.id + '" class="grow" placeholder="Paste a Google Maps link, or 32.85, -117.27" aria-label="Location for ' + esc(p.name) + '">' +
         '<button type="submit" class="primary">Save</button><button type="button" class="link" data-act="cancel-loc">Cancel</button><div class="err" data-err hidden style="flex-basis:100%"></div></form>';
@@ -1192,7 +1281,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       }).join('') + '</div></div>' +
       (CLOUD.on
         ? '<div class="row">' + (CLOUD.state === 'ready' ? (ui.admin ? '<span class="adminpill">Admin</span>' : '') +
-            '<button data-act="invite">Invite</button><button data-act="toggle-log" aria-pressed="' + ui.showLog + '">Activity</button>' : '') +
+            '<button data-act="invite">Invite</button>' + (ui.admin ? '<button data-act="toggle-log" aria-pressed="' + ui.showLog + '">Activity</button>' : '') : '') +
           (CLOUD.user ? '<span class="whoami">' + esc(me ? person(me) : (CLOUD.user.displayName || '')) + '</span><button class="link" data-act="sign-out">Sign out</button>' : '') + '</div></header>'
         : '<div class="row"><button data-act="toggle-share">Share</button>' +
           '</div></header>');
@@ -1219,7 +1308,7 @@ if (typeof module !== 'undefined') module.exports = Core;
         }
       }
     }
-    if (CLOUD.on && ui.showLog) {
+    if (CLOUD.on && ui.showLog && ui.admin) {
       var log = data.log.slice().reverse();
       h += '<section class="card" id="activity-card"><div class="row between"><h3>Activity <span class="count">' + log.length + '</span></h3><button class="link" data-act="toggle-log">Close</button></div>' +
         (log.length ? '<div class="logscroll" id="activity-list" tabindex="0" aria-label="Activity, newest first"><ul class="list">' + log.map(logLine).join('') + '</ul></div>' : '<p class="empty">Nothing yet. Adding and removing stops and expenses shows up here with who did it.</p>');
@@ -1260,6 +1349,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     h += c ? cityTab(c) : costsTab();
     app.innerHTML = h;
     if (c) fetchLegs(cityPlaces(c.id));
+    if (c) wxQueueFor(cityPlaces(c.id));
     if (c && useRealMap()) mountMap(c.id);
     geocodeMissing();
   }
@@ -1438,7 +1528,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     var el = ev.target;
     if (el.dataset && el.dataset.place) {
       var p = placeById(el.dataset.place);
-      if (p) { p[el.dataset.field] = el.value; save(); refreshLegs(); }
+      if (p) { p[el.dataset.field] = el.value; save(); refreshLegs(); refreshWx(); wxQueueFor([p]); }
     }
   });
 
