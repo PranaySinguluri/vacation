@@ -370,6 +370,77 @@ html { overflow-x: hidden }
 }
 @media (max-width: 360px) { .city-toolbar-main > button, .city-toolbar-main > label { font-size: 13px; } }
 
+/* Mobile card density and top navigation cleanup */
+@media (max-width: 760px) {
+  .stop {
+    grid-template-columns: 20px 36px minmax(0, 1fr) 58px !important;
+    grid-template-rows: auto auto !important;
+    column-gap: 7px !important;
+    row-gap: 2px !important;
+    padding: 10px !important;
+    min-height: 0 !important;
+    align-items: start !important;
+  }
+  .stop > .grip { grid-column: 1; grid-row: 1; padding: 3px 0; }
+  .stop > .num { grid-column: 2; grid-row: 1; width: 34px; height: 34px; line-height: 34px; }
+  .stop > .main {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    gap: 3px !important;
+  }
+  .stop .title { font-size: 16px; line-height: 1.25; overflow-wrap: break-word; }
+  .stop .sub, .stop .by, .stop .when { font-size: 13px; line-height: 1.35; }
+  .stop .when { margin-top: 3px; }
+  .stop > .side {
+    grid-column: 4 !important;
+    grid-row: 1 / span 2 !important;
+    align-self: start !important;
+    gap: 6px !important;
+    width: 58px !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    padding: 0 !important;
+  }
+  .stop .side .chipbtn { width: 42px; height: 42px; min-width: 42px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+  .stop .side .hovertools { width: 100%; display: flex; justify-content: center; }
+  .stop .side .hovertools button { font-size: 13px; padding: 3px 0; }
+  .stop > .wx {
+    grid-column: 3 !important;
+    grid-row: 2 !important;
+    justify-self: start;
+    align-self: start !important;
+    max-width: 100% !important;
+    flex-wrap: nowrap !important;
+    gap: 4px;
+    margin: 3px 0 0 !important;
+    padding: 0 !important;
+    font-size: 13px;
+  }
+  .stop > .wx[hidden] { display: none !important; }
+  .stop > .wx svg { width: 18px; height: 18px; }
+  .stop > .wx .wxt { font-size: 15px; }
+  .stop > .wx .wx-historical { font-size: 10px; }
+  .hero-in { min-height: 0 !important; padding-top: 15px; padding-bottom: 12px; gap: 10px; }
+  .hero h1 { font-size: clamp(32px, 9vw, 40px); }
+  .hero .travelers {
+    display: flex;
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 5px;
+    padding: 3px 2px 5px;
+    max-width: 100%;
+  }
+  .hero .travelers::-webkit-scrollbar, .tabs::-webkit-scrollbar { display: none; }
+  .hero .travelers .av { flex: 0 0 auto; white-space: nowrap; }
+  .tabs { scrollbar-width: none; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+  .tabs .tab { scroll-snap-align: start; white-space: nowrap; }
+}
+
 </style>
 </head>
 <body>
