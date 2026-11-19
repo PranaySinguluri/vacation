@@ -318,6 +318,25 @@ html { overflow-x: hidden }
   .stop .main .sub, .stop .main .by, .stop .when { overflow-wrap: break-word; word-break: normal; }
   .stop .wx-historical { white-space: nowrap; }
 }
+/* Compact stop editor */
+.edit-overlay { padding: 10px; }
+.edit-sheet { width: min(440px, 100%); max-height: calc(100dvh - 20px); padding: 16px 18px; border-radius: 18px; }
+.edit-stop-form { gap: 10px; }
+.edit-stop-form .field { gap: 4px; margin: 0; }
+.edit-stop-form input, .edit-stop-form select { min-height: 42px; }
+.edit-stop-form textarea { min-height: 54px; resize: vertical; }
+.edit-top { margin-bottom: 0; min-height: 34px; }
+.edit-types legend { margin-bottom: 5px; }
+.edit-type-row { gap: 6px; }
+.edit-type-choice span { min-height: 56px; gap: 2px; }
+.edit-date-area h4 { margin: 0 0 5px; }
+.edit-stay-dates { margin-top: 7px; }
+.edit-actions { margin-top: 2px; padding-bottom: 2px; }
+.edit-actions button { min-height: 44px; }
+@media (max-width: 440px) { .edit-sheet { padding: 14px; } .edit-stop-form { gap: 9px; } .edit-type-choice span { min-height: 52px; } }
+
+
+
 </style>
 </head>
 <body>
