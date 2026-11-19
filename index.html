@@ -268,6 +268,22 @@ html { overflow-x: hidden }
 .edit-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; margin-top: 8px; }
 .edit-actions button { min-height: 45px; }
 @media (max-width: 440px) { .edit-sheet { padding: 16px; border-radius: 20px; } .edit-stop-form { gap: 12px; } }
+/* Compact stop editor */
+.edit-overlay { padding: 10px; }
+.edit-sheet { width: min(440px, 100%); max-height: calc(100dvh - 20px); padding: 16px 18px; border-radius: 18px; }
+.edit-stop-form { gap: 10px; }
+.edit-stop-form .field { gap: 4px; margin: 0; }
+.edit-stop-form input, .edit-stop-form select { min-height: 42px; }
+.edit-stop-form textarea { min-height: 54px; resize: vertical; }
+.edit-top { margin-bottom: 0; min-height: 34px; }
+.edit-types legend { margin-bottom: 5px; }
+.edit-type-row { gap: 6px; }
+.edit-type-choice span { min-height: 56px; gap: 2px; }
+.edit-date-area h4 { margin: 0 0 5px; }
+.edit-stay-dates { margin-top: 7px; }
+.edit-actions { margin-top: 2px; padding-bottom: 2px; }
+.edit-actions button { min-height: 44px; }
+@media (max-width: 440px) { .edit-sheet { padding: 14px; } .edit-stop-form { gap: 9px; } .edit-type-choice span { min-height: 52px; } }
 .when-static { font-weight: 700; font-size: 13px; padding: 5px 0; }
 .when-needed { color: var(--owe); }
 .when-ready { color: var(--good); }
@@ -1341,7 +1357,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<div class="updown"><button type="button" data-act="move" data-id="' + p.id + '" data-dir="-1" aria-label="Move ' + esc(p.name) + ' up"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
       '<button type="button" data-act="move" data-id="' + p.id + '" data-dir="1" aria-label="Move ' + esc(p.name) + ' down"' + (i === n - 1 ? ' disabled' : '') + '>↓</button></div>' +
       '<div class="hovertools"><button type="button" class="link" data-act="' + (p.completedAt ? 'restore-stop' : 'complete-stop') + '" data-id="' + p.id + '">' + (p.completedAt ? 'Restore' : 'Done') + '</button></div>' +
-      (ui.confirm !== p.id ? '<div class="hovertools"><button type="button" class="link" data-act="edit-place" data-id="' + p.id + '">Edit</button><button type="button" class="link danger" data-act="ask" data-id="' + p.id + '">Remove</button></div>' : '') +
+
       (p.kind !== 'stay' && stayOf(p.city) ? '<div class="hovertools"><button type="button" class="link small" data-act="use-as-stay" data-id="' + p.id + '" title="Moves this into the ' + esc(stayOf(p.city).name) + ' stop and removes this one">Use as our stay</button></div>' : '') +
       '</div></li>';
     return h;
