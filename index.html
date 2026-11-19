@@ -268,6 +268,12 @@ html { overflow-x: hidden }
 .edit-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; margin-top: 8px; }
 .edit-actions button { min-height: 45px; }
 @media (max-width: 440px) { .edit-sheet { padding: 16px; border-radius: 20px; } .edit-stop-form { gap: 12px; } }
+.when-static { font-weight: 700; font-size: 13px; padding: 5px 0; }
+.when-needed { color: var(--owe); }
+.when-ready { color: var(--good); }
+.map-pin-only { font-size: 18px; min-width: 40px; justify-content: center; }
+.grip { touch-action: pan-y; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 /* Compact stop editor */
 .edit-overlay { padding: 10px; }
 .edit-sheet { width: min(440px, 100%); max-height: calc(100dvh - 20px); padding: 16px 18px; border-radius: 18px; }
@@ -284,12 +290,7 @@ html { overflow-x: hidden }
 .edit-actions { margin-top: 2px; padding-bottom: 2px; }
 .edit-actions button { min-height: 44px; }
 @media (max-width: 440px) { .edit-sheet { padding: 14px; } .edit-stop-form { gap: 9px; } .edit-type-choice span { min-height: 52px; } }
-.when-static { font-weight: 700; font-size: 13px; padding: 5px 0; }
-.when-needed { color: var(--owe); }
-.when-ready { color: var(--good); }
-.map-pin-only { font-size: 18px; min-width: 40px; justify-content: center; }
-.grip { touch-action: pan-y; }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
 </style>
 </head>
 <body>
