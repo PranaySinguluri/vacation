@@ -125,7 +125,7 @@ button:disabled { opacity: .35; cursor: default }
 </head>
 <body>
 <div id="app"></div>
-<footer class="version">v2-2026-11-18 20:43 PST</footer>
+<footer class="version">v3-2026-11-18 20:45 PST</footer>
 
 <script id="core">
 /* Pure logic: money in integer cents, distances, link parsing, share codes. */
@@ -347,7 +347,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   var legCache = {};
   try { legCache = JSON.parse(localStorage.getItem(LEGS_KEY) || '{}') || {}; } catch (e) {}
 
-  var ui = { tab: 'sd', admin: false, adminOpen: false, share: false, sel: null, editing: null, editingExp: null, locFor: null, confirm: null, msg: '', importText: '' };
+  var ui = { tab: 'sd', adding: false, admin: false, adminOpen: false, share: false, sel: null, editing: null, editingExp: null, locFor: null, confirm: null, msg: '', importText: '' };
   try { ui.admin = sessionStorage.getItem(ADMIN_KEY) === '1'; } catch (e) {}
   try { var savedTab = localStorage.getItem(TAB_KEY); if (savedTab && (savedTab === 'costs' || cityById(savedTab))) ui.tab = savedTab; } catch (e) {}
 
@@ -585,7 +585,8 @@ if (typeof module !== 'undefined') module.exports = Core;
     var list = cityPlaces(c.id), h = '', route = routeURL(list);
     var sel = list.find(function (p) { return p.id === ui.sel; });
     h += '<section class="card cityhead"><div class="row between"><div><h2>' + esc(c.name) + '</h2><div class="sub">' + list.length + (list.length === 1 ? ' stop' : ' stops') + ' · drag the handle to change the order</div></div>' +
-      (route ? '<a class="btn primary" href="' + route + '" target="_blank" rel="noopener">Open route in Google Maps</a>' : '') + '</div>' +
+      '<div class="row"><button type="button" class="primary" data-act="add-stop" aria-expanded="' + !!(ui.adding || ui.editing) + '">+ Add stop</button>' +
+      (route ? '<a class="btn" href="' + route + '" target="_blank" rel="noopener">Open route in Google Maps</a>' : '') + '</div></div>' +
       '<div class="stayline">' + esc(c.stay) + '</div>' +
       '<div class="sketch">' + sketch(list) + '</div>';
     if (standalone() && sel && hasLL(sel)) {
@@ -595,17 +596,8 @@ if (typeof module !== 'undefined') module.exports = Core;
       (list.length > 10 ? '<div class="sub">The Google Maps route covers the first 10 stops.</div>' : '') +
       '<div class="sub">Drive distances come from OpenStreetMap road routing when the page can reach it. Ones marked "estimate" are straight-line distance with a road allowance.</div></section>';
 
-    if (list.length) {
-      h += '<ol class="stops" id="stops" data-city="' + c.id + '">';
-      list.forEach(function (p, i) {
-        if (i) h += '<li class="leg" data-a="' + list[i - 1].id + '" data-b="' + p.id + '" data-na="' + i + '" data-nb="' + (i + 1) + '">' + legHTML(list[i - 1], p, i, i + 1) + '</li>';
-        h += stopHTML(p, i, list.length);
-      });
-      h += '</ol>';
-    } else h += '<div class="card"><p class="empty">No stops in ' + esc(c.name) + ' yet. Add the first one below.</p></div>';
-
     var ed = ui.editing ? placeById(ui.editing) : null;
-    h += '<form class="card" id="place-form"><h3>' + (ed ? 'Edit ' + esc(ed.name) : 'Add a stop in ' + esc(c.name)) + '</h3><div class="row">' +
+    if (ui.adding || ed) h += '<form class="card" id="place-form"><h3>' + (ed ? 'Edit ' + esc(ed.name) : 'Add a stop in ' + esc(c.name)) + '</h3><div class="row">' +
       '<label class="field" style="flex:2 1 220px">Place<input id="place-name" maxlength="80" placeholder="USS Midway Museum" value="' + esc(ed ? ed.name : '') + '"></label>' +
       '<label class="field">Day<input id="place-date" type="date" value="' + esc(ed ? ed.date : '') + '"></label>' +
       '<label class="field">Time<input id="place-time" type="time" value="' + esc(ed ? ed.time : '') + '"></label></div>' +
@@ -613,7 +605,17 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<label class="field">Google Maps link (optional)<input id="place-link" placeholder="Paste a link to pin the exact spot"></label>' +
       '<div class="sub">Without a link, the page looks the place up by name.</div>' +
       '<div class="err" data-err hidden></div>' +
-      '<div class="row"><button class="primary" type="submit">' + (ed ? 'Save changes' : 'Add stop') + '</button>' + (ed ? '<button type="button" class="link" data-act="cancel-edit">Cancel</button>' : '') + '</div></form>';
+      '<div class="row"><button class="primary" type="submit">' + (ed ? 'Save changes' : 'Add stop') + '</button>' + '<button type="button" class="link" data-act="cancel-edit">Cancel</button>' + '</div></form>';
+
+    if (list.length) {
+      h += '<ol class="stops" id="stops" data-city="' + c.id + '">';
+      list.forEach(function (p, i) {
+        if (i) h += '<li class="leg" data-a="' + list[i - 1].id + '" data-b="' + p.id + '" data-na="' + i + '" data-nb="' + (i + 1) + '">' + legHTML(list[i - 1], p, i, i + 1) + '</li>';
+        h += stopHTML(p, i, list.length);
+      });
+      h += '</ol>';
+    } else h += '<div class="card"><p class="empty">No stops in ' + esc(c.name) + ' yet. Use Add stop to add the first one.</p></div>';
+
     return h;
   }
 
@@ -716,7 +718,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (a !== 'ask') ui.confirm = null;
     if (a !== 'import') ui.msg = '';
     if (a === 'tab') {
-      ui.tab = d.id; ui.editing = null; ui.editingExp = null; ui.locFor = null; ui.sel = null;
+      ui.tab = d.id; ui.adding = false; ui.editing = null; ui.editingExp = null; ui.locFor = null; ui.sel = null;
       try { localStorage.setItem(TAB_KEY, d.id); } catch (e) {}
     }
     else if (a === 'select') ui.sel = ui.sel === d.id ? null : d.id;
@@ -728,8 +730,9 @@ if (typeof module !== 'undefined') module.exports = Core;
     else if (a === 'cancel-loc') ui.locFor = null;
     else if (a === 'ask') ui.confirm = d.id;
     else if (a === 'cancel') ui.confirm = null;
-    else if (a === 'edit-place') ui.editing = d.id;
-    else if (a === 'cancel-edit') { ui.editing = null; ui.editingExp = null; }
+    else if (a === 'add-stop') { ui.adding = !(ui.adding || ui.editing); ui.editing = null; }
+    else if (a === 'edit-place') { ui.editing = d.id; ui.adding = false; }
+    else if (a === 'cancel-edit') { ui.adding = false; ui.editing = null; ui.editingExp = null; }
     else if (a === 'delete-place') {
       data.places = data.places.filter(function (p) { return p.id !== d.id; });
       data.deleted.push(d.id);
@@ -756,6 +759,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       }
     }
     render();
+    if (a === 'add-stop' && ui.adding) { var nm = document.getElementById('place-name'); if (nm) nm.focus(); }
     if (a === 'edit-place' || a === 'edit-expense') {
       var f = document.getElementById(a === 'edit-place' ? 'place-form' : 'expense-form');
       if (f && f.scrollIntoView) f.scrollIntoView({ block: 'start' });
@@ -832,6 +836,7 @@ if (typeof module !== 'undefined') module.exports = Core;
         var np = Object.assign({ id: 'u-' + uid(), city: ui.tab, lat: pll ? pll.lat : null, lng: pll ? pll.lng : null, q: '', pin: !!pll }, rec);
         data.places.push(np);
         ui.sel = np.id;
+        ui.adding = false;
       }
       save(); render(); return;
     }
