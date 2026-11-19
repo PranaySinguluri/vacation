@@ -56,6 +56,7 @@ button:disabled { opacity: .35; cursor: default }
 .linkbox a { font-weight: 600; color: var(--primary) }
 .linkfull { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; min-width: 0; flex: 1 1 160px }
 .linkform { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px }
+.staychk { align-self: flex-start; font-size: 13px }
 .bsum { align-self: flex-start; font-size: 13px; font-weight: 600; border-radius: 8px; padding: 6px 10px }
 .bsum.no { background: var(--owe-soft); color: var(--owe) }
 .bsum.yes { background: var(--good-soft); color: var(--good) }
@@ -157,7 +158,7 @@ button:disabled { opacity: .35; cursor: default }
 </head>
 <body>
 <div id="app"></div>
-<footer class="version">v9-2026-11-18 21:39 PST</footer>
+<footer class="version">v10-2026-11-18 21:43 PST</footer>
 
 <script id="core">
 /* Pure logic: money in integer cents, distances, link parsing, share codes. */
@@ -438,6 +439,16 @@ if (typeof module !== 'undefined') module.exports = Core;
       if (x && x.needsBooking === undefined) { x.needsBooking = true; x.booked = false; x.bookingLink = ''; changed = true; }
     });
     return changed;
+  }
+  function stayOf(cid) { return data.places.find(function (x) { return x.city === cid && x.kind === 'stay'; }); }
+  /* Puts a real motel into the city's stay slot. Keeps the stay's nights, day, booking status and link. */
+  function fillStay(st, src) {
+    st.name = String(src.name || st.name).slice(0, 80);
+    if (hasLL(src)) { st.lat = src.lat; st.lng = src.lng; delete st.geo; }
+    st.q = src.q || ''; st.pin = !!src.pin; st.hotel = true;
+    if (!st.bookingLink && src.bookingLink) st.bookingLink = src.bookingLink;
+    if (!st.booked && src.booked) st.booked = true;
+    logIt('set the stay to', st.name + ' in ' + cityName(st.city));
   }
   function cleanLink(u) {
     u = String(u || '').trim();
@@ -772,6 +783,14 @@ if (typeof module !== 'undefined') module.exports = Core;
   function pick(i) {
     var r = results[i];
     if (!r) return;
+    var stayBox = document.getElementById('place-stay'), stay = stayBox && stayBox.checked ? stayOf(ui.tab) : null;
+    if (stay) {
+      fillStay(stay, { name: r.name, lat: r.lat, lng: r.lng, q: r.name + (r.where ? ', ' + r.where : ''), pin: false });
+      results = []; active = -1;
+      ui.adding = false; ui.sel = stay.id;
+      ui.msg = r.name + ' is now the stay for ' + stay.note.charAt(0).toLowerCase() + stay.note.slice(1) + '.';
+      save(); render(); return;
+    }
     if (cityPlaces(ui.tab).some(function (p) { return p.name.toLowerCase() === r.name.toLowerCase(); })) { setStatus(r.name + ' is already on the list.'); return; }
     var np = { id: 'u-' + uid(), city: ui.tab, name: r.name.slice(0, 80), lat: r.lat, lng: r.lng, note: '', date: '', time: '', q: r.name + (r.where ? ', ' + r.where : ''), pin: false };
     stamp(np);
@@ -907,7 +926,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<button type="button" class="grip" aria-label="Drag ' + esc(p.name) + ' to reorder">' + GRIP + '</button>' +
       '<div class="num">' + (i + 1) + '</div><div class="main">' +
       '<button type="button" class="title" data-act="select" data-id="' + p.id + '">' + (p.kind === 'stay' ? BED : '') + esc(p.name) + '</button>' +
-      (p.note ? '<div class="sub">' + esc(p.note) + '</div>' : '') + locLine(p) +
+      (p.note ? '<div class="sub">' + (p.kind === 'stay' && p.hotel ? 'Stay · ' : '') + esc(p.note) + '</div>' : '') + locLine(p) +
       (p.by ? '<div class="by">Added by ' + esc(person(p.by)) + '</div>' : '') +
       '<div class="when"><input type="date" id="date-' + p.id + '" data-place="' + p.id + '" data-field="date" value="' + esc(p.date) + '" aria-label="Day for ' + esc(p.name) + '">' +
       '<input type="time" id="time-' + p.id + '" data-place="' + p.id + '" data-field="time" value="' + esc(p.time) + '" aria-label="Time for ' + esc(p.name) + '"></div>' +
@@ -923,6 +942,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<div class="updown"><button type="button" data-act="move" data-id="' + p.id + '" data-dir="-1" aria-label="Move ' + esc(p.name) + ' up"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
       '<button type="button" data-act="move" data-id="' + p.id + '" data-dir="1" aria-label="Move ' + esc(p.name) + ' down"' + (i === n - 1 ? ' disabled' : '') + '>↓</button></div>' +
       (ui.admin && ui.confirm !== p.id ? '<div><button type="button" class="link" data-act="edit-place" data-id="' + p.id + '">Edit</button><button type="button" class="link danger" data-act="ask" data-id="' + p.id + '">Remove</button></div>' : '') +
+      (ui.admin && p.kind !== 'stay' && stayOf(p.city) ? '<div><button type="button" class="link small" data-act="use-as-stay" data-id="' + p.id + '" title="Moves this into the ' + esc(stayOf(p.city).name) + ' stop and removes this one">Use as our stay</button></div>' : '') +
       '</div></li>';
     return h;
   }
@@ -960,6 +980,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<input id="place-name" maxlength="80" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="place-suggest" placeholder="Search, like USS Midway Museum"></div>' +
       '<ul class="suggest" id="place-suggest" role="listbox" aria-label="Search results" hidden></ul></div>' +
       '<div class="sub" id="search-status">' + SEARCH_HINT + '</div>' +
+      (stayOf(c.id) ? '<label class="chip staychk"><input type="checkbox" id="place-stay"> This is where we are staying (' + esc(stayOf(c.id).note.charAt(0).toLowerCase() + stayOf(c.id).note.slice(1)) + ')</label>' : '') +
       '<label class="field">Or paste a Google Maps link<input id="place-link" placeholder="Pins the exact spot"></label>' +
       '<div class="err" data-err hidden></div>' +
       '<div class="row"><button type="submit">Add by name</button><button type="button" class="link" data-act="cancel-edit">Cancel</button></div></form>';
@@ -1136,7 +1157,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     data.places = data.places.filter(function (p) { return p.city !== cid; }).concat(moved);
     save();
   }
-  var ADMIN_ONLY = ['edit-place', 'delete-place', 'edit-expense', 'delete-expense', 'undo-pay', 'ask', 'reset-member', 'start-trip'];
+  var ADMIN_ONLY = ['use-as-stay', 'edit-place', 'delete-place', 'edit-expense', 'delete-expense', 'undo-pay', 'ask', 'reset-member', 'start-trip'];
   function act(a, d) {
     if (ADMIN_ONLY.indexOf(a) >= 0 && !ui.admin) return;
     if (a !== 'ask') ui.confirm = null;
@@ -1183,6 +1204,17 @@ if (typeof module !== 'undefined') module.exports = Core;
     else if (a === 'toggle-share') ui.share = !ui.share;
     else if (a === 'admin-open') ui.adminOpen = true;
     else if (a === 'admin-close') ui.adminOpen = false;
+    else if (a === 'use-as-stay') {
+      var src = placeById(d.id), stv = src && stayOf(src.city);
+      if (src && stv) {
+        fillStay(stv, src);
+        data.places = data.places.filter(function (x) { return x.id !== src.id; });
+        data.deleted.push(src.id);
+        ui.sel = stv.id;
+        ui.msg = src.name + ' is now the stay for ' + stv.note.charAt(0).toLowerCase() + stv.note.slice(1) + '. The separate stop was removed.';
+        save();
+      }
+    }
     else if (a === 'toggle-booked') {
       var tb = placeById(d.id);
       if (tb) { tb.booked = !tb.booked; logIt(tb.booked ? 'marked as booked' : 'marked not booked', tb.name + ' in ' + cityName(tb.city)); save(); }
@@ -1333,6 +1365,13 @@ if (typeof module !== 'undefined') module.exports = Core;
         logIt('edited', old.name + ' in ' + cityName(old.city));
         ui.editing = null;
       } else {
+        var sb = document.getElementById('place-stay'), sst = sb && sb.checked ? stayOf(ui.tab) : null;
+        if (sst) {
+          fillStay(sst, { name: name, lat: pll ? pll.lat : null, lng: pll ? pll.lng : null, q: '', pin: !!pll });
+          if (!pll) { sst.lat = null; sst.lng = null; delete sst.geo; delete geoTried[sst.id]; }
+          ui.sel = sst.id; ui.adding = false;
+          save(); render(); return;
+        }
         var np = Object.assign({ id: 'u-' + uid(), city: ui.tab, lat: pll ? pll.lat : null, lng: pll ? pll.lng : null, q: '', pin: !!pll }, rec);
         stamp(np);
         data.places.push(np);
