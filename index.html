@@ -1855,7 +1855,14 @@ if (typeof module !== 'undefined') module.exports = Core;
       if (tb) tb.setAttribute('aria-expanded', 'false');
     }
     var b = ev.target.closest('[data-act]');
-    if (!b || !app.contains(b)) return;
+    if (!b) {
+      var tile = ev.target.closest('.stop[data-id]');
+      if (tile && !ev.target.closest('button, a, input, select, textarea, label, form, .grip')) {
+        act('edit-place', { id: tile.dataset.id });
+      }
+      return;
+    }
+    if (!app.contains(b)) return;
     var a = b.getAttribute('data-act');
     if (a === 'pick') { pick(+b.dataset.i); return; }
     if (a === 'copy') {
