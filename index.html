@@ -221,11 +221,17 @@ html { overflow-x: hidden }
   .stop .main { flex: 1 1 calc(100% - 90px) }
   .wx { margin-left: 74px }
 }
+.when-static { font-weight: 700; font-size: 13px; padding: 5px 0; }
+.when-needed { color: var(--owe); }
+.when-ready { color: var(--good); }
+.map-pin-only { font-size: 18px; min-width: 40px; justify-content: center; }
+.grip { touch-action: pan-y; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 </style>
 </head>
 <body>
 <div id="app"></div>
-<footer class="version">v24-2026-11-19 13:00 PST</footer>
+<footer class="version">v25-2026-11-19</footer>
 
 <script id="core">
 /* Pure logic: money in integer cents, distances, link parsing, share codes. */
@@ -600,27 +606,39 @@ if (typeof module !== 'undefined') module.exports = Core;
   function body(o) { var c = {}; Object.keys(o).forEach(function (k) { if (k !== 'id' && o[k] !== undefined) c[k] = o[k]; }); return c; }
   function tripDoc(col, id) { return CLOUD.fs.doc(CLOUD.db, 'trips', 'main', col, id); }
   /* Sends only what changed since the last copy from the server. */
+  var cloudWriting = false, cloudPending = false;
   function pushCloud() {
-    var fs = CLOUD.fs, batch = fs.writeBatch(CLOUD.db), n = 0, order = {};
+    if (cloudWriting) { cloudPending = true; return; }
+    var fs = CLOUD.fs, batch = fs.writeBatch(CLOUD.db), n = 0, order = {}, changes = [];
     data.places.forEach(function (p) { order[p.city] = (order[p.city] || 0) + 1; p.order = order[p.city]; });
     COLS.forEach(function (col) {
       var cur = {};
       data[col].forEach(function (o) { cur[o.id] = o; });
       Object.keys(cur).forEach(function (id) {
         var b = body(cur[id]), j = stable(b);
-        if (synced[col][id] !== j) { batch.set(tripDoc(col, id), b); synced[col][id] = j; n++; }
+        if (synced[col][id] !== j) { batch.set(tripDoc(col, id), b); changes.push({ col: col, id: id, value: j }); n++; }
       });
       if (col === 'log') return;
       Object.keys(synced[col]).forEach(function (id) {
         if (cur[id]) return;
         batch.delete(tripDoc(col, id));
         batch.set(tripDoc('deleted', id), { at: new Date().toISOString(), by: CLOUD.person });
-        delete synced[col][id]; n += 2;
+        changes.push({ col: col, id: id, remove: true }); n += 2;
       });
     });
-    if (n) batch.commit().catch(function (err) {
-      ui.msg = 'That change was not saved (' + (err && (err.code || err.message)) + '). The page shows the last saved version.';
+    if (!n) return;
+    cloudWriting = true;
+    batch.commit().then(function () {
+      changes.forEach(function (c) {
+        if (c.remove) delete synced[c.col][c.id];
+        else synced[c.col][c.id] = c.value;
+      });
+    }).catch(function (err) {
+      ui.msg = 'Sync failed (' + (err && (err.code || err.message)) + '). Your change may need retrying.';
       render();
+    }).finally(function () {
+      cloudWriting = false;
+      if (cloudPending) { cloudPending = false; pushCloud(); }
     });
   }
   function cloudErr(err) {
@@ -1251,9 +1269,8 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<button type="button" class="title" data-act="select" data-id="' + p.id + '">' + (p.kind === 'stay' ? BED : '') + esc(p.name) + '</button>' +
       (p.note ? '<div class="sub">' + (p.kind === 'stay' && p.hotel ? 'Stay · ' : '') + esc(p.note) + '</div>' : '') + locLine(p) +
       (p.by ? '<div class="by">Added by ' + esc(person(p.by)) + '</div>' : '') +
-      '<div class="when"><input type="date" id="date-' + p.id + '" data-place="' + p.id + '" data-field="date" value="' + esc(p.date) + '" aria-label="Day for ' + esc(p.name) + '">' +
-      '<input type="time" id="time-' + p.id + '" data-place="' + p.id + '" data-field="time" value="' + esc(p.time) + '" aria-label="Time for ' + esc(p.name) + '"></div>' +
-      bookingHTML(p);
+      '<div class="when when-static ' + (p.needsBooking && !p.booked ? 'when-needed' : 'when-ready') + '">' +
+      esc(niceDate(p.date)) + (p.time ? ' · ' + esc(fmtClock(p.time)) : '') + '</div>';
     if (ui.locFor === p.id) {
       h += '<form class="locform" data-id="' + p.id + '"><input id="loc-' + p.id + '" class="grow" placeholder="Paste a Google Maps link, or 32.85, -117.27" aria-label="Location for ' + esc(p.name) + '">' +
         '<button type="submit" class="primary">Save</button><button type="button" class="link" data-act="cancel-loc">Cancel</button><div class="err" data-err hidden style="flex-basis:100%"></div></form>';
@@ -1261,7 +1278,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (ui.confirm === p.id) {
       h += '<div class="row"><span class="sub">Remove this stop?</span><button type="button" class="link danger" data-act="delete-place" data-id="' + p.id + '">Yes, remove</button><button type="button" class="link" data-act="cancel">Keep</button></div>';
     }
-    h += '</div>' + wxHTML(p) + '<div class="side"><a class="btn chipbtn" href="' + mapURL(p) + '" target="_blank" rel="noopener">Google Maps</a>' +
+    h += '</div>' + wxHTML(p) + '<div class="side"><a class="btn chipbtn map-pin-only" aria-label="Directions to ' + esc(p.name) + '" title="Directions" href="' + mapURL(p) + '" target="_blank" rel="noopener">📍</a>' +
       '<div class="updown"><button type="button" data-act="move" data-id="' + p.id + '" data-dir="-1" aria-label="Move ' + esc(p.name) + ' up"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
       '<button type="button" data-act="move" data-id="' + p.id + '" data-dir="1" aria-label="Move ' + esc(p.name) + ' down"' + (i === n - 1 ? ' disabled' : '') + '>↓</button></div>' +
       (ui.confirm !== p.id ? '<div class="hovertools"><button type="button" class="link" data-act="edit-place" data-id="' + p.id + '">Edit</button><button type="button" class="link danger" data-act="ask" data-id="' + p.id + '">Remove</button></div>' : '') +
@@ -1299,6 +1316,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<label class="field">Note<input id="place-note" maxlength="140" placeholder="Booking number, opening hours, price" value="' + esc(ed.note) + '"></label>' +
       '<label class="field">Google Maps link (optional)<input id="place-link" placeholder="Paste a link to pin the exact spot"></label>' +
       '<div class="err" data-err hidden></div>' +
+      '<label class="field">Booking status<select id="place-booking"><option value="needed"' + (ed.needsBooking && !ed.booked ? ' selected' : '') + '>Booking needed</option><option value="booked"' + (ed.needsBooking && ed.booked ? ' selected' : '') + '>Booked</option><option value="none"' + (!ed.needsBooking ? ' selected' : '') + '>No booking</option></select></label>' +
       '<div class="row"><button class="primary" type="submit">Save changes</button><button type="button" class="link" data-act="cancel-edit">Cancel</button></div></form>';
     else if (ui.adding) h += '<form class="card" id="place-form"><h3>Add a stop in ' + esc(c.name) + '</h3>' +
       '<div class="search"><label class="flabel" for="place-name">Search places</label><div class="searchbox">' + SEARCH_ICON +
@@ -1869,6 +1887,9 @@ if (typeof module !== 'undefined') module.exports = Core;
         if (pll) { old.lat = pll.lat; old.lng = pll.lng; old.pin = true; delete old.geo; }
         else if (old.name !== name && !old.pin) { old.lat = null; old.lng = null; old.q = ''; delete old.geo; delete geoTried[old.id]; }
         Object.assign(old, rec);
+        var bs = val('place-booking');
+        old.needsBooking = bs !== 'none';
+        old.booked = bs === 'booked';
         logIt('edited', old.name + ' in ' + cityName(old.city));
         ui.editing = null;
       } else {
@@ -1904,20 +1925,30 @@ if (typeof module !== 'undefined') module.exports = Core;
     }
   });
 
-  /* ---------- Drag and drop with pointer events, so it works with a finger too ---------- */
+  /* ---------- Long press prevents accidental drag while scrolling ---------- */
   app.addEventListener('pointerdown', function (e) {
     var g = e.target.closest('.grip');
     if (!g || (e.button && e.button !== 0)) return;
     var card = g.closest('.stop'), list = card && card.parentNode;
     if (!list) return;
-    e.preventDefault();
-    try { g.setPointerCapture(e.pointerId); } catch (x) {}
-    list.classList.add('reordering');
-    card.classList.add('dragging');
-    drag = { card: card, list: list, moved: false };
+    var point = { x: e.clientX, y: e.clientY, pointerId: e.pointerId };
+    drag = { card: card, list: list, moved: false, active: false, point: point, grip: g };
+    drag.timer = setTimeout(function () {
+      if (!drag || drag.card !== card) return;
+      drag.active = true;
+      try { g.setPointerCapture(point.pointerId); } catch (x) {}
+      list.classList.add('reordering');
+      card.classList.add('dragging');
+    }, 420);
   });
   app.addEventListener('pointermove', function (e) {
     if (!drag) return;
+    if (!drag.active) {
+      if (Math.abs(e.clientY - drag.point.y) > 9 || Math.abs(e.clientX - drag.point.x) > 9) {
+        clearTimeout(drag.timer); drag = null;
+      }
+      return;
+    }
     e.preventDefault();
     var y = e.clientY, card = drag.card, stops = drag.list.querySelectorAll('.stop');
     for (var i = 0; i < stops.length; i++) {
@@ -1934,6 +1965,10 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (!drag) return;
     var d = drag;
     drag = null;
+    clearTimeout(d.timer);
+    d.list.classList.remove('reordering');
+    d.card.classList.remove('dragging');
+    if (!d.active) return;
     if (d.moved) reorderCity(d.list.dataset.city, Array.prototype.map.call(d.list.querySelectorAll('.stop'), function (s) { return s.dataset.id; }));
     render();
   }
