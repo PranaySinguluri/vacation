@@ -45,6 +45,12 @@ button:disabled { opacity: .35; cursor: default }
 .brand h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.02em }
 .travelers { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px }
 .av { font-size: 12px; font-weight: 600; background: var(--primary-soft); color: var(--primary); border-radius: 999px; padding: 2px 9px }
+.by { font-size: 12px; color: var(--muted) }
+.gate { padding: 24px; gap: 14px }
+.gatehead { font-size: 22px; font-weight: 800; letter-spacing: -0.01em }
+.big { padding: 12px 18px; font-size: 16px; gap: 10px }
+.big svg { background: #fff; border-radius: 50%; padding: 2px; box-sizing: content-box }
+.whoami { font-size: 13px; font-weight: 600; color: var(--muted) }
 .adminpill { font-size: 12px; font-weight: 700; background: var(--sun); color: var(--sun-ink); border-radius: 999px; padding: 4px 10px }
 
 .tabs { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 6px }
@@ -135,7 +141,7 @@ button:disabled { opacity: .35; cursor: default }
 </head>
 <body>
 <div id="app"></div>
-<footer class="version">v4-2026-11-18 20:48 PST</footer>
+<footer class="version">v6-2026-11-18 21:22 PST</footer>
 
 <script id="core">
 /* Pure logic: money in integer cents, distances, link parsing, share codes. */
@@ -242,6 +248,18 @@ if (typeof module !== 'undefined') module.exports = Core;
   var SEARCH_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
   /* Search results are ranked near the city whose tab is open. */
   var CENTERS = { sd: [32.7157, -117.1611], la: [34.0522, -118.2437], lv: [36.1699, -115.1398], az: [36.2, -112.0] };
+  /* Firebase project for the shared trip. These values identify the project; they are not secret.
+     The database rules decide who may read or change anything. */
+  var FIREBASE_CONFIG = {
+    apiKey: 'AIzaSyAbDMzdtbFTQUSv50qMdWI9x__6_WnsvxI',
+    authDomain: 'vacation-fa517.firebaseapp.com',
+    projectId: 'vacation-fa517',
+    storageBucket: 'vacation-fa517.firebasestorage.app',
+    messagingSenderId: '1071026221606',
+    appId: '1:1071026221606:web:be26702ba1204d99b86ce7'
+  };
+  var FB_VERSION = '13.2.0';
+  var GLOGO = '<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.9 6.1C12.4 13.7 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.4 5.7c4.3-4 6.9-9.9 6.9-17.1z"/><path fill="#FBBC05" d="M10.5 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C1 16.6 0 20.2 0 24s1 7.4 2.6 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.7c-2.1 1.4-4.8 2.3-8.5 2.3-6.3 0-11.6-4.2-13.5-10l-7.9 6.1C6.6 42.6 14.6 48 24 48z"/></svg>';
   var SPLITWISE_URL = 'https://secure.splitwise.com/#/groups/105847378';
   var ADMIN_HASH = 'df174295019980fadcb15ac944bdde3b3fc5aff2e92a0906afbc17a1a005044a';
   var PEOPLE = [['A', 'Akshaya'], ['D', 'DivyaTheja'], ['H', 'Haneela'], ['M', 'Megha'], ['P', 'Pranay'], ['R', 'Ramya'], ['S', 'Sahithi']]
@@ -357,15 +375,166 @@ if (typeof module !== 'undefined') module.exports = Core;
   try { data = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
   if (!data || data.v !== 3 || !Array.isArray(data.places)) { data = seedData(); migrateV2(data); }
   data.expenses = data.expenses || []; data.payments = data.payments || []; data.deleted = data.deleted || [];
+  if (!Array.isArray(data.log)) data.log = [];
+  /* A copy of what this browser had before signing in, used to offer adding it to the shared trip. */
+  var localData = JSON.parse(JSON.stringify(data));
+
+  var me = '';
+  function stamp(o) { o.by = me; o.at = new Date().toISOString(); return o; }
+  function logIt(act, text) {
+    data.log.push({ id: uid(), at: new Date().toISOString(), who: me, act: act, text: String(text).slice(0, 140) });
+    if (data.log.length > 500) data.log = data.log.slice(-500);
+  }
+  function cityName(id) { var c = cityById(id); return c ? c.name : ''; }
 
   var legCache = {};
   try { legCache = JSON.parse(localStorage.getItem(LEGS_KEY) || '{}') || {}; } catch (e) {}
 
-  var ui = { tab: 'sd', adding: false, admin: false, adminOpen: false, share: false, sel: null, editing: null, editingExp: null, locFor: null, confirm: null, msg: '', importText: '' };
+  var ui = { tab: 'sd', showLog: false, adding: false, admin: false, adminOpen: false, share: false, sel: null, editing: null, editingExp: null, locFor: null, confirm: null, msg: '', importText: '' };
   try { ui.admin = sessionStorage.getItem(ADMIN_KEY) === '1'; } catch (e) {}
   try { var savedTab = localStorage.getItem(TAB_KEY); if (savedTab && (savedTab === 'costs' || cityById(savedTab))) ui.tab = savedTab; } catch (e) {}
 
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {} }
+  function save() {
+    if (CLOUD.on) { if (CLOUD.state === 'ready') pushCloud(); return; }
+    try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {}
+  }
+
+  /* ---------- Shared trip in Firebase (on the hosted site) ---------- */
+  var CLOUD = { on: false, state: 'off', fs: null, db: null, au: null, auth: null, user: null, admin: false, person: '', members: {}, loaded: {}, deleted: {}, unsub: [], err: '' };
+  var COLS = ['places', 'expenses', 'payments', 'log'];
+  var synced = { places: {}, expenses: {}, payments: {}, log: {} };
+  function stable(o) {
+    if (o === null || typeof o !== 'object') return JSON.stringify(o);
+    if (Array.isArray(o)) return '[' + o.map(stable).join(',') + ']';
+    return '{' + Object.keys(o).filter(function (k) { return o[k] !== undefined; }).sort().map(function (k) { return JSON.stringify(k) + ':' + stable(o[k]); }).join(',') + '}';
+  }
+  function body(o) { var c = {}; Object.keys(o).forEach(function (k) { if (k !== 'id' && o[k] !== undefined) c[k] = o[k]; }); return c; }
+  function tripDoc(col, id) { return CLOUD.fs.doc(CLOUD.db, 'trips', 'main', col, id); }
+  /* Sends only what changed since the last copy from the server. */
+  function pushCloud() {
+    var fs = CLOUD.fs, batch = fs.writeBatch(CLOUD.db), n = 0, order = {};
+    data.places.forEach(function (p) { order[p.city] = (order[p.city] || 0) + 1; p.order = order[p.city]; });
+    COLS.forEach(function (col) {
+      var cur = {};
+      data[col].forEach(function (o) { cur[o.id] = o; });
+      Object.keys(cur).forEach(function (id) {
+        var b = body(cur[id]), j = stable(b);
+        if (synced[col][id] !== j) { batch.set(tripDoc(col, id), b); synced[col][id] = j; n++; }
+      });
+      if (col === 'log') return;
+      Object.keys(synced[col]).forEach(function (id) {
+        if (cur[id]) return;
+        batch.delete(tripDoc(col, id));
+        batch.set(tripDoc('deleted', id), { at: new Date().toISOString(), by: CLOUD.person });
+        delete synced[col][id]; n += 2;
+      });
+    });
+    if (n) batch.commit().catch(function (err) {
+      ui.msg = 'That change was not saved (' + (err && (err.code || err.message)) + '). The page shows the last saved version.';
+      render();
+    });
+  }
+  function cloudErr(err) {
+    CLOUD.err = (err && err.code === 'permission-denied') ? 'This account cannot open the trip. Ask Pranay to check the database rules.' : 'The trip could not load (' + (err && (err.code || err.message)) + ').';
+    CLOUD.state = 'error';
+    render();
+  }
+  function listen() {
+    var fs = CLOUD.fs, db = CLOUD.db;
+    ['places', 'expenses', 'payments'].forEach(function (col) {
+      CLOUD.unsub.push(fs.onSnapshot(fs.collection(db, 'trips', 'main', col), function (snap) {
+        var arr = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
+        if (col === 'places') arr.sort(function (a, b) { return (a.order || 0) - (b.order || 0) || String(a.at || '').localeCompare(String(b.at || '')); });
+        else arr.sort(function (a, b) { return String(a.at || '').localeCompare(String(b.at || '')); });
+        data[col] = arr;
+        synced[col] = {};
+        arr.forEach(function (o) { synced[col][o.id] = stable(body(o)); });
+        CLOUD.loaded[col] = true;
+        softRender();
+      }, cloudErr));
+    });
+    CLOUD.unsub.push(fs.onSnapshot(fs.query(fs.collection(db, 'trips', 'main', 'log'), fs.orderBy('at', 'desc'), fs.limit(300)), function (snap) {
+      data.log = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); }).reverse();
+      synced.log = {};
+      data.log.forEach(function (o) { synced.log[o.id] = stable(body(o)); });
+      softRender();
+    }, function () {}));
+    CLOUD.unsub.push(fs.onSnapshot(fs.collection(db, 'trips', 'main', 'deleted'), function (snap) {
+      CLOUD.deleted = {};
+      snap.docs.forEach(function (d) { CLOUD.deleted[d.id] = 1; });
+      CLOUD.loaded.deleted = true;
+      softRender();
+    }, function () {}));
+  }
+  function onUser(user) {
+    CLOUD.unsub.forEach(function (f) { try { f(); } catch (e) {} });
+    CLOUD.unsub = []; CLOUD.loaded = {}; CLOUD.user = user; CLOUD.person = ''; me = '';
+    if (!user) { CLOUD.state = 'signedout'; CLOUD.admin = false; ui.admin = false; render(); return; }
+    var fs = CLOUD.fs, db = CLOUD.db, ak = 'tripwallet.isadmin.' + user.uid;
+    try { CLOUD.admin = localStorage.getItem(ak) === '1'; } catch (e) {}
+    ui.admin = CLOUD.admin;
+    CLOUD.state = 'loading'; render();
+    /* Only the admin's account may write this document; the database rules decide. */
+    fs.setDoc(fs.doc(db, 'trips', 'main', 'admin', 'check'), { at: new Date().toISOString() }).then(function () { return true; }, function () { return false; }).then(function (isAdmin) {
+      if (CLOUD.user !== user) return;
+      CLOUD.admin = isAdmin; ui.admin = isAdmin;
+      try { localStorage.setItem(ak, isAdmin ? '1' : '0'); } catch (e) {}
+      softRender();
+    });
+    CLOUD.unsub.push(fs.onSnapshot(fs.collection(db, 'trips', 'main', 'members'), function (snap) {
+      CLOUD.members = {};
+      snap.docs.forEach(function (d) { CLOUD.members[d.id] = d.data(); });
+      var mine = CLOUD.members[user.uid];
+      CLOUD.person = mine && isPerson(mine.person) ? mine.person : '';
+      me = CLOUD.person;
+      if (!CLOUD.person) { CLOUD.state = 'pickme'; render(); return; }
+      if (CLOUD.state !== 'ready') { CLOUD.state = 'ready'; listen(); }
+      softRender();
+    }, cloudErr));
+  }
+  function loadFirebase() {
+    if (window.__tripwalletFirebase) return Promise.resolve(window.__tripwalletFirebase);
+    var base = 'https://www.gstatic.com/firebasejs/' + FB_VERSION + '/';
+    return Promise.all([import(base + 'firebase-app.js'), import(base + 'firebase-auth.js'), import(base + 'firebase-firestore.js')])
+      .then(function (m) { return { app: m[0], auth: m[1], fs: m[2] }; });
+  }
+  function startCloud() {
+    CLOUD.on = true; CLOUD.state = 'loading';
+    loadFirebase().then(function (m) {
+      var fapp = m.app.initializeApp(FIREBASE_CONFIG), db;
+      try { db = m.fs.initializeFirestore(fapp, { localCache: m.fs.persistentLocalCache({ tabManager: m.fs.persistentMultipleTabManager() }) }); }
+      catch (e) { db = m.fs.getFirestore(fapp); }
+      CLOUD.fs = m.fs; CLOUD.db = db; CLOUD.au = m.auth; CLOUD.auth = m.auth.getAuth(fapp);
+      m.auth.getRedirectResult(CLOUD.auth).catch(function () {});
+      m.auth.onAuthStateChanged(CLOUD.auth, onUser);
+    }).catch(function () {
+      CLOUD.state = 'error';
+      CLOUD.err = 'Sign-in could not load. Check your internet connection, then refresh the page.';
+      render();
+    });
+  }
+  function signIn() {
+    var au = CLOUD.au, prov = new au.GoogleAuthProvider();
+    prov.setCustomParameters({ prompt: 'select_account' });
+    au.signInWithPopup(CLOUD.auth, prov).catch(function (err) {
+      var code = err && err.code;
+      if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment') return au.signInWithRedirect(CLOUD.auth, prov);
+      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return;
+      ui.msg = 'Sign-in did not finish (' + (code || err.message) + ').';
+      render();
+    });
+  }
+  /* What this browser saved before the shared trip that the shared trip does not have yet. */
+  function localExtras() {
+    var out = { places: [], expenses: [], payments: [] };
+    var dead = CLOUD.deleted, has = {};
+    data.places.concat(data.expenses, data.payments).forEach(function (o) { has[o.id] = 1; });
+    (localData.places || []).forEach(function (p) { if (!has[p.id] && !dead[p.id] && cityById(p.city)) out.places.push(p); });
+    (localData.expenses || []).forEach(function (e) { if (!has[e.id] && !dead[e.id] && validExpense(e)) out.expenses.push(e); });
+    (localData.payments || []).forEach(function (q) { if (!has[q.id] && !dead[q.id] && validPayment(q)) out.payments.push(q); });
+    return out;
+  }
+  function allLoaded() { return CLOUD.loaded.places && CLOUD.loaded.expenses && CLOUD.loaded.payments && CLOUD.loaded.deleted; }
   function saveLegs() { try { localStorage.setItem(LEGS_KEY, JSON.stringify(legCache)); } catch (e) {} }
   function cityPlaces(cid) { return data.places.filter(function (p) { return p.city === cid; }); }
   function placeById(id) { return data.places.find(function (p) { return p.id === id; }); }
@@ -545,7 +714,9 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (!r) return;
     if (cityPlaces(ui.tab).some(function (p) { return p.name.toLowerCase() === r.name.toLowerCase(); })) { setStatus(r.name + ' is already on the list.'); return; }
     var np = { id: 'u-' + uid(), city: ui.tab, name: r.name.slice(0, 80), lat: r.lat, lng: r.lng, note: '', date: '', time: '', q: r.name + (r.where ? ', ' + r.where : ''), pin: false };
+    stamp(np);
     data.places.push(np);
+    logIt('added', np.name + ' in ' + cityName(ui.tab));
     results = []; active = -1;
     ui.adding = false; ui.sel = np.id;
     ui.msg = 'Added ' + np.name + ' as stop ' + cityPlaces(ui.tab).length + '. Set its day and time on the stop.';
@@ -653,6 +824,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<div class="num">' + (i + 1) + '</div><div class="main">' +
       '<button type="button" class="title" data-act="select" data-id="' + p.id + '">' + esc(p.name) + '</button>' +
       (p.note ? '<div class="sub">' + esc(p.note) + '</div>' : '') + locLine(p) +
+      (p.by ? '<div class="by">Added by ' + esc(person(p.by)) + '</div>' : '') +
       '<div class="when"><input type="date" id="date-' + p.id + '" data-place="' + p.id + '" data-field="date" value="' + esc(p.date) + '" aria-label="Day for ' + esc(p.name) + '">' +
       '<input type="time" id="time-' + p.id + '" data-place="' + p.id + '" data-field="time" value="' + esc(p.time) + '" aria-label="Time for ' + esc(p.name) + '"></div>';
     if (ui.locFor === p.id) {
@@ -744,7 +916,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       if (ui.admin) tools = ui.confirm === e.id
         ? '<div><button class="link danger" data-act="delete-expense" data-id="' + e.id + '">Yes, remove</button><button class="link" data-act="cancel">Keep</button></div>'
         : '<div><button class="link" data-act="edit-expense" data-id="' + e.id + '">Edit</button><button class="link danger" data-act="ask" data-id="' + e.id + '">Remove</button></div>';
-      return '<li><div class="main"><div class="ttl">' + esc(e.desc) + '</div><div class="sub">' + esc(person(e.paidBy)) + ' paid · split between ' + esc(who) + ' · ' + niceDate(e.date) + '</div>' + tools + '</div><div class="amt">' + fmt(e.amount) + '</div></li>';
+      return '<li><div class="main"><div class="ttl">' + esc(e.desc) + '</div><div class="sub">' + esc(person(e.paidBy)) + ' paid · split between ' + esc(who) + ' · ' + niceDate(e.date) + (e.by ? ' · added by ' + esc(person(e.by)) : '') + '</div>' + tools + '</div><div class="amt">' + fmt(e.amount) + '</div></li>';
     }), 'Nothing logged yet.') + '</div>';
 
     h += '<div class="card"><h3>Where everyone stands</h3>' + list(PEOPLE.map(function (p) {
@@ -763,14 +935,80 @@ if (typeof module !== 'undefined') module.exports = Core;
     return h;
   }
 
+  function logLine(l) {
+    var when = '';
+    try { when = new Date(l.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (e) {}
+    return '<li><div class="main"><div><b>' + esc(l.who ? person(l.who) : 'Someone') + '</b> ' + esc(l.act) + ' ' + esc(l.text) + '</div><div class="sub">' + esc(when) + '</div></div></li>';
+  }
+  function gateHTML() {
+    var st = CLOUD.state;
+    if (st === 'signedout') {
+      return '<section class="card gate"><h2 class="gatehead">Sign in to open the trip</h2>' +
+        '<p class="sub" style="margin:0">Use your Google account. You only do this once; this browser remembers you after that, and the trip is the same on every phone and laptop you sign in on.</p>' +
+        '<div><button class="primary big" data-act="sign-in">' + GLOGO + 'Sign in with Google</button></div></section>';
+    }
+    if (st === 'pickme') {
+      var taken = {};
+      Object.keys(CLOUD.members).forEach(function (k) { if (k !== CLOUD.user.uid) taken[CLOUD.members[k].person] = CLOUD.members[k].name || 'someone'; });
+      return '<section class="card gate"><h2 class="gatehead">Which traveler are you?</h2>' +
+        '<p class="sub" style="margin:0">Signed in as ' + esc(CLOUD.user.displayName || CLOUD.user.email || 'you') + '. Pick your name once so the trip shows who added what.</p>' +
+        '<div class="chips">' + PEOPLE.map(function (p) {
+          return taken[p.id] ? '<button class="btn chipbtn" disabled title="Picked by ' + esc(taken[p.id]) + '">' + esc(p.name) + ' (taken)</button>'
+            : '<button class="btn chipbtn" data-act="be" data-id="' + p.id + '">' + esc(p.name) + '</button>';
+        }).join('') + '</div><p class="sub" style="margin:0">Someone picked your name by mistake? Ask Pranay to reset it.</p>' +
+        '<div><button class="link" data-act="sign-out">Use a different Google account</button></div></section>';
+    }
+    if (st === 'error') return '<section class="card gate"><h2 class="gatehead">Something went wrong</h2><p class="sub" style="margin:0">' + esc(CLOUD.err) + '</p><div><button class="primary" data-act="retry">Try again</button></div></section>';
+    return '<section class="card gate"><p class="sub" style="margin:0">Loading the trip…</p></section>';
+  }
   function render() {
     pendingRender = false;
     var h = '<header class="appbar"><div class="brand"><div class="eyebrow">Group trip · Dec 24 to 31</div><h1>San Diego, LA and Las Vegas</h1>' +
       '<div class="travelers">' + PEOPLE.map(function (p) { return '<span class="av">' + esc(p.name) + '</span>'; }).join('') + '</div></div>' +
-      '<div class="row"><button data-act="toggle-share">Share</button>' +
-      (ui.admin ? '<span class="adminpill">Admin</span><button class="link" data-act="lock">Lock</button>' : '<button data-act="admin-open">Admin</button>') + '</div></header>';
+      (CLOUD.on
+        ? '<div class="row">' + (CLOUD.state === 'ready' ? (ui.admin ? '<span class="adminpill">Admin</span>' : '') +
+            '<button data-act="invite">Invite</button><button data-act="toggle-log" aria-pressed="' + ui.showLog + '">Activity</button>' : '') +
+          (CLOUD.user ? '<span class="whoami">' + esc(me ? person(me) : (CLOUD.user.displayName || '')) + '</span><button class="link" data-act="sign-out">Sign out</button>' : '') + '</div></header>'
+        : '<div class="row"><button data-act="toggle-share">Share</button>' +
+          (ui.admin ? '<span class="adminpill">Admin</span><button class="link" data-act="lock">Lock</button>' : '<button data-act="admin-open">Admin</button>') + '</div></header>');
+    if (CLOUD.on && CLOUD.state !== 'ready') {
+      if (ui.msg) h += '<div class="note" role="status">' + esc(ui.msg) + '</div>';
+      app.innerHTML = h + gateHTML();
+      return;
+    }
+    if (CLOUD.on && allLoaded()) {
+      if (!data.places.length && !data.expenses.length) {
+        h += ui.admin
+          ? '<section class="card"><h3>Start the shared trip</h3><p class="sub" style="margin:0">The shared trip is empty. Start it with the stops and expenses saved in this browser (' + (localData.places || []).length + ' stops, ' + (localData.expenses || []).length + ' expenses). Everyone who signs in then sees the same trip.</p><div><button class="primary" data-act="start-trip">Start the shared trip</button></div></section>'
+          : '<section class="card"><h3>Almost there</h3><p class="sub" style="margin:0">Pranay has not started the shared trip yet. It appears here as soon as he does.</p></section>';
+      } else {
+        var ex = localExtras(), nEx = ex.places.length + ex.expenses.length + ex.payments.length, done = false;
+        try { done = localStorage.getItem('tripwallet.extrasDone') === '1'; } catch (e) {}
+        if (nEx && !done) {
+          var parts = [];
+          if (ex.places.length) parts.push(ex.places.length + (ex.places.length === 1 ? ' stop' : ' stops'));
+          if (ex.expenses.length) parts.push(ex.expenses.length + (ex.expenses.length === 1 ? ' expense' : ' expenses'));
+          if (ex.payments.length) parts.push(ex.payments.length + (ex.payments.length === 1 ? ' payment' : ' payments'));
+          h += '<section class="card"><h3>Saved in this browser</h3><p class="sub" style="margin:0">This browser has ' + parts.join(', ') + ' from before sign-in that the shared trip does not have. Add them so everyone sees them?</p>' +
+            '<div class="row"><button class="primary" data-act="add-extras">Add to the shared trip</button><button class="link" data-act="skip-extras">Not now</button></div></section>';
+        }
+      }
+    }
+    if (CLOUD.on && ui.showLog) {
+      var log = data.log.slice().reverse().slice(0, 60);
+      h += '<section class="card"><div class="row between"><h3>Activity</h3><button class="link" data-act="toggle-log">Close</button></div>' +
+        (log.length ? '<ul class="list">' + log.map(logLine).join('') + '</ul>' : '<p class="empty">Nothing yet. Adding and removing stops and expenses shows up here with who did it.</p>');
+      if (ui.admin) {
+        h += '<h3>Signed-in travelers</h3><ul class="list">' + Object.keys(CLOUD.members).map(function (k) {
+          var m = CLOUD.members[k];
+          return '<li><div class="main"><div class="ttl">' + esc(person(m.person)) + '</div><div class="sub">Google name: ' + esc(m.name || 'unknown') + '</div></div>' +
+            (k === CLOUD.user.uid ? '' : '<button class="link danger" data-act="reset-member" data-id="' + k + '">Reset</button>') + '</li>';
+        }).join('') + '</ul><p class="sub" style="margin:0">Reset frees a name picked by the wrong person. They pick again next time they open the page.</p>';
+      }
+      h += '</section>';
+    }
 
-    if (ui.adminOpen && !ui.admin) {
+    if (!CLOUD.on && ui.adminOpen && !ui.admin) {
       h += '<form class="card" id="admin-form"><h3>Admin sign-in</h3><p class="sub" style="margin:0">Only the admin can remove or edit stops and expenses. Everyone can add.</p>' +
         '<div class="row"><input id="admin-pin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN" aria-label="Admin PIN" style="width:140px">' +
         '<button class="primary" type="submit">Unlock</button><button type="button" class="link" data-act="admin-close">Cancel</button></div><div class="err" data-err hidden></div></form>';
@@ -808,7 +1046,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     data.places = data.places.filter(function (p) { return p.city !== cid; }).concat(moved);
     save();
   }
-  var ADMIN_ONLY = ['edit-place', 'delete-place', 'edit-expense', 'delete-expense', 'undo-pay', 'ask'];
+  var ADMIN_ONLY = ['edit-place', 'delete-place', 'edit-expense', 'delete-expense', 'undo-pay', 'ask', 'reset-member', 'start-trip'];
   function act(a, d) {
     if (ADMIN_ONLY.indexOf(a) >= 0 && !ui.admin) return;
     if (a !== 'ask') ui.confirm = null;
@@ -830,6 +1068,8 @@ if (typeof module !== 'undefined') module.exports = Core;
     else if (a === 'edit-place') { ui.editing = d.id; ui.adding = false; }
     else if (a === 'cancel-edit') { ui.adding = false; ui.editing = null; ui.editingExp = null; results = []; active = -1; searchSeq++; }
     else if (a === 'delete-place') {
+      var gp = placeById(d.id);
+      if (gp) logIt('removed', gp.name + ' in ' + cityName(gp.city));
       data.places = data.places.filter(function (p) { return p.id !== d.id; });
       data.deleted.push(d.id);
       if (ui.editing === d.id) ui.editing = null;
@@ -837,12 +1077,53 @@ if (typeof module !== 'undefined') module.exports = Core;
       save();
     }
     else if (a === 'edit-expense') ui.editingExp = d.id;
-    else if (a === 'delete-expense') { data.expenses = data.expenses.filter(function (e) { return e.id !== d.id; }); data.deleted.push(d.id); if (ui.editingExp === d.id) ui.editingExp = null; save(); }
-    else if (a === 'pay') { data.payments.push({ id: uid(), from: d.from, to: d.to, amount: +d.amount, date: today() }); save(); }
-    else if (a === 'undo-pay') { data.payments = data.payments.filter(function (p) { return p.id !== d.id; }); data.deleted.push(d.id); save(); }
+    else if (a === 'delete-expense') {
+      var ge = data.expenses.find(function (e) { return e.id === d.id; });
+      if (ge) logIt('removed', 'the expense ' + ge.desc + ' (' + fmt(ge.amount) + ')');
+      data.expenses = data.expenses.filter(function (e) { return e.id !== d.id; }); data.deleted.push(d.id); if (ui.editingExp === d.id) ui.editingExp = null; save(); }
+    else if (a === 'pay') {
+      data.payments.push(stamp({ id: uid(), from: d.from, to: d.to, amount: +d.amount, date: today() }));
+      logIt('recorded', 'a payment: ' + person(d.from) + ' paid ' + person(d.to) + ' ' + fmt(+d.amount));
+      save();
+    }
+    else if (a === 'undo-pay') {
+      var gq = data.payments.find(function (q) { return q.id === d.id; });
+      if (gq) logIt('undid', 'a payment: ' + person(gq.from) + ' paid ' + person(gq.to) + ' ' + fmt(gq.amount));
+      data.payments = data.payments.filter(function (p) { return p.id !== d.id; }); data.deleted.push(d.id); save(); }
     else if (a === 'toggle-share') ui.share = !ui.share;
     else if (a === 'admin-open') ui.adminOpen = true;
     else if (a === 'admin-close') ui.adminOpen = false;
+    else if (a === 'sign-in') { signIn(); return; }
+    else if (a === 'sign-out') { CLOUD.au.signOut(CLOUD.auth); return; }
+    else if (a === 'retry') { location.reload(); return; }
+    else if (a === 'be') {
+      CLOUD.fs.setDoc(CLOUD.fs.doc(CLOUD.db, 'trips', 'main', 'members', CLOUD.user.uid), { person: d.id, name: String(CLOUD.user.displayName || '').slice(0, 60), at: new Date().toISOString() })
+        .catch(function (err) { ui.msg = 'Could not save your name (' + (err.code || err.message) + ').'; render(); });
+      return;
+    }
+    else if (a === 'reset-member') { CLOUD.fs.deleteDoc(CLOUD.fs.doc(CLOUD.db, 'trips', 'main', 'members', d.id)).catch(function () {}); return; }
+    else if (a === 'toggle-log') ui.showLog = !ui.showLog;
+    else if (a === 'invite') {
+      var link = location.origin + location.pathname;
+      ui.msg = 'Invite link: ' + link + '. Friends open it and sign in with Google.';
+      try { navigator.clipboard.writeText(link).then(function () { ui.msg = 'Link copied. Friends open it and sign in with Google once.'; render(); }, function () {}); } catch (e) {}
+    }
+    else if (a === 'start-trip') {
+      if (!ui.admin || data.places.length) return;
+      ['places', 'expenses', 'payments'].forEach(function (col) { data[col] = JSON.parse(JSON.stringify(localData[col] || [])); });
+      logIt('started', 'the shared trip');
+      save();
+    }
+    else if (a === 'add-extras') {
+      var ex = localExtras();
+      data.places = data.places.concat(ex.places);
+      data.expenses = data.expenses.concat(ex.expenses);
+      data.payments = data.payments.concat(ex.payments);
+      logIt('added', 'items saved in their browser before sign-in (' + (ex.places.length + ex.expenses.length + ex.payments.length) + ')');
+      try { localStorage.setItem('tripwallet.extrasDone', '1'); } catch (e) {}
+      save();
+    }
+    else if (a === 'skip-extras') { try { localStorage.setItem('tripwallet.extrasDone', '1'); } catch (e) {} }
     else if (a === 'lock') { ui.admin = false; ui.editing = null; ui.editingExp = null; try { sessionStorage.removeItem(ADMIN_KEY); } catch (e) {} }
     else if (a === 'import') {
       var box = document.getElementById('import-code');
@@ -928,10 +1209,13 @@ if (typeof module !== 'undefined') module.exports = Core;
         if (pll) { old.lat = pll.lat; old.lng = pll.lng; old.pin = true; delete old.geo; }
         else if (old.name !== name && !old.pin) { old.lat = null; old.lng = null; old.q = ''; delete old.geo; delete geoTried[old.id]; }
         Object.assign(old, rec);
+        logIt('edited', old.name + ' in ' + cityName(old.city));
         ui.editing = null;
       } else {
         var np = Object.assign({ id: 'u-' + uid(), city: ui.tab, lat: pll ? pll.lat : null, lng: pll ? pll.lng : null, q: '', pin: !!pll }, rec);
+        stamp(np);
         data.places.push(np);
+        logIt('added', np.name + ' in ' + cityName(ui.tab));
         ui.sel = np.id;
         ui.adding = false;
       }
@@ -946,7 +1230,8 @@ if (typeof module !== 'undefined') module.exports = Core;
       if (!split.length) return fail('Pick at least one person to split it between.');
       var e = { desc: desc, amount: amount, paidBy: val('exp-payer'), split: split, date: val('exp-date') || today() };
       var oldE = ui.editingExp && ui.admin ? data.expenses.find(function (x) { return x.id === ui.editingExp; }) : null;
-      if (oldE) Object.assign(oldE, e); else data.expenses.push(Object.assign({ id: uid() }, e));
+      if (oldE) { Object.assign(oldE, e); logIt('edited', 'the expense ' + desc + ' (' + fmt(amount) + ')'); }
+      else { data.expenses.push(stamp(Object.assign({ id: uid() }, e))); logIt('added', 'the expense ' + desc + ' (' + fmt(amount) + ')'); }
       ui.editingExp = null;
       save(); render();
     }
@@ -988,7 +1273,8 @@ if (typeof module !== 'undefined') module.exports = Core;
   app.addEventListener('pointerup', endDrag);
   app.addEventListener('pointercancel', endDrag);
 
-  save();
+  if (standalone() && location.protocol === 'https:' && FIREBASE_CONFIG.apiKey) startCloud();
+  else save();
   render();
 })();
 </script>
