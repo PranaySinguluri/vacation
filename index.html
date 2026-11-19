@@ -4,118 +4,144 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Trip Wallet</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap">
 <style>
-/* Layout: one narrow working column like a travel ledger; three tabs: places, plan, expenses. */
+/* Layout: booking-site style. White app bar, city tabs as pills, a route sketch per city,
+   then numbered stops with the drive between each pair. Light theme only, by choice. */
 :root {
-  --bg: #F2F5F9; --surface: #FFFFFF; --ink: #13233A; --muted: #5B6B80; --line: #D9E0EA;
-  --accent: #B8245C; --accent-ink: #FFFFFF; --accent-soft: #FBE6EE;
-  --good: #1B7A4B; --good-soft: #E2F4EA; --owe: #B4371F; --owe-soft: #FBE9E4; --note: #FFF3CC; --note-ink: #6B4A00;
-  --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --bg: #EEF2F8; --surface: #FFFFFF; --ink: #101B33; --muted: #59647A; --line: #DDE3EE;
+  --primary: #1A5FD6; --primary-ink: #FFFFFF; --primary-soft: #E7EFFC; --primary-line: #8FB1EC;
+  --sun: #FFD24C; --sun-soft: #FFF3CC; --sun-ink: #4D3900;
+  --good: #137A47; --good-soft: #E2F5EA; --owe: #B23A20; --owe-soft: #FCE9E4;
+  --map: #F4F8FD; --map-grid: #E2EAF6;
+  --display: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif;
   --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
 }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #0E1622; --surface: #172233; --ink: #E8EEF6; --muted: #9AA9BD; --line: #2A3950;
-  --accent: #F0709E; --accent-ink: #2A0513; --accent-soft: #3A1A28;
-  --good: #6FD39B; --good-soft: #143424; --owe: #FF9A84; --owe-soft: #3D1D16; --note: #3A3010; --note-ink: #F3D98A;
-  color-scheme: dark } }
-:root[data-theme="dark"] {
-  --bg: #0E1622; --surface: #172233; --ink: #E8EEF6; --muted: #9AA9BD; --line: #2A3950;
-  --accent: #F0709E; --accent-ink: #2A0513; --accent-soft: #3A1A28;
-  --good: #6FD39B; --good-soft: #143424; --owe: #FF9A84; --owe-soft: #3D1D16; --note: #3A3010; --note-ink: #F3D98A;
-  color-scheme: dark }
 * { box-sizing: border-box }
 [hidden] { display: none !important }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body);
-  padding-block: 20px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
-#app { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px }
-h1, h2, .num { font-family: var(--display) }
-h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em }
-h2 { font-size: 16px; margin: 0; text-wrap: balance }
-.top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
-.top h1 { margin-right: auto }
-.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
-.grow { flex: 1 1 160px; min-width: 0 }
+  padding-block: 0 56px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+#app { max-width: 820px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px }
+h1, h2, h3 { font-family: var(--display); margin: 0; text-wrap: balance }
 input, select, textarea, button { font: inherit; color: inherit }
-input, select, textarea { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-width: 0; max-width: 100% }
+input, select, textarea { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; min-width: 0; max-width: 100% }
 textarea { width: 100%; resize: vertical; font-size: 13px; word-break: break-all }
-input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
-button { cursor: pointer; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 12px; font-weight: 500 }
-button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent) }
-button.link { border: 0; background: none; padding: 4px 6px; color: var(--muted); font-size: 13px }
-button.link.danger { color: var(--owe) }
-.tripname { font-family: var(--display); font-size: 26px; font-weight: 700; letter-spacing: -0.02em; border-color: transparent; background: transparent; padding: 4px 6px; margin-left: -6px; width: 100% }
-.tripname:hover { border-color: var(--line) }
-.note { background: var(--note); color: var(--note-ink); border-radius: 8px; padding: 8px 12px; font-size: 13px }
-.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 12px; background: var(--surface) }
-.stat { padding: 12px 14px; min-width: 0 }
-.stat + .stat { border-left: 1px solid var(--line) }
-.stat .lbl { font-size: 12px; color: var(--muted) }
-.stat .num { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere }
-.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto }
-.tabs button { border: 0; background: none; border-radius: 0; padding: 10px 12px; color: var(--muted); border-bottom: 2px solid transparent; white-space: nowrap }
-.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600 }
-.panel { display: flex; flex-direction: column; gap: 14px }
-.box { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px }
-.field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); flex: 1 1 140px; min-width: 0 }
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px }
+button, .btn { cursor: pointer; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 9px 14px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; color: var(--ink) }
+button:disabled { opacity: .35; cursor: default }
+.primary { background: var(--primary); color: var(--primary-ink); border-color: var(--primary) }
+.link { border: 0; background: none; padding: 4px 6px; color: var(--primary); font-size: 13px; font-weight: 600 }
+.link.danger { color: var(--owe) }
+.sub { font-size: 13px; color: var(--muted); overflow-wrap: anywhere }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
+.grow { flex: 1 1 180px; min-width: 0 }
+.err { color: var(--owe); font-size: 13px }
+.note { background: var(--sun-soft); color: var(--sun-ink); border-radius: 10px; padding: 9px 12px; font-size: 13px }
+
+.appbar { background: var(--surface); border: 1px solid var(--line); border-top: 0; border-radius: 0 0 18px 18px; padding: 16px 18px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center }
+.brand { margin-right: auto; min-width: 0 }
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--primary) }
+.brand h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.02em }
+.travelers { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px }
+.av { font-size: 12px; font-weight: 600; background: var(--primary-soft); color: var(--primary); border-radius: 999px; padding: 2px 9px }
+.adminpill { font-size: 12px; font-weight: 700; background: var(--sun); color: var(--sun-ink); border-radius: 999px; padding: 4px 10px }
+
+.tabs { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 6px }
+.tab { flex: none; border-radius: 999px; padding: 8px 14px }
+.tab .count { font-size: 12px; font-weight: 600; background: var(--primary-soft); color: var(--primary); border-radius: 999px; padding: 1px 8px; font-variant-numeric: tabular-nums }
+.tab[aria-selected="true"] { background: var(--primary); border-color: var(--primary); color: var(--primary-ink) }
+.tab[aria-selected="true"] .count { background: var(--surface); color: var(--primary) }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 12px }
+.cityhead h2 { font-size: 26px; font-weight: 800; letter-spacing: -0.02em }
+.between { justify-content: space-between }
+.stayline { align-self: flex-start; background: var(--sun-soft); color: var(--sun-ink); border-radius: 8px; padding: 6px 10px; font-size: 13px; font-weight: 500 }
+.sketch svg { width: 100%; height: auto; display: block; border-radius: 12px; background: var(--map); border: 1px solid var(--line) }
+.sketch .pin { cursor: pointer }
+.farlist { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px }
+.farchip { font-size: 12px; font-weight: 500; padding: 3px 10px; border-radius: 999px; background: var(--surface) }
+.farchip b { color: var(--sun-ink); background: var(--sun); border-radius: 999px; padding: 0 6px; font-size: 11px }
+.farchip.on { border-color: var(--primary); color: var(--primary) }
+.nomap { background: var(--map); border: 1px dashed var(--line); border-radius: 12px; padding: 24px; text-align: center; color: var(--muted); font-size: 14px }
+.gmap { width: 100%; height: 260px; border: 1px solid var(--line); border-radius: 12px; display: block }
+.total { font-size: 14px; font-weight: 600 }
+
+.stops { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column }
+.stop { display: flex; gap: 10px; align-items: flex-start; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px; min-width: 0 }
+.stop.sel { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft) }
+.stop.dragging { border-color: var(--primary); box-shadow: 0 12px 28px rgba(16, 27, 51, .18); position: relative; z-index: 2 }
+.stops.reordering { gap: 8px }
+.stops.reordering .leg { display: none }
+.grip { touch-action: none; cursor: grab; border: 0; background: none; padding: 6px 2px; color: var(--muted); flex: none }
+.grip:active { cursor: grabbing }
+.num { flex: none; width: 30px; height: 30px; border-radius: 15px; background: var(--sun); color: var(--sun-ink); font: 800 14px/30px var(--display); text-align: center; font-variant-numeric: tabular-nums }
+.stop .main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px }
+.stop .title { border: 0; background: none; padding: 0; font-weight: 700; font-size: 16px; text-align: left; color: var(--ink); overflow-wrap: anywhere }
+.when { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px }
+.when input { padding: 5px 8px; font-size: 13px }
+.loc { font-size: 13px; color: var(--owe) }
+.loc.finding { color: var(--muted) }
+.side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: none }
+.chipbtn { font-size: 13px; padding: 5px 10px; border-radius: 999px; background: var(--primary-soft); color: var(--primary); border-color: transparent }
+.updown { display: flex; gap: 4px }
+.updown button { padding: 2px 8px; font-size: 13px }
+.leg { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 4px 0 4px 54px; font-size: 13px; color: var(--muted); min-height: 40px }
+.leg .line { width: 0; align-self: stretch; min-height: 32px; border-left: 2px dashed var(--primary-line); margin-left: -36px; margin-right: 22px }
+.leg b { color: var(--ink); font-variant-numeric: tabular-nums }
+.est { font-size: 11px; background: var(--bg); border-radius: 999px; padding: 1px 7px }
+.warn { flex-basis: 100%; color: var(--sun-ink); background: var(--sun-soft); border-radius: 8px; padding: 4px 8px }
+.locform { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px }
+
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); flex: 1 1 150px; min-width: 0 }
 .field input, .field select { font-size: 15px; color: var(--ink); width: 100% }
 .chips { display: flex; flex-wrap: wrap; gap: 6px }
 .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: 13px; color: var(--ink); background: var(--bg) }
 .chip input { margin: 0; padding: 0 }
-.err { color: var(--owe); font-size: 13px }
+
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 18px; background: var(--surface) }
+.stat { padding: 14px; min-width: 0 }
+.stat + .stat { border-left: 1px solid var(--line) }
+.stat .lbl { font-size: 12px; color: var(--muted) }
+.stat .val { font: 700 22px var(--display); font-variant-numeric: tabular-nums; overflow-wrap: anywhere }
 .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column }
-.list li { display: flex; gap: 10px; align-items: baseline; padding: 10px 0; border-top: 1px solid var(--line) }
+.list li { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; padding: 10px 0; border-top: 1px solid var(--line) }
 .list li:first-child { border-top: 0 }
-.list .main { flex: 1; min-width: 0 }
-.list .title { font-weight: 500; overflow-wrap: anywhere }
-.sub { font-size: 13px; color: var(--muted); overflow-wrap: anywhere }
-.amt { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap }
-.pos { color: var(--good) } .neg { color: var(--owe) }
-.pill { font-size: 12px; border-radius: 999px; padding: 2px 8px; white-space: nowrap }
-.pill.pos { background: var(--good-soft) } .pill.neg { background: var(--owe-soft) } .pill.zero { background: var(--bg); color: var(--muted) }
-.day { font-family: var(--display); font-weight: 600; font-size: 13px; color: var(--accent); padding-top: 6px }
-.time { font-variant-numeric: tabular-nums; color: var(--muted); width: 48px; flex: none; font-size: 13px }
-.empty { color: var(--muted); font-size: 14px }
-.chip .x { border: 0; background: none; padding: 0 2px; color: var(--muted); font-size: 16px; line-height: 1 }
-.votes { flex: none; width: 28px; height: 28px; border-radius: 14px; background: var(--accent-soft); color: var(--accent); font-family: var(--display); font-weight: 600; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; align-self: flex-start; font-variant-numeric: tabular-nums }
-.votes.none { background: var(--bg); color: var(--muted) }
-.count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums }
-.dayhead { color: var(--accent) }
-.planrow { flex-wrap: wrap; align-items: center }
-.planrow .main { flex: 1 1 200px }
-.when { display: flex; gap: 6px; flex-wrap: wrap }
-.when input { padding: 6px 8px; font-size: 13px }
-h2 .sub { font-family: var(--body); font-weight: 400 }
-@media (max-width: 480px) { .stat .num { font-size: 18px } .stat { padding: 10px } .tripname { font-size: 22px } }
+.list .main { flex: 1 1 180px; min-width: 0 }
+.list .ttl { font-weight: 600; overflow-wrap: anywhere }
+.amt { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap }
+.pill { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 2px 9px; white-space: nowrap }
+.pill.pos { background: var(--good-soft); color: var(--good) } .pill.neg { background: var(--owe-soft); color: var(--owe) } .pill.zero { background: var(--bg); color: var(--muted) }
+.empty { color: var(--muted); font-size: 14px; margin: 0 }
+@media (max-width: 520px) {
+  .stat .val { font-size: 17px } .stat { padding: 10px }
+  .cityhead h2 { font-size: 22px }
+  .stop { flex-wrap: wrap }
+  .side { flex-direction: row; flex-wrap: wrap; align-items: center; width: 100%; padding-left: 74px }
+}
 </style>
 </head>
 <body>
 <div id="app"></div>
 
 <script id="core">
-/* Pure money logic. Amounts are integers in the currency's smallest unit (cents). */
+/* Pure logic: money in integer cents, distances, link parsing, share codes. */
 var Core = (function () {
-  function digits(currency) {
-    try { return new Intl.NumberFormat('en', { style: 'currency', currency: currency }).resolvedOptions().maximumFractionDigits; }
-    catch (e) { return 2; }
-  }
-  function toMinor(text, currency) {
+  function toMinor(text) {
     var clean = String(text).replace(/[^0-9.,-]/g, '').replace(/,/g, '');
     if (clean === '' || isNaN(Number(clean))) return null;
-    return Math.round(Number(clean) * Math.pow(10, digits(currency)));
+    return Math.round(Number(clean) * 100);
   }
-  function fmt(minor, currency) {
-    var d = digits(currency);
-    try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency }).format(minor / Math.pow(10, d)); }
-    catch (e) { return (minor / Math.pow(10, d)).toFixed(d) + ' ' + currency; }
+  function fmt(minor) {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(minor / 100);
   }
-  /* Equal split; leftover units go one each to the first people so shares always add up to the total. */
+  /* Equal split; leftover cents go one each to the first people so shares always add up. */
   function shares(total, ids) {
     var n = ids.length, base = Math.floor(total / n), extra = total - base * n, out = {};
     ids.forEach(function (id, i) { out[id] = base + (i < extra ? 1 : 0); });
     return out;
   }
-  /* Positive balance = should receive money. Negative = owes money. */
+  /* Positive balance = should get money back. Negative = owes. */
   function balances(trip) {
     var b = {};
     trip.people.forEach(function (p) { b[p.id] = 0; });
@@ -131,7 +157,7 @@ var Core = (function () {
     });
     return b;
   }
-  /* Fewest-ish transfers: biggest debtor pays biggest creditor until everyone is at zero. */
+  /* Biggest debtor pays biggest creditor until everyone is at zero. */
   function settle(bal) {
     var debt = [], cred = [], out = [];
     Object.keys(bal).forEach(function (id) {
@@ -160,8 +186,8 @@ var Core = (function () {
     });
     return { spent: spent, paid: paid, share: share };
   }
-  function encode(trip) {
-    var bytes = new TextEncoder().encode(JSON.stringify(trip)), bin = '';
+  function encode(obj) {
+    var bytes = new TextEncoder().encode(JSON.stringify(obj)), bin = '';
     for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
     return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
@@ -169,292 +195,569 @@ var Core = (function () {
     var b64 = String(code).trim().replace(/^.*#t-/, '').replace(/-/g, '+').replace(/_/g, '/');
     var bin = atob(b64), bytes = new Uint8Array(bin.length);
     for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    var t = JSON.parse(new TextDecoder().decode(bytes));
-    if (!t || typeof t.name !== 'string' || !Array.isArray(t.people) || !Array.isArray(t.expenses)) throw new Error('bad trip');
-    t.payments = Array.isArray(t.payments) ? t.payments : [];
-    t.plan = Array.isArray(t.plan) ? t.plan : [];
-    return t;
+    return JSON.parse(new TextDecoder().decode(bytes));
   }
-  return { digits: digits, toMinor: toMinor, fmt: fmt, shares: shares, balances: balances, settle: settle, totals: totals, encode: encode, decode: decode };
+  /* Straight-line miles between two points. */
+  function miles(a, b) {
+    var R = 3958.8, r = Math.PI / 180;
+    var dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r;
+    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+  /* Pulls coordinates out of a Google Maps link, or "lat, lng" text. */
+  function parseLatLng(s) {
+    s = String(s || '').trim();
+    var m = /!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/.exec(s)
+      || /[?&](?:q|query|ll|destination)=(-?\d{1,2}\.\d+)(?:,|%2C)\s*(-?\d{1,3}\.\d+)/i.exec(s)
+      || /@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/.exec(s)
+      || /^(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)$/.exec(s);
+    if (!m) return null;
+    var lat = +m[1], lng = +m[2];
+    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+    return { lat: lat, lng: lng };
+  }
+  return { toMinor: toMinor, fmt: fmt, shares: shares, balances: balances, settle: settle, totals: totals, encode: encode, decode: decode, miles: miles, parseLatLng: parseLatLng };
 })();
 if (typeof module !== 'undefined') module.exports = Core;
 </script>
 
 <script>
 (function () {
-  var KEY = 'tripwallet.v2', OLD_KEY = 'tripwallet.v1';
-  var CURRENCIES = ['USD', 'EUR', 'GBP', 'INR', 'CAD', 'AUD', 'JPY', 'MXN', 'AED', 'SGD'];
+  var KEY = 'tripwallet.v3', LEGS_KEY = 'tripwallet.legs', ADMIN_KEY = 'tripwallet.admin', TAB_KEY = 'tripwallet.tab';
+  /* SHA-256 of "tripwallet:" + the admin PIN. The PIN itself is not in the page. */
+  var ADMIN_HASH = 'df174295019980fadcb15ac944bdde3b3fc5aff2e92a0906afbc17a1a005044a';
+  var PEOPLE = [['A', 'Akshaya'], ['D', 'DivyaTheja'], ['H', 'Haneela'], ['M', 'Megha'], ['P', 'Pranay'], ['R', 'Ramya'], ['S', 'Sahithi']]
+    .map(function (p) { return { id: p[0], name: p[1] }; });
+  var CITIES = [
+    { id: 'sd', name: 'San Diego', stay: 'Motel for the nights of Dec 24 and 25 (on the booking list)' },
+    { id: 'la', name: 'Los Angeles', stay: 'Motel for the nights of Dec 26 and 27 (on the booking list)' },
+    { id: 'lv', name: 'Las Vegas', stay: 'Motel for the night of Dec 31 (on the booking list)' },
+    { id: 'az', name: 'Arizona', stay: 'Nights of Dec 28 to 30 have no stay on the booking list yet' }
+  ];
+  /* [city, name, lat, lng, note, date, time, Google Maps search text] */
+  var SEED = [
+    ['sd', 'La Jolla Cove', 32.8504, -117.2713],
+    ['sd', 'Balboa Park', 32.7341, -117.1446],
+    ['sd', 'Whale watching', 32.7203, -117.1740, 'Boats leave from the downtown harbor. Needs booking', '', '', 'Whale watching tours San Diego harbor'],
+    ['sd', 'Sunset Cliffs', 32.7180, -117.2550, '', '', '', 'Sunset Cliffs Natural Park'],
+    ['sd', 'Old Town San Diego', 32.7549, -117.1979],
+    ['sd', 'Gaslamp Quarter', 32.7114, -117.1600],
+    ['sd', 'Coronado Beach', 32.6859, -117.1831],
+    ['sd', 'Little Italy', 32.7227, -117.1686],
+    ['sd', 'Torrey Pines', 32.9206, -117.2533, '', '', '', 'Torrey Pines State Natural Reserve'],
+    ['sd', "Annie's Canyon Trail", 32.9969, -117.2616],
+    ['sd', 'Heisler Park, Laguna Beach', 33.5452, -117.7880, 'On the drive up to Los Angeles', '', '', 'Heisler Park Laguna Beach'],
+    ['la', 'Santa Monica Pier', 34.0094, -118.4973],
+    ['la', 'Griffith Observatory', 34.1184, -118.3004],
+    ['la', 'Urban Light at LACMA', 34.0630, -118.3594, '', '', '', 'Urban Light LACMA'],
+    ['la', 'Venice Beach and canals', 33.9850, -118.4695, '', '', '', 'Venice Beach Boardwalk'],
+    ['la', 'Hollywood Sign and Walk of Fame', 34.1016, -118.3267, '', '', '', 'Hollywood Walk of Fame'],
+    ['la', 'The Broad', 34.0544, -118.2501, '', '', '', 'The Broad museum Los Angeles'],
+    ['la', 'Beverly Hills', 34.0696, -118.4053, '', '', '', 'Rodeo Drive Beverly Hills'],
+    ['la', 'Getty Center', 34.0780, -118.4741],
+    ['la', 'Runyon Canyon', 34.1106, -118.3500, '', '', '', 'Runyon Canyon Park'],
+    ['la', 'Grand Central Market', 34.0508, -118.2490],
+    ['la', 'Malibu and El Matador Beach', 34.0383, -118.8743, '', '', '', 'El Matador State Beach'],
+    ['lv', 'Seven Magic Mountains', 35.8385, -115.2707],
+    ['lv', 'Death Valley', 36.4615, -116.8656, 'Full day trip', '', '', 'Death Valley National Park Furnace Creek'],
+    ['lv', 'Sphere', 36.1210, -115.1617, '', '', '', 'Sphere Las Vegas'],
+    ['lv', 'Bellagio Fountains', 36.1126, -115.1745],
+    ['lv', 'Fremont Street Experience', 36.1707, -115.1440],
+    ['lv', 'High Roller', 36.1173, -115.1683, '', '', '', 'High Roller Las Vegas'],
+    ['lv', 'Red Rock Canyon', 36.1357, -115.4277, '', '', '', 'Red Rock Canyon visitor center'],
+    ['lv', 'Hoover Dam', 36.0160, -114.7377],
+    ['lv', 'Vegas Strip', 36.1147, -115.1728, '', '', '', 'Las Vegas Strip'],
+    ['lv', 'Valley of Fire', 36.4320, -114.5130, '', '', '', 'Valley of Fire State Park'],
+    ['lv', 'Neon Museum', 36.1771, -115.1353, '', '', '', 'Neon Museum Las Vegas'],
+    ['lv', 'Omnia Nightclub', 36.1167, -115.1745, 'Terrace view, $90 per person', '2026-12-31', '', 'Omnia Nightclub Caesars Palace'],
+    ['lv', 'Area 15', 36.1310, -115.1820, '', '', '', 'AREA15 Las Vegas'],
+    ['lv', 'Bellagio Conservatory', 36.1129, -115.1763, '', '', '', 'Bellagio Conservatory and Botanical Gardens'],
+    ['az', 'Grand Canyon', 36.0619, -112.1077, 'South Rim', '', '', 'Grand Canyon South Rim Mather Point'],
+    ['az', 'Antelope Canyon', 36.8619, -111.3743, 'Needs booking', '', '', 'Antelope Canyon Page Arizona']
+  ];
+
   var app = document.getElementById('app');
   var uid = function () { return Math.random().toString(36).slice(2, 10); };
+  var slug = function (s) { return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var today = function () { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
   var niceDate = function (iso) {
     var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
     if (!m) return 'No date';
-    return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+    return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   };
+  var toMin = function (t) { var m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; };
+  var hasLL = function (p) { return typeof p.lat === 'number' && typeof p.lng === 'number' && !isNaN(p.lat) && !isNaN(p.lng); };
+  var person = function (id) { var p = PEOPLE.find(function (x) { return x.id === id; }); return p ? p.name : 'Someone'; };
+  var cityById = function (id) { return CITIES.find(function (c) { return c.id === id; }); };
+  var isPerson = function (id) { return PEOPLE.some(function (p) { return p.id === id; }); };
+  var fmt = Core.fmt;
+  var GRIP = '<svg width="14" height="20" viewBox="0 0 14 20" aria-hidden="true"><g fill="currentColor"><circle cx="4" cy="4" r="1.7"/><circle cx="10" cy="4" r="1.7"/><circle cx="4" cy="10" r="1.7"/><circle cx="10" cy="10" r="1.7"/><circle cx="4" cy="16" r="1.7"/><circle cx="10" cy="16" r="1.7"/></g></svg>';
 
-  /* The group's trip, taken from the "Places of Interest" sheet. */
-  function groupTrip() {
-    var names = { A: 'Akshaya', D: 'DivyaTheja', H: 'Haneela', M: 'Megha', P: 'Pranay', R: 'Ramya', S: 'Sahithi' };
-    var rows = [
-      ['San Diego', 'La Jolla Cove', 'ADHMP'], ['San Diego', 'Balboa Park', 'DHMP'], ['San Diego', 'Whale watching', 'DHMP', '', '', 'Needs booking'],
-      ['San Diego', 'Sunset Cliffs', 'DHMP'], ['San Diego', 'Old Town San Diego', 'DMP'], ['San Diego', 'Gaslamp Quarter', 'DMP'],
-      ['San Diego', 'Coronado Beach', 'DMP'], ['San Diego', 'Little Italy', 'DMP'], ['San Diego', 'Torrey Pines', 'AH'],
-      ['San Diego', 'Annie\'s Canyon Trail', 'A'], ['San Diego', 'Heisler Park, Laguna Beach', 'A', '', '', 'On the drive up to Los Angeles'],
-      ['Los Angeles', 'Santa Monica Pier', 'ADHMP'], ['Los Angeles', 'Griffith Observatory', 'ADHM'], ['Los Angeles', 'Urban Light at LACMA', 'ADHP'],
-      ['Los Angeles', 'Venice Beach and canals', 'DHMP'], ['Los Angeles', 'Hollywood Sign and Walk of Fame', 'ADHM'], ['Los Angeles', 'The Broad', 'DHP'],
-      ['Los Angeles', 'Beverly Hills', 'DH'], ['Los Angeles', 'Getty Center', 'DH'], ['Los Angeles', 'Runyon Canyon', 'MP'],
-      ['Los Angeles', 'Grand Central Market', 'MP'], ['Los Angeles', 'Malibu and El Matador Beach', 'AP'],
-      ['Las Vegas', 'Seven Magic Mountains', 'AHMP'], ['Las Vegas', 'Death Valley', 'AHMP'], ['Las Vegas', 'Sphere', 'HMP'],
-      ['Las Vegas', 'Bellagio Fountains', 'DHP'], ['Las Vegas', 'Fremont Street Experience', 'DHP'], ['Las Vegas', 'High Roller', 'DMP'],
-      ['Las Vegas', 'Red Rock Canyon', 'HMP'], ['Las Vegas', 'Hoover Dam', 'AMP'], ['Las Vegas', 'Vegas Strip', 'AM'],
-      ['Las Vegas', 'Valley of Fire', 'MP'], ['Las Vegas', 'Neon Museum', 'MP'],
-      ['Las Vegas', 'Omnia Nightclub', 'AH', '2026-12-31', '', 'Terrace view, $90 per person'],
-      ['Las Vegas', 'Area 15', 'H'], ['Las Vegas', 'Bellagio Conservatory', 'H'],
-      ['Arizona', 'Grand Canyon', '', '', '', 'From the booking list'], ['Arizona', 'Antelope Canyon', '', '', '', 'From the booking list. Needs booking'],
-      ['Stays', 'San Diego motel', '', '2026-12-24', '', 'Nights of the 24th and 25th'],
-      ['Stays', 'Los Angeles motel', '', '2026-12-26', '', 'Nights of the 26th and 27th'],
-      ['Stays', 'Las Vegas motel', '', '2026-12-31', '', 'Night of the 31st']
-    ];
+  function seedData() {
     return {
-      id: uid(), name: 'San Diego, LA and Las Vegas', currency: 'USD',
-      info: 'Loaded from your Places of Interest sheet. Sahithi chose "all the above", so she counts for every listed place. Dates assume December 2026; change them in the Plan tab.',
-      people: Object.keys(names).map(function (k) { return { id: k, name: names[k] }; }),
-      places: rows.map(function (r) {
-        var voters = r[2].split('');
-        if (voters.length) voters.push('S');
-        return { id: uid(), city: r[0], name: r[1], voters: voters, date: r[3] || '', time: r[4] || '', note: r[5] || '' };
-      }),
-      expenses: [], payments: []
+      v: 3, expenses: [], payments: [], deleted: [],
+      places: SEED.map(function (s) {
+        return { id: 's-' + slug(s[1]), city: s[0], name: s[1], lat: s[2], lng: s[3], note: s[4] || '', date: s[5] || '', time: s[6] || '', q: s[7] || '' };
+      })
     };
   }
-  function blankTrip(name) { return { id: uid(), name: name || 'New trip', currency: 'USD', people: [], places: [], expenses: [], payments: [] }; }
-  function upgrade(t) {
-    if (!Array.isArray(t.places)) {
-      t.places = (t.plan || []).map(function (p) { return { id: p.id || uid(), city: '', name: p.title || '', voters: [], date: p.date || '', time: p.time || '', note: p.note || '' }; });
+  function validExpense(e) {
+    return !!(e && e.id && typeof e.desc === 'string' && Number.isInteger(e.amount) && e.amount > 0 && isPerson(e.paidBy) && Array.isArray(e.split) && e.split.length && e.split.every(isPerson));
+  }
+  function cleanExpense(e) { return { id: String(e.id), desc: e.desc.slice(0, 80), amount: e.amount, paidBy: e.paidBy, split: e.split.slice(), date: e.date || '' }; }
+  function validPayment(p) { return !!(p && p.id && Number.isInteger(p.amount) && p.amount > 0 && isPerson(p.from) && isPerson(p.to)); }
+  function cleanPayment(p) { return { id: String(p.id), from: p.from, to: p.to, amount: p.amount, date: p.date || '' }; }
+  function cleanPlace(p) {
+    var ok = hasLL(p);
+    return { id: String(p.id), city: p.city, name: String(p.name || '').slice(0, 80), lat: ok ? p.lat : null, lng: ok ? p.lng : null,
+      note: String(p.note || '').slice(0, 140), date: p.date || '', time: p.time || '', q: p.q || '', pin: !!p.pin };
+  }
+
+  /* Brings over what someone already entered in the previous version of the page. */
+  function migrateV2(d) {
+    var old;
+    try { old = JSON.parse(localStorage.getItem('tripwallet.v2') || 'null'); } catch (e) { return; }
+    if (!old || !Array.isArray(old.trips)) return;
+    var t = old.trips.find(function (x) { return x.name === 'San Diego, LA and Las Vegas'; }) || old.trips[0];
+    if (!t) return;
+    var byName = {};
+    d.places.forEach(function (p) { byName[p.name.toLowerCase()] = p; });
+    (t.places || []).forEach(function (p) {
+      var seeded = byName[String(p.name || '').toLowerCase()];
+      if (seeded) { if (p.date) seeded.date = p.date; if (p.time) seeded.time = p.time; return; }
+      var c = CITIES.find(function (x) { return x.name === p.city; });
+      if (c && p.name) d.places.push({ id: 'm-' + p.id, city: c.id, name: p.name, lat: null, lng: null, note: p.note || '', date: p.date || '', time: p.time || '', q: '' });
+    });
+    if ((t.currency || 'USD') === 'USD') {
+      (t.expenses || []).forEach(function (e) { if (validExpense(e)) d.expenses.push(cleanExpense(e)); });
+      (t.payments || []).forEach(function (p) { if (validPayment(p)) d.payments.push(cleanPayment(p)); });
     }
-    delete t.plan;
-    t.payments = t.payments || []; t.expenses = t.expenses || []; t.people = t.people || [];
-    return t;
   }
 
-  var store = null;
-  try { store = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
-  if (!store || !Array.isArray(store.trips) || !store.trips.length) {
-    var g = groupTrip();
-    store = { trips: [g], current: g.id };
-    try {
-      var old = JSON.parse(localStorage.getItem(OLD_KEY) || 'null');
-      if (old && Array.isArray(old.trips)) old.trips.forEach(function (t) { if (!t.example) store.trips.push(upgrade(t)); });
-    } catch (e) {}
-  }
-  store.trips.forEach(upgrade);
-  var ui = { tab: 'places', share: false, editing: null, editingPlace: null, confirm: null, err: {}, msg: '', importText: '' };
+  var data = null;
+  try { data = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
+  if (!data || data.v !== 3 || !Array.isArray(data.places)) { data = seedData(); migrateV2(data); }
+  data.expenses = data.expenses || []; data.payments = data.payments || []; data.deleted = data.deleted || [];
 
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {} }
-  function trip() {
-    var t = store.trips.find(function (x) { return x.id === store.current; });
-    if (!t) { t = store.trips[0]; store.current = t.id; }
-    return t;
-  }
-  function nameOf(t, id) { var p = t.people.find(function (x) { return x.id === id; }); return p ? p.name : 'Someone'; }
-  function cities(t) {
-    var out = [];
-    t.places.forEach(function (p) { var c = p.city || 'Other'; if (out.indexOf(c) < 0) out.push(c); });
-    return out;
-  }
+  var legCache = {};
+  try { legCache = JSON.parse(localStorage.getItem(LEGS_KEY) || '{}') || {}; } catch (e) {}
 
-  /* A shared link opened on your own hosted copy imports the trip. */
+  var ui = { tab: 'sd', admin: false, adminOpen: false, share: false, sel: null, editing: null, editingExp: null, locFor: null, confirm: null, msg: '', importText: '' };
+  try { ui.admin = sessionStorage.getItem(ADMIN_KEY) === '1'; } catch (e) {}
+  try { var savedTab = localStorage.getItem(TAB_KEY); if (savedTab && (savedTab === 'costs' || cityById(savedTab))) ui.tab = savedTab; } catch (e) {}
+
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {} }
+  function saveLegs() { try { localStorage.setItem(LEGS_KEY, JSON.stringify(legCache)); } catch (e) {} }
+  function cityPlaces(cid) { return data.places.filter(function (p) { return p.city === cid; }); }
+  function placeById(id) { return data.places.find(function (p) { return p.id === id; }); }
+  function standalone() { try { return window.top === window.self && /^https?:$/.test(location.protocol); } catch (e) { return false; } }
+
+  /* ---------- Merging codes from friends ---------- */
+  function exportData() { return { v: 3, places: data.places, expenses: data.expenses, payments: data.payments, deleted: data.deleted }; }
+  function merge(inc) {
+    if (!inc || inc.v !== 3 || !Array.isArray(inc.places)) throw new Error('bad code');
+    var dead = {};
+    data.deleted.concat(Array.isArray(inc.deleted) ? inc.deleted : []).forEach(function (id) { dead[id] = 1; });
+    data.deleted = Object.keys(dead);
+    var count = { places: 0, expenses: 0 }, local = {};
+    data.places.forEach(function (p) { local[p.id] = p; });
+    inc.places.forEach(function (p) {
+      if (!p || !p.id || dead[p.id] || !cityById(p.city) || !p.name) return;
+      var l = local[p.id];
+      if (!l) { data.places.push(cleanPlace(p)); count.places++; return; }
+      if (!hasLL(l) && hasLL(p)) { l.lat = p.lat; l.lng = p.lng; l.pin = !!p.pin; delete l.geo; }
+      if (!l.date && p.date) l.date = p.date;
+      if (!l.time && p.time) l.time = p.time;
+    });
+    data.places = data.places.filter(function (p) { return !dead[p.id]; });
+    var haveE = {}, haveP = {};
+    data.expenses.forEach(function (e) { haveE[e.id] = 1; });
+    data.payments.forEach(function (p) { haveP[p.id] = 1; });
+    (inc.expenses || []).forEach(function (e) { if (validExpense(e) && !haveE[e.id] && !dead[e.id]) { data.expenses.push(cleanExpense(e)); count.expenses++; } });
+    (inc.payments || []).forEach(function (p) { if (validPayment(p) && !haveP[p.id] && !dead[p.id]) data.payments.push(cleanPayment(p)); });
+    data.expenses = data.expenses.filter(function (e) { return !dead[e.id]; });
+    data.payments = data.payments.filter(function (p) { return !dead[p.id]; });
+    save();
+    return count;
+  }
+  function mergedMsg(c) {
+    var parts = [];
+    if (c.places) parts.push(c.places + (c.places === 1 ? ' stop' : ' stops'));
+    if (c.expenses) parts.push(c.expenses + (c.expenses === 1 ? ' expense' : ' expenses'));
+    return parts.length ? 'Merged. Added ' + parts.join(' and ') + '.' : 'Merged. Nothing new in that code.';
+  }
   try {
     if (/^#t-/.test(location.hash)) {
-      var incoming = upgrade(Core.decode(location.hash));
-      incoming.id = uid();
-      store.trips.push(incoming); store.current = incoming.id; save();
+      ui.msg = mergedMsg(merge(Core.decode(location.hash)));
       history.replaceState(null, '', location.pathname + location.search);
-      ui.msg = 'Imported "' + incoming.name + '" from the link.';
     }
-  } catch (e) {}
+  } catch (e) { ui.msg = 'The link could not be read. Ask for a new one.'; }
 
-  function list(items, empty) { return items.length ? '<ul class="list">' + items.join('') + '</ul>' : '<p class="empty" style="margin:0">' + empty + '</p>'; }
+  /* ---------- Drive legs ---------- */
+  function legKey(a, b) { return a.lat.toFixed(4) + ',' + a.lng.toFixed(4) + '>' + b.lat.toFixed(4) + ',' + b.lng.toFixed(4); }
+  function leg(a, b) {
+    if (!hasLL(a) || !hasLL(b)) return null;
+    var c = legCache[legKey(a, b)];
+    if (c) return { mi: c.mi, min: c.min, road: true };
+    var d = Core.miles(a, b) * 1.3, mph = d < 8 ? 20 : d < 40 ? 40 : 58;
+    return { mi: d, min: Math.max(2, Math.round(d / mph * 60)), road: false };
+  }
+  function fmtMin(m) { return m < 60 ? m + ' min' : Math.floor(m / 60) + ' hr' + (m % 60 ? ' ' + (m % 60) + ' min' : ''); }
+  function fmtMi(mi) { return (mi < 10 ? mi.toFixed(1) : String(Math.round(mi))) + ' mi'; }
+  function legHTML(a, b, na, nb) {
+    var l = leg(a, b);
+    if (!l) return '<span class="line"></span><span>Distance shows once both stops have a location</span>';
+    var warn = '';
+    if (a.date && a.date === b.date && toMin(a.time) !== null && toMin(b.time) !== null) {
+      var gap = toMin(b.time) - toMin(a.time);
+      if (gap < 0) warn = 'Stop ' + nb + ' is set earlier than stop ' + na + ' on the same day.';
+      else if (gap < l.min) warn = 'Only ' + fmtMin(gap) + ' between these stops, but the drive takes about ' + fmtMin(l.min) + '.';
+    }
+    return '<span class="line"></span><span><b>' + fmtMi(l.mi) + '</b> · about ' + fmtMin(l.min) + ' drive' + (l.road ? '' : ' <span class="est" title="Straight-line distance with a road allowance">estimate</span>') + '</span>' +
+      (warn ? '<span class="warn">' + esc(warn) + '</span>' : '');
+  }
+  function totalText(list) {
+    var mi = 0, min = 0, n = 0;
+    for (var i = 1; i < list.length; i++) { var l = leg(list[i - 1], list[i]); if (l) { mi += l.mi; min += l.min; n++; } }
+    return n ? 'Driving in this order: about ' + fmtMi(mi) + ' and ' + fmtMin(min) + ' in total' : '';
+  }
+  function refreshLegs() {
+    Array.prototype.forEach.call(document.querySelectorAll('.leg[data-a]'), function (el) {
+      var a = placeById(el.dataset.a), b = placeById(el.dataset.b);
+      if (a && b) el.innerHTML = legHTML(a, b, el.dataset.na, el.dataset.nb);
+    });
+    var tot = document.getElementById('route-total');
+    if (tot && cityById(ui.tab)) tot.textContent = totalText(cityPlaces(ui.tab));
+  }
+  /* Real road distance and time from the free OSRM routing service, when the page can reach it. */
+  var routeDown = false, tried = {};
+  function fetchLegs(list) {
+    if (routeDown || typeof fetch !== 'function') return;
+    var jobs = [];
+    for (var i = 1; i < list.length; i++) {
+      var a = list[i - 1], b = list[i];
+      if (!hasLL(a) || !hasLL(b)) continue;
+      var k = legKey(a, b);
+      if (!legCache[k] && !tried[k]) { tried[k] = 1; jobs.push([a, b, k]); }
+    }
+    (function next() {
+      var j = jobs.shift();
+      if (!j || routeDown) return;
+      fetch('https://router.project-osrm.org/route/v1/driving/' + j[0].lng + ',' + j[0].lat + ';' + j[1].lng + ',' + j[1].lat + '?overview=false')
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('route')); })
+        .then(function (js) {
+          var r = js && js.routes && js.routes[0];
+          if (r) { legCache[j[2]] = { mi: r.distance / 1609.344, min: Math.max(1, Math.round(r.duration / 60)) }; saveLegs(); refreshLegs(); }
+          next();
+        })
+        .catch(function () { routeDown = true; });
+    })();
+  }
+  /* Finds coordinates for stops added by name, using OpenStreetMap search. */
+  var geoTried = {}, geoDown = false;
+  function canGeocode() { return !geoDown && typeof fetch === 'function'; }
+  function geocodeMissing() {
+    if (!canGeocode()) return;
+    var p = data.places.find(function (x) { return !hasLL(x) && x.geo !== 'none' && !geoTried[x.id]; });
+    if (!p) return;
+    geoTried[p.id] = 1;
+    var c = cityById(p.city);
+    fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(p.name + ', ' + (c ? c.name : '')))
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('geo')); })
+      .then(function (js) {
+        if (js && js[0]) { p.lat = +js[0].lat; p.lng = +js[0].lon; delete p.geo; } else p.geo = 'none';
+        save(); softRender();
+        setTimeout(geocodeMissing, 1100);
+      })
+      .catch(function () { geoDown = true; softRender(); });
+  }
+  var pendingRender = false, drag = null;
+  function typing() { var a = document.activeElement; return !!(a && app.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)); }
+  function softRender() { if (typing() || drag) pendingRender = true; else render(); }
+  app.addEventListener('focusout', function () { setTimeout(function () { if (pendingRender && !typing() && !drag) render(); }, 0); });
 
-  function placesTab(t) {
-    var h = '';
-    h += '<form class="box" id="person-form"><h2>People on this trip</h2>' +
-      (t.people.length ? '<div class="chips">' + t.people.map(function (p) { return '<span class="chip">' + esc(p.name) + '<button type="button" class="x" data-act="remove-person" data-id="' + p.id + '" aria-label="Remove ' + esc(p.name) + '">×</button></span>'; }).join('') + '</div>' : '<p class="empty" style="margin:0">Nobody yet. Add yourself first.</p>') +
-      '<div class="row"><input id="person-name" class="grow" maxlength="30" placeholder="Add a person" aria-label="Person name"><button type="submit">Add person</button></div>' +
-      '<div class="err" data-err' + (ui.err.person ? '>' + esc(ui.err.person) : ' hidden>') + '</div></form>';
+  /* ---------- Google Maps links ---------- */
+  function searchText(p) { if (p.pin && hasLL(p)) return p.lat + ',' + p.lng; var c = cityById(p.city); return p.q || (p.name + ', ' + (c ? c.name : '')); }
+  function mapURL(p) { return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(searchText(p)); }
+  function routeURL(list) {
+    var s = list.slice(0, 10).map(searchText);
+    if (s.length < 2) return '';
+    return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&origin=' + encodeURIComponent(s[0]) + '&destination=' + encodeURIComponent(s[s.length - 1]) +
+      (s.length > 2 ? '&waypoints=' + encodeURIComponent(s.slice(1, -1).join('|')) : '');
+  }
 
-    var ed = ui.editingPlace ? t.places.find(function (p) { return p.id === ui.editingPlace; }) : null;
-    h += '<form class="box" id="place-form"><h2>' + (ed ? 'Edit place' : 'Add a place') + '</h2><div class="row">' +
-      '<label class="field" style="flex:2 1 200px">Place<input id="place-name" maxlength="80" placeholder="Griffith Observatory" value="' + esc(ed ? ed.name : '') + '"></label>' +
-      '<label class="field">City or area<input id="place-city" maxlength="40" list="city-list" placeholder="Los Angeles" value="' + esc(ed ? ed.city : '') + '"></label></div>' +
-      '<datalist id="city-list">' + cities(t).map(function (c) { return '<option value="' + esc(c) + '">'; }).join('') + '</datalist>' +
-      '<label class="field">Note<input id="place-note" maxlength="140" placeholder="Needs booking, opening hours, price" value="' + esc(ed ? ed.note : '') + '"></label>' +
-      '<div class="row"><label class="field">Day to visit<input id="place-date" type="date" value="' + esc(ed ? ed.date : '') + '"></label>' +
+  /* ---------- Route sketch ---------- */
+  function sketch(list) {
+    var pts = [];
+    list.forEach(function (p, i) { if (hasLL(p)) pts.push({ p: p, n: i + 1 }); });
+    if (!pts.length) return '<div class="nomap">Stops show here once they have a location.</div>';
+    var W = 480, H = 240, pad = 26;
+    /* Fit the map to the main group; far-away day trips are listed under it with their distance. */
+    var med = function (arr) { var s = arr.slice().sort(function (a, b) { return a - b; }); return s[Math.floor(s.length / 2)]; };
+    var center = { lat: med(pts.map(function (o) { return o.p.lat; })), lng: med(pts.map(function (o) { return o.p.lng; })) };
+    pts.forEach(function (o) { o.dist = Core.miles(center, o.p); });
+    var limit = Math.max(8, 3 * med(pts.map(function (o) { return o.dist; })));
+    var inner = pts.filter(function (o) { return o.dist <= limit; });
+    if (inner.length < 2) inner = pts;
+    var far = pts.filter(function (o) { return inner.indexOf(o) < 0; });
+    var k = Math.cos(center.lat * Math.PI / 180);
+    inner.forEach(function (o) { o.x = o.p.lng * k; o.y = -o.p.lat; });
+    var xs = inner.map(function (o) { return o.x; }), ys = inner.map(function (o) { return o.y; });
+    var minx = Math.min.apply(null, xs), maxx = Math.max.apply(null, xs), miny = Math.min.apply(null, ys), maxy = Math.max.apply(null, ys);
+    var sx = maxx - minx, sy = maxy - miny;
+    var scale = Math.min(sx ? (W - 2 * pad) / sx : Infinity, sy ? (H - 2 * pad) / sy : Infinity);
+    if (!isFinite(scale)) scale = 1;
+    var ox = (W - sx * scale) / 2, oy = (H - sy * scale) / 2;
+    inner.forEach(function (o) { o.X = ox + (o.x - minx) * scale; o.Y = oy + (o.y - miny) * scale; });
+    /* Nudge pins apart so stops a few blocks from each other stay readable. */
+    for (var it = 0; it < 60; it++) {
+      for (var i = 0; i < inner.length; i++) for (var j = i + 1; j < inner.length; j++) {
+        var A = inner[i], B = inner[j], dx = B.X - A.X, dy = B.Y - A.Y, d = Math.sqrt(dx * dx + dy * dy) || 0.01;
+        if (d < 24) { var push = (24 - d) / 2, ux = dx / d, uy = dy / d; A.X -= ux * push; A.Y -= uy * push; B.X += ux * push; B.Y += uy * push; }
+      }
+      inner.forEach(function (o) { o.X = Math.min(W - 14, Math.max(14, o.X)); o.Y = Math.min(H - 14, Math.max(14, o.Y)); });
+    }
+    inner.forEach(function (o) { o.X = Math.round(o.X); o.Y = Math.round(o.Y); });
+    var g = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Sketch of the stops in order"><defs><pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="var(--map-grid)" stroke-width="1"/></pattern></defs>' +
+      '<rect width="' + W + '" height="' + H + '" fill="url(#grid)"/>';
+    /* Line segments only join consecutive stops that are both on the map. */
+    for (var s = 1; s < inner.length; s++) {
+      if (inner[s].n !== inner[s - 1].n + 1) continue;
+      g += '<line x1="' + inner[s - 1].X + '" y1="' + inner[s - 1].Y + '" x2="' + inner[s].X + '" y2="' + inner[s].Y + '" stroke="var(--primary)" stroke-width="2.5" stroke-dasharray="6 5" stroke-linecap="round"/>';
+    }
+    var sel = null;
+    inner.forEach(function (o) {
+      if (o.p.id === ui.sel) { sel = o; return; }
+      g += '<g class="pin" data-act="select" data-id="' + o.p.id + '"><title>' + o.n + '. ' + esc(o.p.name) + '</title><circle cx="' + o.X + '" cy="' + o.Y + '" r="11" fill="var(--sun)" stroke="var(--surface)" stroke-width="2"/>' +
+        '<text x="' + o.X + '" y="' + (o.Y + 4) + '" text-anchor="middle" font-size="11" font-weight="800" fill="var(--sun-ink)" font-family="var(--display)">' + o.n + '</text></g>';
+    });
+    if (sel) {
+      var right = sel.X < W - 160;
+      g += '<g class="pin" data-act="select" data-id="' + sel.p.id + '"><title>' + esc(sel.p.name) + '</title><circle cx="' + sel.X + '" cy="' + sel.Y + '" r="14" fill="var(--primary)" stroke="var(--surface)" stroke-width="3"/>' +
+        '<text x="' + sel.X + '" y="' + (sel.Y + 5) + '" text-anchor="middle" font-size="13" font-weight="800" fill="var(--primary-ink)" font-family="var(--display)">' + sel.n + '</text>' +
+        '<text x="' + (sel.X + (right ? 20 : -20)) + '" y="' + (sel.Y + 5) + '" text-anchor="' + (right ? 'start' : 'end') + '" font-size="14" font-weight="700" fill="var(--ink)" stroke="var(--map)" stroke-width="4" paint-order="stroke" font-family="var(--body)">' + esc(sel.p.name) + '</text></g>';
+    }
+    g += '</svg>';
+    if (far.length) {
+      g += '<div class="farlist"><span class="sub">Day trips off this map:</span>' + far.map(function (o) {
+        return '<button type="button" class="farchip' + (o.p.id === ui.sel ? ' on' : '') + '" data-act="select" data-id="' + o.p.id + '"><b>' + o.n + '</b> ' + esc(o.p.name) + ' · ' + Math.round(o.dist) + ' mi away</button>';
+      }).join('') + '</div>';
+    }
+    return g;
+  }
+
+  /* ---------- Views ---------- */
+  function locLine(p) {
+    if (hasLL(p)) return '';
+    var finding = p.geo !== 'none' && canGeocode();
+    return '<div class="loc' + (finding ? ' finding' : '') + '">' + (finding ? 'Finding the location…' : 'Location not found.') +
+      ' <button type="button" class="link" data-act="set-loc" data-id="' + p.id + '">Set location</button></div>';
+  }
+  function stopHTML(p, i, n) {
+    var h = '<li class="stop' + (ui.sel === p.id ? ' sel' : '') + '" data-id="' + p.id + '">' +
+      '<button type="button" class="grip" aria-label="Drag ' + esc(p.name) + ' to reorder">' + GRIP + '</button>' +
+      '<div class="num">' + (i + 1) + '</div><div class="main">' +
+      '<button type="button" class="title" data-act="select" data-id="' + p.id + '">' + esc(p.name) + '</button>' +
+      (p.note ? '<div class="sub">' + esc(p.note) + '</div>' : '') + locLine(p) +
+      '<div class="when"><input type="date" id="date-' + p.id + '" data-place="' + p.id + '" data-field="date" value="' + esc(p.date) + '" aria-label="Day for ' + esc(p.name) + '">' +
+      '<input type="time" id="time-' + p.id + '" data-place="' + p.id + '" data-field="time" value="' + esc(p.time) + '" aria-label="Time for ' + esc(p.name) + '"></div>';
+    if (ui.locFor === p.id) {
+      h += '<form class="locform" data-id="' + p.id + '"><input id="loc-' + p.id + '" class="grow" placeholder="Paste a Google Maps link, or 32.85, -117.27" aria-label="Location for ' + esc(p.name) + '">' +
+        '<button type="submit" class="primary">Save</button><button type="button" class="link" data-act="cancel-loc">Cancel</button><div class="err" data-err hidden style="flex-basis:100%"></div></form>';
+    }
+    if (ui.confirm === p.id) {
+      h += '<div class="row"><span class="sub">Remove this stop?</span><button type="button" class="link danger" data-act="delete-place" data-id="' + p.id + '">Yes, remove</button><button type="button" class="link" data-act="cancel">Keep</button></div>';
+    }
+    h += '</div><div class="side"><a class="btn chipbtn" href="' + mapURL(p) + '" target="_blank" rel="noopener">Google Maps</a>' +
+      '<div class="updown"><button type="button" data-act="move" data-id="' + p.id + '" data-dir="-1" aria-label="Move ' + esc(p.name) + ' up"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
+      '<button type="button" data-act="move" data-id="' + p.id + '" data-dir="1" aria-label="Move ' + esc(p.name) + ' down"' + (i === n - 1 ? ' disabled' : '') + '>↓</button></div>' +
+      (ui.admin && ui.confirm !== p.id ? '<div><button type="button" class="link" data-act="edit-place" data-id="' + p.id + '">Edit</button><button type="button" class="link danger" data-act="ask" data-id="' + p.id + '">Remove</button></div>' : '') +
+      '</div></li>';
+    return h;
+  }
+
+  function cityTab(c) {
+    var list = cityPlaces(c.id), h = '', route = routeURL(list);
+    var sel = list.find(function (p) { return p.id === ui.sel; });
+    h += '<section class="card cityhead"><div class="row between"><div><h2>' + esc(c.name) + '</h2><div class="sub">' + list.length + (list.length === 1 ? ' stop' : ' stops') + ' · drag the handle to change the order</div></div>' +
+      (route ? '<a class="btn primary" href="' + route + '" target="_blank" rel="noopener">Open route in Google Maps</a>' : '') + '</div>' +
+      '<div class="stayline">' + esc(c.stay) + '</div>' +
+      '<div class="sketch">' + sketch(list) + '</div>';
+    if (standalone() && sel && hasLL(sel)) {
+      h += '<iframe class="gmap" title="Google map of ' + esc(sel.name) + '" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://maps.google.com/maps?q=' + sel.lat + ',' + sel.lng + '&z=14&output=embed"></iframe>';
+    }
+    h += '<div class="total" id="route-total">' + totalText(list) + '</div>' +
+      (list.length > 10 ? '<div class="sub">The Google Maps route covers the first 10 stops.</div>' : '') +
+      '<div class="sub">Drive distances come from OpenStreetMap road routing when the page can reach it. Ones marked "estimate" are straight-line distance with a road allowance.</div></section>';
+
+    if (list.length) {
+      h += '<ol class="stops" id="stops" data-city="' + c.id + '">';
+      list.forEach(function (p, i) {
+        if (i) h += '<li class="leg" data-a="' + list[i - 1].id + '" data-b="' + p.id + '" data-na="' + i + '" data-nb="' + (i + 1) + '">' + legHTML(list[i - 1], p, i, i + 1) + '</li>';
+        h += stopHTML(p, i, list.length);
+      });
+      h += '</ol>';
+    } else h += '<div class="card"><p class="empty">No stops in ' + esc(c.name) + ' yet. Add the first one below.</p></div>';
+
+    var ed = ui.editing ? placeById(ui.editing) : null;
+    h += '<form class="card" id="place-form"><h3>' + (ed ? 'Edit ' + esc(ed.name) : 'Add a stop in ' + esc(c.name)) + '</h3><div class="row">' +
+      '<label class="field" style="flex:2 1 220px">Place<input id="place-name" maxlength="80" placeholder="USS Midway Museum" value="' + esc(ed ? ed.name : '') + '"></label>' +
+      '<label class="field">Day<input id="place-date" type="date" value="' + esc(ed ? ed.date : '') + '"></label>' +
       '<label class="field">Time<input id="place-time" type="time" value="' + esc(ed ? ed.time : '') + '"></label></div>' +
-      (t.people.length ? '<div class="field">Who wants to go<div class="chips">' + t.people.map(function (p) { return '<label class="chip"><input type="checkbox" name="place-voter" id="place-voter-' + p.id + '" value="' + p.id + '"' + (ed && ed.voters.indexOf(p.id) >= 0 ? ' checked' : '') + '>' + esc(p.name) + '</label>'; }).join('') + '</div></div>' : '') +
+      '<label class="field">Note<input id="place-note" maxlength="140" placeholder="Booking number, opening hours, price" value="' + esc(ed ? ed.note : '') + '"></label>' +
+      '<label class="field">Google Maps link (optional)<input id="place-link" placeholder="Paste a link to pin the exact spot"></label>' +
+      '<div class="sub">Without a link, the page looks the place up by name.</div>' +
       '<div class="err" data-err hidden></div>' +
-      '<div class="row"><button class="primary" type="submit">' + (ed ? 'Save changes' : 'Add place') + '</button>' + (ed ? '<button type="button" class="link" data-act="cancel-edit">Cancel</button>' : '') + '</div></form>';
-
-    if (!t.places.length) h += '<div class="box"><p class="empty" style="margin:0">No places yet. Add the first one above.</p></div>';
-    cities(t).forEach(function (c) {
-      var rows = t.places.filter(function (p) { return (p.city || 'Other') === c; }).sort(function (a, b) { return b.voters.length - a.voters.length || a.name.localeCompare(b.name); });
-      h += '<div class="box"><h2>' + esc(c) + ' <span class="sub">' + rows.length + (rows.length === 1 ? ' place' : ' places') + '</span></h2>' + list(rows.map(function (p) {
-        var who = p.voters.map(function (id) { return nameOf(t, id); }).join(', ');
-        return '<li><span class="votes' + (p.voters.length ? '' : ' none') + '" title="People who want to go">' + p.voters.length + '</span><div class="main"><div class="title">' + esc(p.name) + '</div>' +
-          '<div class="sub">' + esc(who || 'No votes yet') + (p.note ? ' · ' + esc(p.note) : '') + (p.date ? ' · planned ' + niceDate(p.date) + (p.time ? ' ' + esc(p.time) : '') : '') + '</div>' +
-          '<div>' + (ui.confirm === p.id ? '<button class="link danger" data-act="delete-place" data-id="' + p.id + '">Yes, delete</button><button class="link" data-act="cancel">Keep</button>'
-            : '<button class="link" data-act="edit-place" data-id="' + p.id + '">Edit</button><button class="link danger" data-act="ask" data-id="' + p.id + '">Delete</button>') + '</div></div></li>';
-      }), '') + '</div>';
-    });
+      '<div class="row"><button class="primary" type="submit">' + (ed ? 'Save changes' : 'Add stop') + '</button>' + (ed ? '<button type="button" class="link" data-act="cancel-edit">Cancel</button>' : '') + '</div></form>';
     return h;
   }
 
-  function planTab(t) {
-    if (!t.places.length) return '<div class="box"><p class="empty" style="margin:0">Add places in the Places tab, then give each one a day and time here.</p></div>';
-    var row = function (p) {
-      return '<li class="planrow"><div class="main"><div class="title">' + esc(p.name) + '</div><div class="sub">' + esc(p.city || 'Other') + ' · ' + p.voters.length + (p.voters.length === 1 ? ' vote' : ' votes') + (p.note ? ' · ' + esc(p.note) : '') + '</div></div>' +
-        '<div class="when"><input type="date" id="date-' + p.id + '" data-place="' + p.id + '" data-field="date" value="' + esc(p.date) + '" aria-label="Day for ' + esc(p.name) + '">' +
-        '<input type="time" id="time-' + p.id + '" data-place="' + p.id + '" data-field="time" value="' + esc(p.time) + '" aria-label="Time for ' + esc(p.name) + '"></div></li>';
-    };
-    var dated = t.places.filter(function (p) { return p.date; }).sort(function (a, b) { return (a.date + (a.time || '99')).localeCompare(b.date + (b.time || '99')) || a.name.localeCompare(b.name); });
-    var open = t.places.filter(function (p) { return !p.date; }).sort(function (a, b) { return b.voters.length - a.voters.length || a.name.localeCompare(b.name); });
-    var h = '', days = [];
-    dated.forEach(function (p) { if (days.indexOf(p.date) < 0) days.push(p.date); });
-    days.forEach(function (d) {
-      h += '<div class="box"><h2 class="dayhead">' + niceDate(d) + '</h2>' + list(dated.filter(function (p) { return p.date === d; }).map(row), '') + '</div>';
-    });
-    if (open.length) h += '<div class="box"><h2>No day yet <span class="sub">' + open.length + ' to place, most wanted first</span></h2>' + list(open.map(row), '') + '</div>';
-    return h;
-  }
-
-  function costsTab(t) {
-    var f = function (n) { return Core.fmt(n, t.currency); };
-    var bal = Core.balances(t), tot = Core.totals(t), plan = Core.settle(bal);
+  function costsTab() {
+    var trip = { people: PEOPLE, expenses: data.expenses, payments: data.payments };
+    var bal = Core.balances(trip), tot = Core.totals(trip), plan = Core.settle(bal);
     var open = plan.reduce(function (a, x) { return a + x.amount; }, 0), h = '';
-    h += '<div class="stats"><div class="stat"><div class="lbl">Total spent</div><div class="num">' + f(tot.spent) + '</div></div>' +
-      '<div class="stat"><div class="lbl">Per person, average</div><div class="num">' + (t.people.length ? f(Math.round(tot.spent / t.people.length)) : f(0)) + '</div></div>' +
-      '<div class="stat"><div class="lbl">Still to settle</div><div class="num">' + f(open) + '</div></div></div>';
+    var list = function (items, empty) { return items.length ? '<ul class="list">' + items.join('') + '</ul>' : '<p class="empty">' + empty + '</p>'; };
+    h += '<div class="stats"><div class="stat"><div class="lbl">Total spent</div><div class="val">' + fmt(tot.spent) + '</div></div>' +
+      '<div class="stat"><div class="lbl">Per person, average</div><div class="val">' + fmt(Math.round(tot.spent / PEOPLE.length)) + '</div></div>' +
+      '<div class="stat"><div class="lbl">Still to settle</div><div class="val">' + fmt(open) + '</div></div></div>';
 
-    var ed = ui.editing ? t.expenses.find(function (e) { return e.id === ui.editing; }) : null;
-    if (!t.people.length) h += '<div class="box"><p class="empty" style="margin:0">Add the people on this trip first, in the Places tab.</p></div>';
-    else h += '<form class="box" id="expense-form"><h2>' + (ed ? 'Edit expense' : 'Add an expense') + '</h2><div class="row">' +
-      '<label class="field" style="flex:2 1 200px">What was it?<input id="exp-desc" maxlength="80" placeholder="Motel, fuel, tickets" value="' + esc(ed ? ed.desc : '') + '"></label>' +
-      '<label class="field">Amount (' + t.currency + ')<input id="exp-amount" inputmode="decimal" placeholder="0.00" value="' + (ed ? (ed.amount / Math.pow(10, Core.digits(t.currency))).toFixed(Core.digits(t.currency)) : '') + '"></label></div><div class="row">' +
-      '<label class="field">Paid by<select id="exp-payer">' + t.people.map(function (p) { return '<option value="' + p.id + '"' + (ed && ed.paidBy === p.id ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</select></label>' +
+    var ed = ui.editingExp ? data.expenses.find(function (e) { return e.id === ui.editingExp; }) : null;
+    h += '<form class="card" id="expense-form"><h3>' + (ed ? 'Edit expense' : 'Add an expense') + '</h3><div class="row">' +
+      '<label class="field" style="flex:2 1 200px">What was it?<input id="exp-desc" maxlength="80" placeholder="Motel, gas, tickets" value="' + esc(ed ? ed.desc : '') + '"></label>' +
+      '<label class="field">Amount (USD)<input id="exp-amount" inputmode="decimal" placeholder="0.00" value="' + (ed ? (ed.amount / 100).toFixed(2) : '') + '"></label></div><div class="row">' +
+      '<label class="field">Paid by<select id="exp-payer">' + PEOPLE.map(function (p) { return '<option value="' + p.id + '"' + (ed && ed.paidBy === p.id ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</select></label>' +
       '<label class="field">Date<input id="exp-date" type="date" value="' + esc(ed ? ed.date : today()) + '"></label></div>' +
-      '<div class="field">Split equally between<div class="chips">' + t.people.map(function (p) { return '<label class="chip"><input type="checkbox" name="exp-split" id="exp-split-' + p.id + '" value="' + p.id + '"' + (!ed || ed.split.indexOf(p.id) >= 0 ? ' checked' : '') + '>' + esc(p.name) + '</label>'; }).join('') + '</div></div>' +
+      '<div class="field">Split equally between<div class="chips">' + PEOPLE.map(function (p) { return '<label class="chip"><input type="checkbox" name="exp-split" id="exp-split-' + p.id + '" value="' + p.id + '"' + (!ed || ed.split.indexOf(p.id) >= 0 ? ' checked' : '') + '>' + esc(p.name) + '</label>'; }).join('') + '</div></div>' +
       '<div class="err" data-err hidden></div>' +
       '<div class="row"><button class="primary" type="submit">' + (ed ? 'Save changes' : 'Add expense') + '</button>' + (ed ? '<button type="button" class="link" data-act="cancel-edit">Cancel</button>' : '') + '</div></form>';
 
-    var ex = t.expenses.slice().sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); });
-    h += '<div class="box"><h2>Expenses so far</h2>' + list(ex.map(function (e) {
-      var who = e.split.length === t.people.length ? 'everyone' : e.split.map(function (id) { return nameOf(t, id); }).join(', ');
-      return '<li><div class="main"><div class="title">' + esc(e.desc) + '</div><div class="sub">' + esc(nameOf(t, e.paidBy)) + ' paid · split between ' + esc(who) + ' · ' + niceDate(e.date) + '</div>' +
-        '<div>' + (ui.confirm === e.id ? '<button class="link danger" data-act="delete-expense" data-id="' + e.id + '">Yes, delete</button><button class="link" data-act="cancel">Keep</button>'
-          : '<button class="link" data-act="edit-expense" data-id="' + e.id + '">Edit</button><button class="link danger" data-act="ask" data-id="' + e.id + '">Delete</button>') + '</div></div><div class="amt">' + f(e.amount) + '</div></li>';
+    var ex = data.expenses.slice().sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); });
+    h += '<div class="card"><h3>Expenses so far</h3>' + list(ex.map(function (e) {
+      var who = e.split.length === PEOPLE.length ? 'everyone' : e.split.map(person).join(', ');
+      var tools = '';
+      if (ui.admin) tools = ui.confirm === e.id
+        ? '<div><button class="link danger" data-act="delete-expense" data-id="' + e.id + '">Yes, remove</button><button class="link" data-act="cancel">Keep</button></div>'
+        : '<div><button class="link" data-act="edit-expense" data-id="' + e.id + '">Edit</button><button class="link danger" data-act="ask" data-id="' + e.id + '">Remove</button></div>';
+      return '<li><div class="main"><div class="ttl">' + esc(e.desc) + '</div><div class="sub">' + esc(person(e.paidBy)) + ' paid · split between ' + esc(who) + ' · ' + niceDate(e.date) + '</div>' + tools + '</div><div class="amt">' + fmt(e.amount) + '</div></li>';
     }), 'Nothing logged yet.') + '</div>';
 
-    if (t.people.length) h += '<div class="box"><h2>Where everyone stands</h2>' + list(t.people.map(function (p) {
+    h += '<div class="card"><h3>Where everyone stands</h3>' + list(PEOPLE.map(function (p) {
       var v = bal[p.id] || 0;
-      return '<li><div class="main"><div class="title">' + esc(p.name) + '</div><div class="sub">Paid ' + f(tot.paid[p.id] || 0) + ' · share ' + f(tot.share[p.id] || 0) + '</div></div>' +
-        '<span class="pill ' + (v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero') + '">' + (v > 0 ? 'gets back ' + f(v) : v < 0 ? 'owes ' + f(-v) : 'settled') + '</span></li>';
+      return '<li><div class="main"><div class="ttl">' + esc(p.name) + '</div><div class="sub">Paid ' + fmt(tot.paid[p.id] || 0) + ' · share ' + fmt(tot.share[p.id] || 0) + '</div></div>' +
+        '<span class="pill ' + (v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero') + '">' + (v > 0 ? 'gets back ' + fmt(v) : v < 0 ? 'owes ' + fmt(-v) : 'settled') + '</span></li>';
     }), '') + '</div>';
-    h += '<div class="box"><h2>Settle up</h2>' + (plan.length ? '<p class="sub" style="margin:0">The fewest payments that bring everyone to zero.</p>' : '') + list(plan.map(function (x) {
-      return '<li><div class="main"><div class="title">' + esc(nameOf(t, x.from)) + ' pays ' + esc(nameOf(t, x.to)) + '</div></div><div class="amt">' + f(x.amount) + '</div>' +
+    h += '<div class="card"><h3>Settle up</h3>' + (plan.length ? '<p class="sub" style="margin:0">The fewest payments that bring everyone to zero.</p>' : '') + list(plan.map(function (x) {
+      return '<li><div class="main"><div class="ttl">' + esc(person(x.from)) + ' pays ' + esc(person(x.to)) + '</div></div><div class="amt">' + fmt(x.amount) + '</div>' +
         '<button data-act="pay" data-from="' + x.from + '" data-to="' + x.to + '" data-amount="' + x.amount + '">Mark as paid</button></li>';
-    }), t.expenses.length ? 'Everyone is settled.' : 'Log some expenses and the payments will show here.') + '</div>';
-    if (t.payments.length) h += '<div class="box"><h2>Payments made</h2>' + list(t.payments.map(function (p) {
-      return '<li><div class="main"><div class="title">' + esc(nameOf(t, p.from)) + ' paid ' + esc(nameOf(t, p.to)) + '</div><div class="sub">' + niceDate(p.date) + '</div></div><div class="amt">' + f(p.amount) + '</div><button class="link" data-act="undo-pay" data-id="' + p.id + '">Undo</button></li>';
+    }), data.expenses.length ? 'Everyone is settled.' : 'Log some expenses and the payments show here.') + '</div>';
+    if (data.payments.length) h += '<div class="card"><h3>Payments made</h3>' + list(data.payments.map(function (p) {
+      return '<li><div class="main"><div class="ttl">' + esc(person(p.from)) + ' paid ' + esc(person(p.to)) + '</div><div class="sub">' + niceDate(p.date) + '</div></div><div class="amt">' + fmt(p.amount) + '</div>' +
+        (ui.admin ? '<button class="link" data-act="undo-pay" data-id="' + p.id + '">Undo</button>' : '') + '</li>';
     }), '') + '</div>';
     return h;
   }
 
   function render() {
-    var t = trip(), h = '';
-    h += '<header class="top"><h1>Trip Wallet</h1>' +
-      '<select id="trip-select" aria-label="Choose a trip">' + store.trips.map(function (x) { return '<option value="' + x.id + '"' + (x.id === t.id ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') + '</select>' +
-      '<button data-act="new-trip">New trip</button><button data-act="toggle-share" class="primary">Share</button></header>';
-    h += '<div><input id="trip-name" class="tripname" aria-label="Trip name" value="' + esc(t.name) + '" maxlength="60">' +
-      '<div class="row"><label class="sub" for="trip-currency">Currency</label><select id="trip-currency">' + CURRENCIES.map(function (c) { return '<option' + (c === t.currency ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select>' +
-      (ui.confirm === 'trip'
-        ? '<span class="sub">Delete this trip and everything in it?</span><button class="link danger" data-act="delete-trip">Yes, delete</button><button class="link" data-act="cancel">Keep it</button>'
-        : '<button class="link danger" data-act="ask" data-id="trip">Delete trip</button>') + '</div></div>';
-    if (t.info) h += '<div class="note">' + esc(t.info) + ' <button class="link" data-act="dismiss-info">Got it</button></div>';
-    if (ui.msg) h += '<div class="note" role="status">' + esc(ui.msg) + '</div>';
+    pendingRender = false;
+    var h = '<header class="appbar"><div class="brand"><div class="eyebrow">Group trip · Dec 24 to 31</div><h1>San Diego, LA and Las Vegas</h1>' +
+      '<div class="travelers">' + PEOPLE.map(function (p) { return '<span class="av">' + esc(p.name) + '</span>'; }).join('') + '</div></div>' +
+      '<div class="row"><button data-act="toggle-share">Share</button>' +
+      (ui.admin ? '<span class="adminpill">Admin</span><button class="link" data-act="lock">Lock</button>' : '<button data-act="admin-open">Admin</button>') + '</div></header>';
 
+    if (ui.adminOpen && !ui.admin) {
+      h += '<form class="card" id="admin-form"><h3>Admin sign-in</h3><p class="sub" style="margin:0">Only the admin can remove or edit stops and expenses. Everyone can add.</p>' +
+        '<div class="row"><input id="admin-pin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN" aria-label="Admin PIN" style="width:140px">' +
+        '<button class="primary" type="submit">Unlock</button><button type="button" class="link" data-act="admin-close">Cancel</button></div><div class="err" data-err hidden></div></form>';
+    }
+    if (ui.msg) h += '<div class="note" role="status">' + esc(ui.msg) + '</div>';
     if (ui.share) {
-      var code = Core.encode(t), standalone = false;
-      try { standalone = window.top === window.self && /^https?:$/.test(location.protocol); } catch (e) {}
-      h += '<section class="box"><h2>Share this trip</h2>' +
-        '<p class="sub" style="margin:0">Trips are saved in this browser only. To give friends a copy, send them the ' + (standalone ? 'link' : 'trip code') + '. They get the trip as it is right now; later changes need a new ' + (standalone ? 'link' : 'code') + '.</p>' +
-        (standalone ? '<div class="row"><input id="share-link" class="grow" readonly value="' + esc(location.origin + location.pathname + '#t-' + code) + '"><button data-act="copy" data-target="share-link">Copy link</button></div>' : '') +
-        '<label class="field">Trip code<textarea id="share-code" rows="3" readonly>' + code + '</textarea></label>' +
+      var code = Core.encode(exportData()), sa = standalone();
+      h += '<section class="card"><h3>Share and merge</h3>' +
+        '<p class="sub" style="margin:0">What you add is saved in this browser. Send your ' + (sa ? 'link' : 'code') + ' to Pranay, who merges everyone\'s additions and sends the group a fresh one.</p>' +
+        (sa ? '<div class="row"><input id="share-link" class="grow" readonly value="' + esc(location.origin + location.pathname + '#t-' + code) + '"><button data-act="copy" data-target="share-link">Copy link</button></div>' : '') +
+        '<label class="field">Your trip code<textarea id="share-code" rows="3" readonly>' + code + '</textarea></label>' +
         '<div class="row"><button data-act="copy" data-target="share-code">Copy code</button></div>' +
-        '<label class="field">Got a code from a friend? Paste it here<textarea id="import-code" rows="2" placeholder="Paste a trip code">' + esc(ui.importText) + '</textarea></label>' +
-        (ui.err.imp ? '<div class="err">' + esc(ui.err.imp) + '</div>' : '') +
-        '<div class="row"><button data-act="import">Add trip from code</button><button class="link" data-act="toggle-share">Close</button></div></section>';
+        '<label class="field">Merge a code from someone else<textarea id="import-code" rows="2" placeholder="Paste a trip code">' + esc(ui.importText) + '</textarea></label>' +
+        '<div class="err" id="import-err" hidden></div>' +
+        '<div class="row"><button class="primary" data-act="import">Merge</button><button class="link" data-act="toggle-share">Close</button></div></section>';
     }
 
-    var planned = t.places.filter(function (p) { return p.date; }).length;
-    var tabs = [['places', 'Places', t.places.length], ['plan', 'Plan', planned + '/' + t.places.length], ['costs', 'Expenses', t.expenses.length]];
-    h += '<div class="tabs" role="tablist">' + tabs.map(function (x) { return '<button role="tab" data-act="tab" data-id="' + x[0] + '" aria-selected="' + (ui.tab === x[0]) + '">' + x[1] + ' <span class="count">' + x[2] + '</span></button>'; }).join('') + '</div><div class="panel">';
-    h += ui.tab === 'places' ? placesTab(t) : ui.tab === 'plan' ? planTab(t) : costsTab(t);
-    app.innerHTML = h + '</div>';
+    var spent = data.expenses.reduce(function (a, e) { return a + e.amount; }, 0);
+    h += '<div class="tabs" role="tablist">' + CITIES.map(function (c) {
+      return '<button class="tab" role="tab" data-act="tab" data-id="' + c.id + '" aria-selected="' + (ui.tab === c.id) + '">' + esc(c.name) + ' <span class="count">' + cityPlaces(c.id).length + '</span></button>';
+    }).join('') + '<button class="tab" role="tab" data-act="tab" data-id="costs" aria-selected="' + (ui.tab === 'costs') + '">Expenses <span class="count">' + fmt(spent) + '</span></button></div>';
+
+    var c = cityById(ui.tab);
+    h += c ? cityTab(c) : costsTab();
+    app.innerHTML = h;
+    if (c) fetchLegs(cityPlaces(c.id));
+    geocodeMissing();
   }
 
+  /* ---------- Actions ---------- */
+  function reorderCity(cid, ids) {
+    var byId = {};
+    data.places.forEach(function (p) { byId[p.id] = p; });
+    var moved = ids.map(function (id) { return byId[id]; }).filter(Boolean);
+    data.places = data.places.filter(function (p) { return p.city !== cid; }).concat(moved);
+    save();
+  }
+  var ADMIN_ONLY = ['edit-place', 'delete-place', 'edit-expense', 'delete-expense', 'undo-pay', 'ask'];
   function act(a, d) {
-    var t = trip();
-    ui.err = {};
+    if (ADMIN_ONLY.indexOf(a) >= 0 && !ui.admin) return;
     if (a !== 'ask') ui.confirm = null;
-    if (a === 'tab') { ui.tab = d.id; ui.editing = null; ui.editingPlace = null; }
-    else if (a === 'toggle-share') { ui.share = !ui.share; ui.msg = ''; }
-    else if (a === 'new-trip') { var n = blankTrip('New trip'); store.trips.push(n); store.current = n.id; ui.tab = 'places'; ui.msg = ''; save(); }
+    if (a !== 'import') ui.msg = '';
+    if (a === 'tab') {
+      ui.tab = d.id; ui.editing = null; ui.editingExp = null; ui.locFor = null; ui.sel = null;
+      try { localStorage.setItem(TAB_KEY, d.id); } catch (e) {}
+    }
+    else if (a === 'select') ui.sel = ui.sel === d.id ? null : d.id;
+    else if (a === 'move') {
+      var ids = cityPlaces(ui.tab).map(function (p) { return p.id; }), i = ids.indexOf(d.id), j = i + (+d.dir);
+      if (i >= 0 && j >= 0 && j < ids.length) { ids.splice(j, 0, ids.splice(i, 1)[0]); reorderCity(ui.tab, ids); }
+    }
+    else if (a === 'set-loc') ui.locFor = d.id;
+    else if (a === 'cancel-loc') ui.locFor = null;
     else if (a === 'ask') ui.confirm = d.id;
     else if (a === 'cancel') ui.confirm = null;
-    else if (a === 'dismiss-info') { delete t.info; save(); }
-    else if (a === 'delete-trip') {
-      store.trips = store.trips.filter(function (x) { return x.id !== t.id; });
-      if (!store.trips.length) store.trips.push(blankTrip('New trip'));
-      store.current = store.trips[0].id; save();
+    else if (a === 'edit-place') ui.editing = d.id;
+    else if (a === 'cancel-edit') { ui.editing = null; ui.editingExp = null; }
+    else if (a === 'delete-place') {
+      data.places = data.places.filter(function (p) { return p.id !== d.id; });
+      data.deleted.push(d.id);
+      if (ui.editing === d.id) ui.editing = null;
+      if (ui.sel === d.id) ui.sel = null;
+      save();
     }
-    else if (a === 'edit-place') ui.editingPlace = d.id;
-    else if (a === 'delete-place') { t.places = t.places.filter(function (p) { return p.id !== d.id; }); if (ui.editingPlace === d.id) ui.editingPlace = null; save(); }
-    else if (a === 'edit-expense') ui.editing = d.id;
-    else if (a === 'cancel-edit') { ui.editing = null; ui.editingPlace = null; }
-    else if (a === 'delete-expense') { t.expenses = t.expenses.filter(function (e) { return e.id !== d.id; }); if (ui.editing === d.id) ui.editing = null; save(); }
-    else if (a === 'pay') { t.payments.push({ id: uid(), from: d.from, to: d.to, amount: +d.amount, date: today() }); save(); }
-    else if (a === 'undo-pay') { t.payments = t.payments.filter(function (p) { return p.id !== d.id; }); save(); }
-    else if (a === 'remove-person') {
-      var used = t.expenses.some(function (e) { return e.paidBy === d.id || e.split.indexOf(d.id) >= 0; }) || t.payments.some(function (p) { return p.from === d.id || p.to === d.id; });
-      if (used) ui.err.person = nameOf(t, d.id) + ' is part of an expense or payment. Remove those first.';
-      else {
-        t.people = t.people.filter(function (p) { return p.id !== d.id; });
-        t.places.forEach(function (p) { p.voters = p.voters.filter(function (v) { return v !== d.id; }); });
-        save();
-      }
-    }
+    else if (a === 'edit-expense') ui.editingExp = d.id;
+    else if (a === 'delete-expense') { data.expenses = data.expenses.filter(function (e) { return e.id !== d.id; }); data.deleted.push(d.id); if (ui.editingExp === d.id) ui.editingExp = null; save(); }
+    else if (a === 'pay') { data.payments.push({ id: uid(), from: d.from, to: d.to, amount: +d.amount, date: today() }); save(); }
+    else if (a === 'undo-pay') { data.payments = data.payments.filter(function (p) { return p.id !== d.id; }); data.deleted.push(d.id); save(); }
+    else if (a === 'toggle-share') ui.share = !ui.share;
+    else if (a === 'admin-open') ui.adminOpen = true;
+    else if (a === 'admin-close') ui.adminOpen = false;
+    else if (a === 'lock') { ui.admin = false; ui.editing = null; ui.editingExp = null; try { sessionStorage.removeItem(ADMIN_KEY); } catch (e) {} }
     else if (a === 'import') {
       var box = document.getElementById('import-code');
       ui.importText = box ? box.value : '';
-      try {
-        var inc = upgrade(Core.decode(ui.importText));
-        inc.id = uid();
-        store.trips.push(inc); store.current = inc.id; save();
-        ui.share = false; ui.importText = ''; ui.msg = 'Added "' + inc.name + '".';
-      } catch (e) { ui.err.imp = 'That code could not be read. Copy the whole code and try again.'; }
+      try { ui.msg = mergedMsg(merge(Core.decode(ui.importText))); ui.share = false; ui.importText = ''; }
+      catch (e) {
+        var err = document.getElementById('import-err');
+        if (err) { err.textContent = 'That code could not be read. Copy the whole code and try again.'; err.hidden = false; }
+        return;
+      }
     }
     render();
     if (a === 'edit-place' || a === 'edit-expense') {
-      var form = document.getElementById(a === 'edit-place' ? 'place-form' : 'expense-form');
-      if (form && form.scrollIntoView) form.scrollIntoView({ block: 'start' });
+      var f = document.getElementById(a === 'edit-place' ? 'place-form' : 'expense-form');
+      if (f && f.scrollIntoView) f.scrollIntoView({ block: 'start' });
     }
   }
 
   app.addEventListener('click', function (ev) {
     var b = ev.target.closest('[data-act]');
-    if (!b) return;
+    if (!b || !app.contains(b)) return;
     var a = b.getAttribute('data-act');
     if (a === 'copy') {
       var el = document.getElementById(b.getAttribute('data-target')), label = b.textContent;
@@ -467,66 +770,116 @@ if (typeof module !== 'undefined') module.exports = Core;
   });
 
   app.addEventListener('change', function (ev) {
-    var t = trip(), el = ev.target;
+    var el = ev.target;
     if (el.dataset && el.dataset.place) {
-      var p = t.places.find(function (x) { return x.id === el.dataset.place; });
-      if (p) { p[el.dataset.field] = el.value; save(); render(); }
+      var p = placeById(el.dataset.place);
+      if (p) { p[el.dataset.field] = el.value; save(); refreshLegs(); }
     }
-    else if (el.id === 'trip-select') { store.current = el.value; ui.editing = null; ui.editingPlace = null; ui.confirm = null; ui.msg = ''; save(); render(); }
-    else if (el.id === 'trip-currency') {
-      var shift = Math.pow(10, Core.digits(el.value) - Core.digits(t.currency));
-      t.expenses.forEach(function (e) { e.amount = Math.round(e.amount * shift); });
-      t.payments.forEach(function (p) { p.amount = Math.round(p.amount * shift); });
-      t.currency = el.value; save(); render();
-    }
-    else if (el.id === 'trip-name') { t.name = el.value.trim() || 'Untitled trip'; save(); render(); }
   });
+
+  function sha(s) {
+    return crypto.subtle.digest('SHA-256', new TextEncoder().encode('tripwallet:' + s)).then(function (buf) {
+      return Array.prototype.map.call(new Uint8Array(buf), function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+    });
+  }
 
   app.addEventListener('submit', function (ev) {
     ev.preventDefault();
-    var t = trip(), val = function (id) { var e = document.getElementById(id); return e ? e.value.trim() : ''; };
-    var checked = function (name) { return Array.prototype.slice.call(document.querySelectorAll('input[name="' + name + '"]:checked')).map(function (c) { return c.value; }); };
-    var problem = '';
-    if (ev.target.id === 'person-form') {
-      var name = val('person-name');
-      if (!name) problem = 'Type a name first.';
-      else if (t.people.some(function (p) { return p.name.toLowerCase() === name.toLowerCase(); })) problem = name + ' is already on this trip.';
-      else t.people.push({ id: uid(), name: name });
-    }
-    if (ev.target.id === 'place-form') {
-      var pname = val('place-name'), city = val('place-city');
-      var clash = t.places.some(function (p) { return p.id !== ui.editingPlace && p.name.toLowerCase() === pname.toLowerCase() && (p.city || '').toLowerCase() === city.toLowerCase(); });
-      if (!pname) problem = 'Type the name of the place.';
-      else if (clash) problem = pname + ' is already on the list.';
-      else {
-        var rec = { name: pname, city: city, note: val('place-note'), voters: checked('place-voter'), date: val('place-date'), time: val('place-time') };
-        var oldP = ui.editingPlace ? t.places.find(function (p) { return p.id === ui.editingPlace; }) : null;
-        if (oldP) Object.assign(oldP, rec); else t.places.push(Object.assign({ id: uid(), date: '', time: '' }, rec));
-        ui.editingPlace = null;
-      }
-    }
-    if (ev.target.id === 'expense-form') {
-      var desc = val('exp-desc'), amount = Core.toMinor(val('exp-amount'), t.currency), split = checked('exp-split');
-      if (!desc) problem = 'Say what the expense was.';
-      else if (amount === null || amount <= 0) problem = 'Enter an amount above zero.';
-      else if (!split.length) problem = 'Pick at least one person to split it between.';
-      else {
-        var e = { desc: desc, amount: amount, paidBy: val('exp-payer'), split: split, date: val('exp-date') || today() };
-        var oldE = ui.editing ? t.expenses.find(function (x) { return x.id === ui.editing; }) : null;
-        if (oldE) Object.assign(oldE, e); else t.expenses.push(Object.assign({ id: uid() }, e));
-        ui.editing = null;
-      }
-    }
-    /* On a validation error, keep what was typed and show the message in place. */
-    if (problem) {
-      var slot = ev.target.querySelector('[data-err]');
-      if (slot) { slot.textContent = problem; slot.hidden = false; }
+    var form = ev.target, val = function (id) { var e = document.getElementById(id); return e ? e.value.trim() : ''; };
+    var fail = function (msg) { var slot = form.querySelector('[data-err]'); if (slot) { slot.textContent = msg; slot.hidden = false; } };
+
+    if (form.id === 'admin-form') {
+      var pin = val('admin-pin');
+      if (!pin) return fail('Enter the PIN.');
+      if (!window.crypto || !crypto.subtle) return fail('This browser cannot check the PIN here. Open the page over https.');
+      sha(pin).then(function (h) {
+        if (h !== ADMIN_HASH) return fail('That PIN is not right.');
+        ui.admin = true; ui.adminOpen = false;
+        try { sessionStorage.setItem(ADMIN_KEY, '1'); } catch (e) {}
+        render();
+      }, function () { fail('This browser cannot check the PIN here.'); });
       return;
     }
-    ui.err = {};
-    save(); render();
+
+    if (form.classList.contains('locform')) {
+      var target = placeById(form.dataset.id), ll = Core.parseLatLng(val('loc-' + form.dataset.id));
+      if (!ll) return fail('No location found in that. Use the full link from the address bar (short share links do not include it), or type latitude, longitude.');
+      if (target) { target.lat = ll.lat; target.lng = ll.lng; target.pin = true; delete target.geo; save(); }
+      ui.locFor = null; render(); return;
+    }
+
+    if (form.id === 'place-form') {
+      var name = val('place-name'), link = val('place-link'), pll = link ? Core.parseLatLng(link) : null;
+      if (!name) return fail('Type the name of the place.');
+      if (link && !pll) return fail('That link has no location in it. Use the full link from the address bar (short share links do not include it), or type latitude, longitude.');
+      var clash = cityPlaces(ui.tab).some(function (p) { return p.id !== ui.editing && p.name.toLowerCase() === name.toLowerCase(); });
+      if (clash) return fail(name + ' is already on the list.');
+      var rec = { name: name, note: val('place-note'), date: val('place-date'), time: val('place-time') };
+      var old = ui.editing && ui.admin ? placeById(ui.editing) : null;
+      if (old) {
+        if (pll) { old.lat = pll.lat; old.lng = pll.lng; old.pin = true; delete old.geo; }
+        else if (old.name !== name && !old.pin) { old.lat = null; old.lng = null; old.q = ''; delete old.geo; delete geoTried[old.id]; }
+        Object.assign(old, rec);
+        ui.editing = null;
+      } else {
+        var np = Object.assign({ id: 'u-' + uid(), city: ui.tab, lat: pll ? pll.lat : null, lng: pll ? pll.lng : null, q: '', pin: !!pll }, rec);
+        data.places.push(np);
+        ui.sel = np.id;
+      }
+      save(); render(); return;
+    }
+
+    if (form.id === 'expense-form') {
+      var desc = val('exp-desc'), amount = Core.toMinor(val('exp-amount'));
+      var split = Array.prototype.map.call(document.querySelectorAll('input[name="exp-split"]:checked'), function (c) { return c.value; });
+      if (!desc) return fail('Say what the expense was.');
+      if (amount === null || amount <= 0) return fail('Enter an amount above zero.');
+      if (!split.length) return fail('Pick at least one person to split it between.');
+      var e = { desc: desc, amount: amount, paidBy: val('exp-payer'), split: split, date: val('exp-date') || today() };
+      var oldE = ui.editingExp && ui.admin ? data.expenses.find(function (x) { return x.id === ui.editingExp; }) : null;
+      if (oldE) Object.assign(oldE, e); else data.expenses.push(Object.assign({ id: uid() }, e));
+      ui.editingExp = null;
+      save(); render();
+    }
   });
 
+  /* ---------- Drag and drop with pointer events, so it works with a finger too ---------- */
+  app.addEventListener('pointerdown', function (e) {
+    var g = e.target.closest('.grip');
+    if (!g || (e.button && e.button !== 0)) return;
+    var card = g.closest('.stop'), list = card && card.parentNode;
+    if (!list) return;
+    e.preventDefault();
+    try { g.setPointerCapture(e.pointerId); } catch (x) {}
+    list.classList.add('reordering');
+    card.classList.add('dragging');
+    drag = { card: card, list: list, moved: false };
+  });
+  app.addEventListener('pointermove', function (e) {
+    if (!drag) return;
+    e.preventDefault();
+    var y = e.clientY, card = drag.card, stops = drag.list.querySelectorAll('.stop');
+    for (var i = 0; i < stops.length; i++) {
+      var s = stops[i];
+      if (s === card) continue;
+      var r = s.getBoundingClientRect(), mid = r.top + r.height / 2, cr = card.getBoundingClientRect();
+      if (y < mid && cr.top > r.top) { drag.list.insertBefore(card, s); drag.moved = true; break; }
+      if (y > mid && cr.top < r.top) { drag.list.insertBefore(card, s.nextSibling); drag.moved = true; break; }
+    }
+    Array.prototype.forEach.call(drag.list.querySelectorAll('.stop .num'), function (n, i) { n.textContent = i + 1; });
+    if (y < 70) window.scrollBy(0, -14); else if (y > window.innerHeight - 70) window.scrollBy(0, 14);
+  });
+  function endDrag() {
+    if (!drag) return;
+    var d = drag;
+    drag = null;
+    if (d.moved) reorderCity(d.list.dataset.city, Array.prototype.map.call(d.list.querySelectorAll('.stop'), function (s) { return s.dataset.id; }));
+    render();
+  }
+  app.addEventListener('pointerup', endDrag);
+  app.addEventListener('pointercancel', endDrag);
+
+  save();
   render();
 })();
 </script>
