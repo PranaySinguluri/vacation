@@ -1370,8 +1370,8 @@ if (typeof module !== 'undefined') module.exports = Core;
     h += shotCard(c);
     h += '<div class="quick-add"><button type="button" class="primary" data-act="add-stop">+ Add stop</button></div>';
     var ed = ui.editing ? placeById(ui.editing) : null;
-    var editForm = ed ? '<div class="edit-overlay" data-act="cancel-edit"><div class="edit-sheet" role="dialog" aria-modal="true" aria-labelledby="edit-stop-heading">' +
-      '<form id="place-form" class="edit-stop-form"><div class="edit-top"><button type="button" class="edit-close" data-act="cancel-edit" aria-label="Close editor">✕</button><h3 id="edit-stop-heading">Edit Stop</h3><button type="button" class="edit-trash" data-act="ask-edit-delete" data-id="' + ed.id + '" aria-label="Delete stop">♜</button></div>' +
+    var editForm = ed ? '<div class="edit-overlay"><div class="edit-sheet" role="dialog" aria-modal="true" aria-labelledby="edit-stop-heading">' +
+      '<form id="place-form" class="edit-stop-form"><div class="edit-top"><button type="button" class="edit-close" data-act="cancel-edit" aria-label="Close editor">✕</button><h3 id="edit-stop-heading">Edit Stop</h3><button type="button" class="edit-trash" data-act="ask-edit-delete" data-id="' + ed.id + '" aria-label="Delete stop">🗑</button></div>' +
       '<label class="field">Title<input id="place-name" maxlength="80" required value="' + esc(ed.name) + '"></label>' +
       '<fieldset class="edit-types"><legend>Type</legend><div class="edit-type-row">' +
       [['stay','🛏','Stay'],['activity','⛺','Activity'],['other','•••','Other']].map(function (x) { return '<label class="edit-type-choice"><input type="radio" name="place-type" value="' + x[0] + '"' + ((ed.kind || 'other') === x[0] ? ' checked' : '') + '><span><b>' + x[1] + '</b>' + x[2] + '</span></label>'; }).join('') + '</div></fieldset>' +
@@ -1732,7 +1732,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     else if (a === 'cancel-loc') ui.locFor = null;
     else if (a === 'ask') ui.confirm = d.id;
     else if (a === 'cancel') ui.confirm = null;
-    else if (a === 'add-stop') { ui.adding = !(ui.adding || ui.editing); ui.editing = null; results = []; active = -1; searchSeq++; }
+    else if (a === 'add-stop') { ui.adding = ui.editing ? true : !ui.adding; ui.editing = null; results = []; active = -1; searchSeq++; }
     else if (a === 'edit-place') { ui.editing = d.id; ui.adding = false; }
     else if (a === 'ask-edit-delete') {
       if (window.confirm('Remove this stop from the itinerary?')) {
@@ -1896,6 +1896,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
 
   app.addEventListener('click', function (ev) {
+    if (ev.target.classList && ev.target.classList.contains('edit-overlay')) { act('cancel-edit', {}); return; }
     if (ui.menu && !ev.target.closest('.acctmenu') && !ev.target.closest('[data-act="toggle-menu"]')) {
       ui.menu = false;
       var mn = document.querySelector('.acctmenu'); if (mn) mn.remove();
