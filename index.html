@@ -760,7 +760,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   function exportData() { return { v: 3, places: data.places, expenses: data.expenses, payments: data.payments, deleted: data.deleted }; }
   var undoStop = null;
   function downloadBackup() {
-    var backup = { format: 'tripwallet-backup', exportedAt: new Date().toISOString(), data: exportData() };
+    var backup = { format: 'tripwallet-backup', exportedAt: new Date().toISOString(), data: exportData(), spending: spending };
     var blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     var url = URL.createObjectURL(blob), a = document.createElement('a');
     a.href = url; a.download = 'vacation-backup-' + today() + '.json';
@@ -1622,7 +1622,8 @@ if (typeof module !== 'undefined') module.exports = Core;
 
     var c = cityById(ui.tab);
     h += c ? cityTab(c) : ui.tab === 'photos' ? photosTab() : costsTab();
-    h += '<div class="row backup-actions"><button type="button" data-act="download-backup">Download trip backup</button></div>';
+    h += '<div class="row backup-actions"><button type="button" data-act="download-backup">Download trip backup</button>' +
+      (!CLOUD.on ? '<label class="btn">Restore local backup<input id="restore-backup" type="file" accept=".json,application/json" hidden></label>' : '') + '</div>';
     app.innerHTML = h;
     if (c) fetchLegs(cityPlaces(c.id));
     if (c) wxQueueFor(cityPlaces(c.id));
@@ -1868,6 +1869,22 @@ if (typeof module !== 'undefined') module.exports = Core;
   });
 
   app.addEventListener('change', function (e) {
+    if (e.target && e.target.id === 'restore-backup' && e.target.files[0]) {
+      if (CLOUD.on) { ui.msg = 'Restore is available only in local mode to avoid overwriting shared trip data.'; render(); return; }
+      var file = e.target.files[0];
+      if (file.size > 5 * 1024 * 1024) { ui.msg = 'Backup exceeds the 5 MB limit.'; render(); return; }
+      file.text().then(function (raw) {
+        var b = JSON.parse(raw), d = b.data;
+        if (b.format !== 'tripwallet-backup' || !d || d.v !== 3 || !Array.isArray(d.places) || !Array.isArray(d.expenses) ||
+          !Array.isArray(d.payments) || !Array.isArray(d.deleted) || d.places.some(function (p) { return !p || !p.id || !cityById(p.city); })) throw new Error('invalid');
+        if (!window.confirm('Replace the local itinerary and spending with this backup? Download your current backup first.')) return;
+        data = JSON.parse(JSON.stringify(d)); data.log = data.log || [];
+        spending = Array.isArray(b.spending) ? b.spending : spending;
+        if (!saveSpending()) throw new Error('storage');
+        save(); ui.msg = 'Local backup restored.'; render();
+      }).catch(function () { ui.msg = 'Could not restore this backup. Check the file and available storage.'; render(); });
+      return;
+    }
     if (e.target && e.target.id === 'sp-receipt' && e.target.files[0]) scanSpendingReceipt(e.target.files[0]);
   });
   /* Text recognition (Tesseract.js) loads only when someone uploads a screenshot. */
