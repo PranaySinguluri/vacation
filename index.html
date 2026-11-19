@@ -441,6 +441,53 @@ html { overflow-x: hidden }
   .tabs .tab { scroll-snap-align: start; white-space: nowrap; }
 }
 
+/* Inline arrival temperature and truly aligned primary city actions */
+@media (max-width: 760px) {
+  .stop > .main > .wx {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    gap: 5px;
+    margin: 6px 0 0;
+    padding: 0;
+    width: max-content;
+    max-width: 100%;
+    min-height: 22px;
+    font-size: 13px;
+  }
+  .stop > .main > .wx[hidden] { display: none !important; }
+  .stop > .main > .wx svg { width: 18px; height: 18px; flex: 0 0 18px; }
+  .stop > .main > .wx .wxt { font-size: 15px; }
+  .stop > .main > .wx .wx-historical { font-size: 10px; }
+  .stop { grid-template-rows: auto !important; }
+  .stop > .side { grid-row: 1 !important; }
+}
+@media (max-width: 700px) {
+  .city-toolbar-main {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  .city-toolbar-main > button,
+  .city-toolbar-main > label {
+    min-width: 0 !important;
+    width: 100% !important;
+    min-height: 48px !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 9px 7px !important;
+    font-size: clamp(12px, 3.5vw, 15px) !important;
+    line-height: 1.2 !important;
+    white-space: normal !important;
+    box-sizing: border-box !important;
+    text-align: center !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -1504,7 +1551,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (ui.confirm === p.id) {
       h += '<div class="row"><span class="sub">Remove this stop?</span><button type="button" class="link danger" data-act="delete-place" data-id="' + p.id + '">Yes, remove</button><button type="button" class="link" data-act="cancel">Keep</button></div>';
     }
-    h += '</div>' + wxHTML(p) + '<div class="side"><a class="btn chipbtn map-pin-only" aria-label="Directions to ' + esc(p.name) + '" title="Directions" href="' + mapURL(p) + '" target="_blank" rel="noopener">📍</a>' +
+    h += wxHTML(p) + '</div><div class="side"><a class="btn chipbtn map-pin-only" aria-label="Directions to ' + esc(p.name) + '" title="Directions" href="' + mapURL(p) + '" target="_blank" rel="noopener">📍</a>' +
       '<div class="updown"><button type="button" data-act="move" data-id="' + p.id + '" data-dir="-1" aria-label="Move ' + esc(p.name) + ' up"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
       '<button type="button" data-act="move" data-id="' + p.id + '" data-dir="1" aria-label="Move ' + esc(p.name) + ' down"' + (i === n - 1 ? ' disabled' : '') + '>↓</button></div>' +
       '<div class="hovertools"><button type="button" class="link" data-act="' + (p.completedAt ? 'restore-stop' : 'complete-stop') + '" data-id="' + p.id + '">' + (p.completedAt ? 'Restore' : 'Done') + '</button></div>' +
