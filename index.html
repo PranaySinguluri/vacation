@@ -45,6 +45,9 @@ button:disabled { opacity: .35; cursor: default }
 .brand h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.02em }
 .travelers { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px }
 .av { font-size: 12px; font-weight: 600; background: var(--primary-soft); color: var(--primary); border-radius: 999px; padding: 2px 9px }
+.av.me { background: var(--primary); color: var(--primary-ink); box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--primary) }
+.logscroll { max-height: min(60vh, 460px); overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--line); border-radius: 12px; padding: 0 12px }
+#activity-card h3 .count { font-size: 12px; font-weight: 600; background: var(--primary-soft); color: var(--primary); border-radius: 999px; padding: 1px 8px; vertical-align: 2px }
 .by { font-size: 12px; color: var(--muted) }
 .booking { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 2px }
 .bpill { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 10px }
@@ -158,7 +161,7 @@ button:disabled { opacity: .35; cursor: default }
 </head>
 <body>
 <div id="app"></div>
-<footer class="version">v10-2026-11-18 21:43 PST</footer>
+<footer class="version">v11-2026-11-18 21:46 PST</footer>
 
 <script id="core">
 /* Pure logic: money in integer cents, distances, link parsing, share codes. */
@@ -1075,7 +1078,10 @@ if (typeof module !== 'undefined') module.exports = Core;
     pendingRender = false;
     if ((!CLOUD.on || (CLOUD.state === 'ready' && allLoaded() && data.places.length)) && ensureBookings()) save();
     var h = '<header class="appbar"><div class="brand"><div class="eyebrow">Group trip · Dec 24 to 31</div><h1>San Diego, LA and Las Vegas</h1>' +
-      '<div class="travelers">' + PEOPLE.map(function (p) { return '<span class="av">' + esc(p.name) + '</span>'; }).join('') + '</div></div>' +
+      '<div class="travelers">' + PEOPLE.map(function (p) {
+        var mine = CLOUD.on && me && p.id === me;
+        return '<span class="av' + (mine ? ' me' : '') + '"' + (mine ? ' aria-current="true" title="Signed in as you"' : '') + '>' + esc(p.name) + '</span>';
+      }).join('') + '</div></div>' +
       (CLOUD.on
         ? '<div class="row">' + (CLOUD.state === 'ready' ? (ui.admin ? '<span class="adminpill">Admin</span>' : '') +
             '<button data-act="invite">Invite</button><button data-act="toggle-log" aria-pressed="' + ui.showLog + '">Activity</button>' : '') +
@@ -1106,9 +1112,9 @@ if (typeof module !== 'undefined') module.exports = Core;
       }
     }
     if (CLOUD.on && ui.showLog) {
-      var log = data.log.slice().reverse().slice(0, 60);
-      h += '<section class="card"><div class="row between"><h3>Activity</h3><button class="link" data-act="toggle-log">Close</button></div>' +
-        (log.length ? '<ul class="list">' + log.map(logLine).join('') + '</ul>' : '<p class="empty">Nothing yet. Adding and removing stops and expenses shows up here with who did it.</p>');
+      var log = data.log.slice().reverse();
+      h += '<section class="card" id="activity-card"><div class="row between"><h3>Activity <span class="count">' + log.length + '</span></h3><button class="link" data-act="toggle-log">Close</button></div>' +
+        (log.length ? '<div class="logscroll" id="activity-list" tabindex="0" aria-label="Activity, newest first"><ul class="list">' + log.map(logLine).join('') + '</ul></div>' : '<p class="empty">Nothing yet. Adding and removing stops and expenses shows up here with who did it.</p>');
       if (ui.admin) {
         h += '<h3>Signed-in travelers</h3><ul class="list">' + Object.keys(CLOUD.members).map(function (k) {
           var m = CLOUD.members[k];
@@ -1276,6 +1282,11 @@ if (typeof module !== 'undefined') module.exports = Core;
     }
     render();
     if (a === 'edit-link') { var bl = document.getElementById('blink-' + d.id); if (bl) bl.focus(); }
+    if (a === 'toggle-log' && ui.showLog) {
+      var ac = document.getElementById('activity-card'), al = document.getElementById('activity-list');
+      if (al) al.scrollTop = 0;
+      if (ac && ac.scrollIntoView) ac.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
     if (a === 'add-stop' && ui.adding) { var nm = document.getElementById('place-name'); if (nm) nm.focus(); }
     if (a === 'edit-place' || a === 'edit-expense') {
       var f = document.getElementById(a === 'edit-place' ? 'place-form' : 'expense-form');
