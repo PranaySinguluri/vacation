@@ -932,7 +932,10 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (searchDown || typeof fetch !== 'function') { setStatus('Search is not available here. Type the full name and press Add by name.'); return; }
     var c = CENTERS[ui.tab] || CENTERS.sd;
     setStatus('Searching…');
-    fetch('https://photon.komoot.io/api/?limit=6&lang=en&q=' + encodeURIComponent(q) + '&lat=' + c[0] + '&lon=' + c[1])
+    var addressLike = /\d+\s+\S+/.test(q) || /,\s*[A-Za-z]{2}\s*(?:\d{5})?$/.test(q);
+    var photonURL = 'https://photon.komoot.io/api/?limit=8&lang=en&q=' + encodeURIComponent(q) +
+      (addressLike ? '' : '&lat=' + c[0] + '&lon=' + c[1]);
+    fetch(photonURL)
       .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('search')); })
       .then(function (js) {
         if (seq !== searchSeq) return;
@@ -942,12 +945,37 @@ if (typeof module !== 'undefined') module.exports = Core;
         }).filter(function (r) { return r.name; });
         active = results.length ? 0 : -1;
         showSuggest();
-        setStatus(results.length ? 'Pick a result to add it. Use the arrow keys and Enter, or tap one.' : 'No matches. Try another spelling, or press Add by name.');
+        if (addressLike || !results.length) searchAddressFallback(q, seq, !!results.length);
+        else setStatus('Pick a result to add it. Use the arrow keys and Enter, or tap one.');
       })
       .catch(function () {
         if (seq !== searchSeq) return;
-        searchDown = true; results = []; showSuggest();
-        setStatus('Search is not available here. Type the full name and press Add by name.');
+        results = []; showSuggest();
+        searchAddressFallback(q, seq, false);
+      });
+  }
+  function searchAddressFallback(q, seq, hasPhotonResults) {
+    setStatus(hasPhotonResults ? 'Checking exact address matches…' : 'Trying a second address search…');
+    var url = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=8&q=' + encodeURIComponent(q);
+    fetch(url).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('address search')); })
+      .then(function (items) {
+        if (seq !== searchSeq) return;
+        var extra = items.map(function (x) {
+          var addr = x.address || {}, street = [addr.house_number, addr.road || addr.pedestrian].filter(Boolean).join(' ');
+          return { name: street || x.name || x.display_name.split(',')[0], where: x.display_name,
+            lat: Number(x.lat), lng: Number(x.lon) };
+        }).filter(function (x) { return x.name && Number.isFinite(x.lat) && Number.isFinite(x.lng); });
+        extra.forEach(function (x) {
+          if (!results.some(function (y) { return Math.abs(x.lat - y.lat) < .00005 && Math.abs(x.lng - y.lng) < .00005; })) results.push(x);
+        });
+        results = results.slice(0, 10);
+        active = results.length ? 0 : -1; showSuggest();
+        setStatus(results.length ? 'Select the correct address from the results. Check city and state before adding.' :
+          'Address not found. Try the full street, city, state and ZIP code, or paste a map link.');
+      }).catch(function () {
+        if (seq !== searchSeq) return;
+        setStatus(results.length ? 'Select a result, or try the full street address and ZIP code.' :
+          'Search providers unavailable. Try again later or paste a map link.');
       });
   }
   function pick(i) {
@@ -1345,9 +1373,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<label class="field">Day<input id="place-date" type="date" value="' + esc(ed.date) + '"></label>' +
       '<label class="field">Time<input id="place-time" type="time" value="' + esc(ed.time) + '"></label></div>' +
       '<label class="field">Note<input id="place-note" maxlength="140" placeholder="Booking number, opening hours, price" value="' + esc(ed.note) + '"></label>' +
-      '<label class="field">Google Maps link (optional)<input id="place-link" placeholder="Paste a link to pin the exact spot"></label>' +
       '<div class="err" data-err hidden></div>' +
-      '<label class="field">Booking link (optional)<input id="place-booking-link" inputmode="url" placeholder="Existing confirmation link" value="' + esc(ed.bookingLink || '') + '"></label>' +
       '<label class="field">Booking status<select id="place-booking"><option value="needed"' + (ed.needsBooking && !ed.booked ? ' selected' : '') + '>Booking needed</option><option value="booked"' + (ed.needsBooking && ed.booked ? ' selected' : '') + '>Booked</option><option value="none"' + (!ed.needsBooking ? ' selected' : '') + '>No booking</option></select></label>' +
       '<div class="row"><button class="primary" type="submit">Save changes</button><button type="button" class="link" data-act="cancel-edit">Cancel</button></div></form>' : '';
     if (ui.adding) h += '<form class="card" id="place-form"><h3>Add a stop in ' + esc(c.name) + '</h3>' +
@@ -2069,7 +2095,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     }
 
     if (form.id === 'place-form') {
-      var name = val('place-name'), link = val('place-link'), pll = link ? Core.parseLatLng(link) : null;
+      var name = val('place-name'), link = ui.editing ? '' : val('place-link'), pll = link ? Core.parseLatLng(link) : null;
       if (!name) return fail('Type the name of the place.');
       if (link && !pll) return fail('That link has no location in it. Use the full link from the address bar (short share links do not include it), or type latitude, longitude.');
       var clash = cityPlaces(ui.tab).some(function (p) { return p.id !== ui.editing && p.name.toLowerCase() === name.toLowerCase(); });
@@ -2083,10 +2109,7 @@ if (typeof module !== 'undefined') module.exports = Core;
         var bs = val('place-booking');
         old.needsBooking = bs !== 'none';
         old.booked = bs === 'booked';
-        var bookingUrl = val('place-booking-link');
-        if (bookingUrl && !cleanLink(bookingUrl)) return fail('Enter a valid booking link.');
-        old.bookingLink = cleanLink(bookingUrl);
-        logIt('edited', old.name + ' in ' + cityName(old.city));
+         logIt('edited', old.name + ' in ' + cityName(old.city));
         ui.editing = null;
       } else {
         var sb = document.getElementById('place-stay'), sst = sb && sb.checked ? stayOf(ui.tab) : null;
