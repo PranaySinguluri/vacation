@@ -46,6 +46,20 @@ button:disabled { opacity: .35; cursor: default }
 .travelers { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px }
 .av { font-size: 12px; font-weight: 600; background: var(--primary-soft); color: var(--primary); border-radius: 999px; padding: 2px 9px }
 .by { font-size: 12px; color: var(--muted) }
+.booking { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 2px }
+.bpill { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 10px }
+.bpill.no { background: var(--owe-soft); color: var(--owe) }
+.bpill.yes { background: var(--good-soft); color: var(--good) }
+.link.small { font-size: 12px; padding: 2px 4px }
+.link.muted { color: var(--muted) }
+.linkbox { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; background: var(--bg); border-radius: 8px; padding: 6px 10px; font-size: 13px; min-width: 0 }
+.linkbox a { font-weight: 600; color: var(--primary) }
+.linkfull { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; min-width: 0; flex: 1 1 160px }
+.linkform { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px }
+.bsum { align-self: flex-start; font-size: 13px; font-weight: 600; border-radius: 8px; padding: 6px 10px }
+.bsum.no { background: var(--owe-soft); color: var(--owe) }
+.bsum.yes { background: var(--good-soft); color: var(--good) }
+.stop .title .bed { vertical-align: -3px; margin-right: 6px; color: var(--primary) }
 .gate { padding: 24px; gap: 14px }
 .warnnote { background: var(--owe-soft); color: var(--owe); font-weight: 500 }
 .chipbtn.fits { background: var(--primary); color: var(--primary-ink) }
@@ -143,7 +157,7 @@ button:disabled { opacity: .35; cursor: default }
 </head>
 <body>
 <div id="app"></div>
-<footer class="version">v8-2026-11-18 21:35 PST</footer>
+<footer class="version">v9-2026-11-18 21:39 PST</footer>
 
 <script id="core">
 /* Pure logic: money in integer cents, distances, link parsing, share codes. */
@@ -260,7 +274,16 @@ if (typeof module !== 'undefined') module.exports = Core;
     messagingSenderId: '1071026221606',
     appId: '1:1071026221606:web:be26702ba1204d99b86ce7'
   };
+  var BED = '<svg class="bed" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18V6M3 14h18v4M21 14v-2a3 3 0 0 0-3-3h-7v5M7 11.5a1.5 1.5 0 1 0 0-.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   var FB_VERSION = '13.2.0';
+  /* Places to stay, shown as the first stop in each city. Their address is set once booked. */
+  var STAYS = [
+    { id: 'stay-sd', city: 'sd', name: 'San Diego motel', date: '2026-12-24', note: 'Nights of Dec 24 and 25' },
+    { id: 'stay-la', city: 'la', name: 'Los Angeles motel', date: '2026-12-26', note: 'Nights of Dec 26 and 27' },
+    { id: 'stay-lv', city: 'lv', name: 'Las Vegas motel', date: '2026-12-31', note: 'Night of Dec 31' },
+    { id: 'stay-az', city: 'az', name: 'Stay for Dec 28 to 30', date: '2026-12-28', note: 'Not on the booking list yet' }
+  ];
+  var NEEDS_BOOKING = ['s-whale-watching', 's-antelope-canyon', 's-omnia-nightclub'];
   /* A traveler's Gmail (before the @) must contain one of these: first or last name from the group's sheet.
      The database rules check the same list, so this cannot be skipped by editing the page. */
   var NAME_KEYS = {
@@ -398,11 +421,36 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (data.log.length > 500) data.log = data.log.slice(-500);
   }
   function cityName(id) { var c = cityById(id); return c ? c.name : ''; }
+  /* Adds the stays and booking flags once, without bringing back anything that was removed. */
+  function ensureBookings() {
+    var dead = {}, changed = false;
+    data.deleted.forEach(function (id) { dead[id] = 1; });
+    Object.keys(CLOUD.deleted || {}).forEach(function (id) { dead[id] = 1; });
+    STAYS.forEach(function (st) {
+      if (dead[st.id] || placeById(st.id)) return;
+      var rec = { id: st.id, city: st.city, name: st.name, lat: null, lng: null, note: st.note, date: st.date, time: '', q: '', pin: false, geo: 'none', kind: 'stay', needsBooking: true, booked: false, bookingLink: '' };
+      var first = data.places.findIndex(function (x) { return x.city === st.city; });
+      if (first < 0) data.places.push(rec); else data.places.splice(first, 0, rec);
+      changed = true;
+    });
+    NEEDS_BOOKING.forEach(function (id) {
+      var x = placeById(id);
+      if (x && x.needsBooking === undefined) { x.needsBooking = true; x.booked = false; x.bookingLink = ''; changed = true; }
+    });
+    return changed;
+  }
+  function cleanLink(u) {
+    u = String(u || '').trim();
+    if (!u) return '';
+    if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+    try { var x = new URL(u); return /^https?:$/.test(x.protocol) ? x.href.slice(0, 500) : ''; } catch (e) { return ''; }
+  }
+  function hostOf(u) { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return 'link'; } }
 
   var legCache = {};
   try { legCache = JSON.parse(localStorage.getItem(LEGS_KEY) || '{}') || {}; } catch (e) {}
 
-  var ui = { tab: 'sd', showLog: false, adding: false, admin: false, adminOpen: false, share: false, sel: null, editing: null, editingExp: null, locFor: null, confirm: null, msg: '', importText: '' };
+  var ui = { tab: 'sd', linkOpen: null, linkEdit: null, showLog: false, adding: false, admin: false, adminOpen: false, share: false, sel: null, editing: null, editingExp: null, locFor: null, confirm: null, msg: '', importText: '' };
   try { ui.admin = sessionStorage.getItem(ADMIN_KEY) === '1'; } catch (e) {}
   try { var savedTab = localStorage.getItem(TAB_KEY); if (savedTab && (savedTab === 'costs' || cityById(savedTab))) ui.tab = savedTab; } catch (e) {}
 
@@ -826,19 +874,44 @@ if (typeof module !== 'undefined') module.exports = Core;
   /* ---------- Views ---------- */
   function locLine(p) {
     if (hasLL(p)) return '';
+    if (p.kind === 'stay') return '<div class="loc finding">Add the address once it is booked. <button type="button" class="link" data-act="set-loc" data-id="' + p.id + '">Set location</button></div>';
     var finding = p.geo !== 'none' && canGeocode();
     return '<div class="loc' + (finding ? ' finding' : '') + '">' + (finding ? 'Finding the location…' : 'Location not found.') +
       ' <button type="button" class="link" data-act="set-loc" data-id="' + p.id + '">Set location</button></div>';
+  }
+  function bookingHTML(p) {
+    if (!p.needsBooking) {
+      return '<div><button type="button" class="link small" data-act="needs-booking" data-id="' + p.id + '">Needs booking?</button></div>';
+    }
+    var h = '<div class="booking"><span class="bpill ' + (p.booked ? 'yes' : 'no') + '">' + (p.booked ? 'Booked' : 'Not booked') + '</span>' +
+      '<button type="button" class="link small" data-act="toggle-booked" data-id="' + p.id + '">' + (p.booked ? 'Mark not booked' : 'Mark as booked') + '</button>';
+    if (ui.linkEdit === p.id) {
+      h += '</div><form class="linkform" data-id="' + p.id + '"><input id="blink-' + p.id + '" class="grow" inputmode="url" placeholder="Paste the booking or confirmation link" value="' + esc(p.bookingLink || '') + '" aria-label="Booking link for ' + esc(p.name) + '">' +
+        '<button type="submit" class="primary">Save</button><button type="button" class="link" data-act="cancel-link">Cancel</button><div class="err" data-err hidden style="flex-basis:100%"></div></form>';
+      return h;
+    }
+    if (p.bookingLink) {
+      h += ui.linkOpen === p.id
+        ? '<button type="button" class="link small" data-act="hide-link" data-id="' + p.id + '">Hide booking link</button></div>' +
+          '<div class="linkbox"><a href="' + esc(p.bookingLink) + '" target="_blank" rel="noopener">' + esc(hostOf(p.bookingLink)) + '</a>' +
+          '<span class="linkfull">' + esc(p.bookingLink) + '</span><button type="button" class="link small" data-act="edit-link" data-id="' + p.id + '">Change</button></div>'
+        : '<button type="button" class="link small" data-act="show-link" data-id="' + p.id + '">Show booking link</button></div>';
+    } else {
+      h += '<button type="button" class="link small" data-act="edit-link" data-id="' + p.id + '">+ Add booking link</button>' +
+        (p.kind !== 'stay' ? '<button type="button" class="link small muted" data-act="no-booking" data-id="' + p.id + '">Not needed</button>' : '') + '</div>';
+    }
+    return h;
   }
   function stopHTML(p, i, n) {
     var h = '<li class="stop' + (ui.sel === p.id ? ' sel' : '') + '" data-id="' + p.id + '">' +
       '<button type="button" class="grip" aria-label="Drag ' + esc(p.name) + ' to reorder">' + GRIP + '</button>' +
       '<div class="num">' + (i + 1) + '</div><div class="main">' +
-      '<button type="button" class="title" data-act="select" data-id="' + p.id + '">' + esc(p.name) + '</button>' +
+      '<button type="button" class="title" data-act="select" data-id="' + p.id + '">' + (p.kind === 'stay' ? BED : '') + esc(p.name) + '</button>' +
       (p.note ? '<div class="sub">' + esc(p.note) + '</div>' : '') + locLine(p) +
       (p.by ? '<div class="by">Added by ' + esc(person(p.by)) + '</div>' : '') +
       '<div class="when"><input type="date" id="date-' + p.id + '" data-place="' + p.id + '" data-field="date" value="' + esc(p.date) + '" aria-label="Day for ' + esc(p.name) + '">' +
-      '<input type="time" id="time-' + p.id + '" data-place="' + p.id + '" data-field="time" value="' + esc(p.time) + '" aria-label="Time for ' + esc(p.name) + '"></div>';
+      '<input type="time" id="time-' + p.id + '" data-place="' + p.id + '" data-field="time" value="' + esc(p.time) + '" aria-label="Time for ' + esc(p.name) + '"></div>' +
+      bookingHTML(p);
     if (ui.locFor === p.id) {
       h += '<form class="locform" data-id="' + p.id + '"><input id="loc-' + p.id + '" class="grow" placeholder="Paste a Google Maps link, or 32.85, -117.27" aria-label="Location for ' + esc(p.name) + '">' +
         '<button type="submit" class="primary">Save</button><button type="button" class="link" data-act="cancel-loc">Cancel</button><div class="err" data-err hidden style="flex-basis:100%"></div></form>';
@@ -860,7 +933,11 @@ if (typeof module !== 'undefined') module.exports = Core;
     h += '<section class="card cityhead"><div class="row between"><div><h2>' + esc(c.name) + '</h2><div class="sub">' + list.length + (list.length === 1 ? ' stop' : ' stops') + ' · drag the handle to change the order</div></div>' +
       '<div class="row"><button type="button" class="primary" data-act="add-stop" aria-expanded="' + !!(ui.adding || ui.editing) + '">+ Add stop</button>' +
       (route ? '<a class="btn" href="' + route + '" target="_blank" rel="noopener">Open route in Google Maps</a>' : '') + '</div></div>' +
-      '<div class="stayline">' + esc(c.stay) + '</div>' +
+      (function () {
+        var need = list.filter(function (x) { return x.needsBooking; }), done = need.filter(function (x) { return x.booked; }).length;
+        return need.length ? '<div class="bsum ' + (done === need.length ? 'yes' : 'no') + '">Bookings: ' + done + ' of ' + need.length + ' booked' +
+          (done < need.length ? ' · still to book: ' + esc(need.filter(function (x) { return !x.booked; }).map(function (x) { return x.name; }).join(', ')) : '') + '</div>' : '';
+      })() +
       '<div class="sketch">' + sketch(list) + '</div>';
     if (standalone() && sel && hasLL(sel)) {
       h += '<iframe class="gmap" title="Google map of ' + esc(sel.name) + '" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://maps.google.com/maps?q=' + sel.lat + ',' + sel.lng + '&z=14&output=embed"></iframe>';
@@ -975,6 +1052,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   function render() {
     pendingRender = false;
+    if ((!CLOUD.on || (CLOUD.state === 'ready' && allLoaded() && data.places.length)) && ensureBookings()) save();
     var h = '<header class="appbar"><div class="brand"><div class="eyebrow">Group trip · Dec 24 to 31</div><h1>San Diego, LA and Las Vegas</h1>' +
       '<div class="travelers">' + PEOPLE.map(function (p) { return '<span class="av">' + esc(p.name) + '</span>'; }).join('') + '</div></div>' +
       (CLOUD.on
@@ -1105,6 +1183,16 @@ if (typeof module !== 'undefined') module.exports = Core;
     else if (a === 'toggle-share') ui.share = !ui.share;
     else if (a === 'admin-open') ui.adminOpen = true;
     else if (a === 'admin-close') ui.adminOpen = false;
+    else if (a === 'toggle-booked') {
+      var tb = placeById(d.id);
+      if (tb) { tb.booked = !tb.booked; logIt(tb.booked ? 'marked as booked' : 'marked not booked', tb.name + ' in ' + cityName(tb.city)); save(); }
+    }
+    else if (a === 'needs-booking') { var nb = placeById(d.id); if (nb) { nb.needsBooking = true; nb.booked = false; nb.bookingLink = nb.bookingLink || ''; save(); } }
+    else if (a === 'no-booking') { var xb = placeById(d.id); if (xb) { xb.needsBooking = false; save(); } }
+    else if (a === 'show-link') ui.linkOpen = d.id;
+    else if (a === 'hide-link') ui.linkOpen = null;
+    else if (a === 'edit-link') { ui.linkEdit = d.id; }
+    else if (a === 'cancel-link') ui.linkEdit = null;
     else if (a === 'sign-in') { signIn(); return; }
     else if (a === 'sign-out') { ui.msg = ''; CLOUD.au.signOut(CLOUD.auth); return; }
     else if (a === 'retry') { location.reload(); return; }
@@ -1155,6 +1243,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       }
     }
     render();
+    if (a === 'edit-link') { var bl = document.getElementById('blink-' + d.id); if (bl) bl.focus(); }
     if (a === 'add-stop' && ui.adding) { var nm = document.getElementById('place-name'); if (nm) nm.focus(); }
     if (a === 'edit-place' || a === 'edit-expense') {
       var f = document.getElementById(a === 'edit-place' ? 'place-form' : 'expense-form');
@@ -1207,6 +1296,19 @@ if (typeof module !== 'undefined') module.exports = Core;
         render();
       }, function () { fail('This browser cannot check the PIN here.'); });
       return;
+    }
+
+    if (form.classList.contains('linkform')) {
+      var lp = placeById(form.dataset.id), raw = val('blink-' + form.dataset.id), link = cleanLink(raw);
+      if (raw && !link) return fail('That does not look like a web link. Paste the full address, starting with https://');
+      if (lp) {
+        var had = !!lp.bookingLink;
+        lp.bookingLink = link;
+        logIt(link ? (had ? 'changed the booking link for' : 'added a booking link for') : 'removed the booking link for', lp.name + ' in ' + cityName(lp.city));
+        save();
+      }
+      ui.linkEdit = null; ui.linkOpen = link ? form.dataset.id : null;
+      render(); return;
     }
 
     if (form.classList.contains('locform')) {
