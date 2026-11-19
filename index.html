@@ -53,7 +53,7 @@ button:disabled { opacity: .35; cursor: default }
 @media (prefers-reduced-motion: reduce) { .hovertools { transition: none } }
 .hdr-actions { position: relative; flex: none }
 html { overflow-x: hidden }
-.hero { position: relative; width: 100vw; margin-left: calc(50% - 50vw); color: #fff; overflow: visible; isolation: isolate; border-radius: 0 0 28px 28px }
+.hero { position: relative; z-index: 30; width: 100vw; margin-left: calc(50% - 50vw); color: #fff; overflow: visible; isolation: isolate; border-radius: 0 0 28px 28px }
 .hero .beach { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: -1; border-radius: 0 0 28px 28px }
 .hero-in { max-width: 820px; margin: 0 auto; min-height: 220px; padding-block: 22px 18px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; justify-content: space-between; gap: 16px; box-sizing: border-box }
 .hero-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px }
@@ -74,8 +74,16 @@ html { overflow-x: hidden }
 .herobtn { background: rgba(255, 255, 255, .9); border-color: transparent; color: #0A4F6E }
 @media (max-width: 520px) { .hero h1 { font-size: 40px } .hero-in { min-height: 200px } .avatarbtn { width: 52px; height: 52px } }
 .logpop { position: absolute; top: calc(100% + 8px); right: 0; z-index: 40; width: min(440px, calc(100vw - 32px)); background: var(--surface); color: var(--ink); text-shadow: none; border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 18px 40px rgba(16, 27, 51, .18); padding: 14px; display: flex; flex-direction: column; gap: 10px }
+.who { display: flex; flex-direction: column; gap: 6px }
+.who-h { font-size: 13px; font-weight: 700; color: var(--ink) }
+.who-list { display: flex; flex-wrap: wrap; gap: 6px }
+.who-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--bg); color: var(--muted) }
+.who-chip i { width: 8px; height: 8px; border-radius: 50%; background: #B7C0CF }
+.who-chip.on { background: #E3F5EA; color: #17663A }
+.who-chip.on i { background: #22A35A }
+.leaflet-container { isolation: isolate; z-index: 0 }
 .members summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--primary) }
-.logscroll { max-height: min(60vh, 460px); overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--line); border-radius: 12px; padding: 0 12px }
+.logscroll { max-height: min(45vh, 400px); overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--line); border-radius: 12px; padding: 0 12px }
 #activity-card h3 .count { font-size: 12px; font-weight: 600; background: var(--primary-soft); color: var(--primary); border-radius: 999px; padding: 1px 8px; vertical-align: 2px }
 .by { font-size: 12px; color: var(--muted) }
 .wx { flex: none; display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 2px 6px; margin-right: 6px; color: var(--ink) }
@@ -217,7 +225,7 @@ html { overflow-x: hidden }
 </head>
 <body>
 <div id="app"></div>
-<footer class="version">v22-2026-11-19 10:37 PST</footer>
+<footer class="version">v23-2026-11-19 10:56 PST</footer>
 
 <script id="core">
 /* Pure logic: money in integer cents, distances, link parsing, share codes. */
@@ -1360,10 +1368,16 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   function activityHTML() {
     var log = data.log.slice().reverse();
-    var h = '<div class="logpop" id="activity-card" role="dialog" aria-label="Activity"><div class="row between"><h3>Activity <span class="count">' + log.length + '</span></h3><button class="link" data-act="toggle-log">Close</button></div>' +
+    var mem = Object.keys(CLOUD.members), inIds = {};
+    mem.forEach(function (k) { inIds[CLOUD.members[k].person] = CLOUD.members[k]; });
+    var who = '<div class="who"><div class="who-h">Signed in <span class="count">' + mem.length + ' of ' + PEOPLE.length + '</span></div><div class="who-list">' +
+      PEOPLE.map(function (pp) {
+        var m = inIds[pp.id];
+        return '<span class="who-chip' + (m ? ' on' : '') + '" title="' + (m ? 'Google name: ' + esc(m.name || 'unknown') : 'Not signed in yet') + '"><i></i>' + esc(pp.name) + '</span>';
+      }).join('') + '</div></div>';
+    var h = '<div class="logpop" id="activity-card" role="dialog" aria-label="Activity"><div class="row between"><h3>Activity <span class="count">' + log.length + '</span></h3><button class="link" data-act="toggle-log">Close</button></div>' + who +
       (log.length ? '<div class="logscroll" id="activity-list" tabindex="0" aria-label="Activity, newest first"><ul class="list">' + log.map(logLine).join('') + '</ul></div>' : '<p class="empty">Nothing yet. Adding and removing stops and expenses shows up here with who did it.</p>');
-    var mem = Object.keys(CLOUD.members);
-    h += '<details class="members"><summary>Signed-in travelers (' + mem.length + ')</summary><ul class="list">' + mem.map(function (k) {
+    h += '<details class="members"><summary>Google accounts used (' + mem.length + ')</summary><ul class="list">' + mem.map(function (k) {
       var m = CLOUD.members[k];
       return '<li><div class="main"><div class="ttl">' + esc(person(m.person)) + '</div><div class="sub">Google name: ' + esc(m.name || 'unknown') + '</div></div>' +
         (k === CLOUD.user.uid ? '' : '<button class="link danger" data-act="reset-member" data-id="' + k + '">Reset</button>') + '</li>';
