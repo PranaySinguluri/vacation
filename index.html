@@ -60,6 +60,13 @@ button:disabled { opacity: .35; cursor: default }
 .wx { flex: none; display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 2px 6px; margin-right: 6px; color: var(--ink) }
 .wx svg { flex: none; width: 24px; height: 24px }
 .wxt { font: 700 17px var(--display); font-variant-numeric: tabular-nums }
+.shotbtn { cursor: pointer }
+.card.shotcard { border-color: var(--primary-line); background: var(--primary-soft) }
+.shotcard input { background: var(--surface) }
+.bdates { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 13px; margin-top: 2px }
+.bdates b { font-weight: 600; color: var(--muted); margin-right: 4px }
+.conf b { font-variant-numeric: tabular-nums; letter-spacing: .02em }
+.card.sw-only { padding: 24px; gap: 14px }
 .booking { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 2px }
 .bpill { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 10px }
 .bpill.no { background: var(--owe-soft); color: var(--owe) }
@@ -189,7 +196,7 @@ button:disabled { opacity: .35; cursor: default }
 </head>
 <body>
 <div id="app"></div>
-<footer class="version">v18-2026-11-18 22:34 PST</footer>
+<footer class="version">v19-2026-11-18 22:38 PST</footer>
 
 <script id="core">
 /* Pure logic: money in integer cents, distances, link parsing, share codes. */
@@ -287,7 +294,12 @@ var Core = (function () {
      The first date and time are check-in, the second check-out. */
   function parseBooking(text) {
     var t = String(text || '').replace(/\s+/g, ' ');
-    var out = { conf: '', checkIn: '', checkOut: '', inTime: '', outTime: '' }, m;
+    var out = { name: '', conf: '', checkIn: '', checkOut: '', inTime: '', outTime: '' }, m;
+    String(text || '').split(/\n+/).some(function (line) {
+      var l = line.trim().replace(/[|]+/g, ' ').replace(/\s+/g, ' ');
+      if (l.length >= 4 && l.length <= 80 && /\b(inn|hotel|motel|suites?|lodge|resort|hostel|airbnb|casino)\b/i.test(l) && !/confirm|reservation|check-?(in|out)|thank|policy/i.test(l)) { out.name = l; return true; }
+      return false;
+    });
     var cm = /confirmation\s*(?:number|no\.?|code|#)?\s*[:#]?\s*([A-Z0-9][A-Z0-9.\-]{2,}[A-Z0-9])/i.exec(t)
       || /(?:booking|reservation|itinerary)\s*(?:number|no\.?|code|id|#)\s*[:#]?\s*([A-Z0-9][A-Z0-9.\-]{2,}[A-Z0-9])/i.exec(t);
     if (cm) out.conf = cm[1];
@@ -521,7 +533,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   var legCache = {};
   try { legCache = JSON.parse(localStorage.getItem(LEGS_KEY) || '{}') || {}; } catch (e) {}
 
-  var ui = { tab: 'sd', albumEdit: null, undoOrder: null, linkOpen: null, linkEdit: null, showLog: false, adding: false, admin: false, adminOpen: false, share: false, sel: null, editing: null, editingExp: null, locFor: null, confirm: null, msg: '', importText: '' };
+  var ui = { tab: 'sd', shot: null, albumEdit: null, undoOrder: null, linkOpen: null, linkEdit: null, showLog: false, adding: false, admin: false, adminOpen: false, share: false, sel: null, editing: null, editingExp: null, locFor: null, confirm: null, msg: '', importText: '' };
   try { ui.admin = sessionStorage.getItem(ADMIN_KEY) === '1'; } catch (e) {}
   try { var savedTab = localStorage.getItem(TAB_KEY); if (savedTab && (savedTab === 'costs' || savedTab === 'photos' || cityById(savedTab))) ui.tab = savedTab; } catch (e) {}
 
@@ -1216,6 +1228,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     var sel = list.find(function (p) { return p.id === ui.sel; });
     h += '<section class="card cityhead"><div class="row between"><div><h2>' + esc(c.name) + '</h2><div class="sub">' + list.length + (list.length === 1 ? ' stop' : ' stops') + ' · drag the handle to change the order</div></div>' +
       '<div class="row"><button type="button" class="primary" data-act="add-stop" aria-expanded="' + !!(ui.adding || ui.editing) + '">+ Add stop</button>' +
+      '<label class="btn shotbtn"><input type="file" id="shot-city" accept="image/*" hidden>Add from screenshot</label>' +
       (list.length > 2 ? '<button type="button" data-act="optimize">Shortest order</button>' : '') +
       (route ? '<a class="btn" href="' + route + '" target="_blank" rel="noopener">Open route in Google Maps</a>' : '') + '</div></div>' +
       (function () {
@@ -1230,6 +1243,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       (list.length > 10 ? '<div class="sub">The Google Maps route covers the first 10 stops.</div>' : '') +
       '<div class="sub">Drive distances come from OpenStreetMap road routing when the page can reach it. Ones marked "estimate" are straight-line distance with a road allowance.</div></section>';
 
+    h += shotCard(c);
     var ed = ui.editing ? placeById(ui.editing) : null;
     if (ed) h += '<form class="card" id="place-form"><h3>Edit ' + esc(ed.name) + '</h3><div class="row">' +
       '<label class="field" style="flex:2 1 220px">Place<input id="place-name" maxlength="80" value="' + esc(ed.name) + '"></label>' +
@@ -1237,15 +1251,6 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<label class="field">Time<input id="place-time" type="time" value="' + esc(ed.time) + '"></label></div>' +
       '<label class="field">Note<input id="place-note" maxlength="140" placeholder="Booking number, opening hours, price" value="' + esc(ed.note) + '"></label>' +
       '<label class="field">Google Maps link (optional)<input id="place-link" placeholder="Paste a link to pin the exact spot"></label>' +
-      '<fieldset class="bookbox"><legend>Booking details</legend>' +
-        '<label class="shotbtn btn"><input type="file" id="place-shot" accept="image/*" hidden>Read a confirmation screenshot</label>' +
-        '<div class="sub" id="shot-status">Upload a screenshot of the booking confirmation and the details below fill in. Check them before saving.</div>' +
-        '<div class="row"><label class="field">Confirmation number<input id="place-conf" maxlength="40" value="' + esc(ed.confNo || '') + '"></label></div>' +
-        '<div class="row"><label class="field">Check-in day<input id="place-in-date" type="date" value="' + esc(ed.checkIn || '') + '"></label>' +
-        '<label class="field">Check-in time<input id="place-in-time" type="time" value="' + esc(ed.checkInTime || '') + '"></label></div>' +
-        '<div class="row"><label class="field">Check-out day<input id="place-out-date" type="date" value="' + esc(ed.checkOut || '') + '"></label>' +
-        '<label class="field">Check-out time<input id="place-out-time" type="time" value="' + esc(ed.checkOutTime || '') + '"></label></div>' +
-      '</fieldset>' +
       '<div class="err" data-err hidden></div>' +
       '<div class="row"><button class="primary" type="submit">Save changes</button><button type="button" class="link" data-act="cancel-edit">Cancel</button></div></form>';
     else if (ui.adding) h += '<form class="card" id="place-form"><h3>Add a stop in ' + esc(c.name) + '</h3>' +
@@ -1499,6 +1504,7 @@ if (typeof module !== 'undefined') module.exports = Core;
         save();
       }
     }
+    else if (a === 'shot-cancel') ui.shot = null;
     else if (a === 'album-edit') ui.albumEdit = d.id;
     else if (a === 'album-cancel') ui.albumEdit = null;
     else if (a === 'album-remove') {
@@ -1632,34 +1638,37 @@ if (typeof module !== 'undefined') module.exports = Core;
       document.head.appendChild(sc);
     });
   }
-  function readShot(file) {
-    var st = document.getElementById('shot-status');
-    var say = function (t) { if (st) st.textContent = t; };
-    say('Reading the screenshot… The first time can take 20 seconds or so.');
+  function readShot(file, cid) {
+    ui.shot = { city: cid, state: 'reading' };
+    render();
     var limit = new Promise(function (res, rej) { setTimeout(function () { rej(new Error('slow')); }, 120000); });
     Promise.race([loadOCR().then(function (T) { return T.recognize(file, 'eng'); }), limit]).then(function (r) {
-      var x = Core.parseBooking(r && r.data && r.data.text), got = [];
-      var put = function (id, v) { var el = document.getElementById(id); if (el && v) { el.value = v; return true; } return false; };
-      if (put('place-conf', x.conf)) got.push('confirmation ' + x.conf);
-      if (put('place-in-date', x.checkIn)) got.push('check-in ' + niceDate(x.checkIn));
-      if (put('place-in-time', x.inTime)) got.push(fmtClock(x.inTime));
-      if (put('place-out-date', x.checkOut)) got.push('check-out ' + niceDate(x.checkOut));
-      if (put('place-out-time', x.outTime)) got.push(fmtClock(x.outTime));
-      if (x.checkIn) { put('place-date', x.checkIn); put('place-time', x.inTime); }
-      say(got.length ? 'Found ' + got.join(', ') + '. Check them, then Save changes.' : 'No booking details found in that image. Type them in below.');
-    }).catch(function () { say('The screenshot could not be read here. Type the details in below.'); });
+      var x = Core.parseBooking(r && r.data && r.data.text);
+      ui.shot = { city: cid, state: (x.checkIn || x.conf || x.name) ? 'done' : 'empty', x: x };
+      softRender();
+    }).catch(function () { ui.shot = { city: cid, state: 'error' }; softRender(); });
   }
-
-  app.addEventListener('error', function (ev) {
-    var im = ev.target;
-    if (im && im.tagName === 'IMG' && im.dataset.ini) {
-      var i = document.createElement('i'); i.className = 'ini'; i.textContent = im.dataset.ini; im.replaceWith(i);
+  function shotCard(c) {
+    var sh = ui.shot;
+    if (!sh || sh.city !== c.id) return '';
+    if (sh.state === 'reading') return '<div class="card shotcard"><p class="sub" style="margin:0">Reading the screenshot… The first time can take about 20 seconds.</p></div>';
+    if (sh.state !== 'done') {
+      return '<div class="card shotcard row between"><span class="sub">' + (sh.state === 'error' ? 'The screenshot could not be read here. Add the stop with + Add stop instead.' : 'No booking details found in that screenshot.') + '</span>' +
+        '<button type="button" class="link" data-act="shot-cancel">Close</button></div>';
     }
-  }, true);
+    var x = sh.x, st = stayOf(c.id), bits = [];
+    if (x.checkIn) bits.push('<span><b>Check-in</b> ' + niceDate(x.checkIn) + (x.inTime ? ', ' + fmtClock(x.inTime) : '') + '</span>');
+    if (x.checkOut) bits.push('<span><b>Check-out</b> ' + niceDate(x.checkOut) + (x.outTime ? ', ' + fmtClock(x.outTime) : '') + '</span>');
+    if (x.conf) bits.push('<span><b>Confirmation</b> ' + esc(x.conf) + '</span>');
+    return '<form class="card shotcard" id="shot-form"><div class="row"><input id="shot-name" class="grow" maxlength="80" placeholder="Name of the place" value="' + esc(x.name || (st && !st.hotel ? '' : '')) + '" aria-label="Name of the place"></div>' +
+      '<div class="bdates">' + bits.join('') + '</div><div class="err" data-err hidden></div>' +
+      '<div class="row">' + (st ? '<button class="primary" type="submit" data-mode="stay">Use for our stay</button>' : '') +
+      '<button type="submit" data-mode="new"' + (st ? '' : ' class="primary"') + '>Add as a stop</button><button type="button" class="link" data-act="shot-cancel">Cancel</button></div></form>';
+  }
 
   app.addEventListener('change', function (ev) {
     var el = ev.target;
-    if (el.id === 'place-shot' && el.files && el.files[0]) { readShot(el.files[0]); return; }
+    if (el.id === 'shot-city' && el.files && el.files[0]) { readShot(el.files[0], ui.tab); return; }
     if (el.dataset && el.dataset.place) {
       var p = placeById(el.dataset.place);
       if (p) { p[el.dataset.field] = el.value; save(); refreshLegs(); refreshWx(); wxQueueFor([p]); }
@@ -1688,6 +1697,26 @@ if (typeof module !== 'undefined') module.exports = Core;
         render();
       }, function () { fail('This browser cannot check the PIN here.'); });
       return;
+    }
+
+    if (form.id === 'shot-form' && ui.shot && ui.shot.x) {
+      var x = ui.shot.x, mode = (ev.submitter && ev.submitter.dataset.mode) || 'new', nm = val('shot-name');
+      var bk = { checkIn: x.checkIn, checkInTime: x.inTime, checkOut: x.checkOut, checkOutTime: x.outTime, confNo: x.conf, needsBooking: true, booked: true };
+      if (x.checkIn) { bk.date = x.checkIn; bk.time = x.inTime || ''; }
+      var tgt = mode === 'stay' ? stayOf(ui.tab) : null;
+      if (tgt) {
+        if (nm && nm !== tgt.name) { tgt.name = nm.slice(0, 80); tgt.hotel = true; if (!tgt.pin) { tgt.lat = null; tgt.lng = null; delete tgt.geo; delete geoTried[tgt.id]; } }
+        Object.assign(tgt, bk);
+        logIt('added a booking for', tgt.name + ' in ' + cityName(tgt.city));
+      } else {
+        if (!nm) return fail('Type the name of the place.');
+        if (cityPlaces(ui.tab).some(function (q) { return q.name.toLowerCase() === nm.toLowerCase(); })) return fail(nm + ' is already on the list.');
+        tgt = stamp(Object.assign({ id: 'u-' + uid(), city: ui.tab, name: nm.slice(0, 80), lat: null, lng: null, note: '', q: '', pin: false }, bk));
+        data.places.push(tgt);
+        logIt('added', tgt.name + ' in ' + cityName(ui.tab) + ' from a booking screenshot');
+      }
+      ui.sel = tgt.id; ui.shot = null;
+      save(); render(); return;
     }
 
     if (form.classList.contains('albumform')) {
@@ -1732,10 +1761,6 @@ if (typeof module !== 'undefined') module.exports = Core;
         if (pll) { old.lat = pll.lat; old.lng = pll.lng; old.pin = true; delete old.geo; }
         else if (old.name !== name && !old.pin) { old.lat = null; old.lng = null; old.q = ''; delete old.geo; delete geoTried[old.id]; }
         Object.assign(old, rec);
-        var bk = { confNo: val('place-conf').slice(0, 40), checkIn: val('place-in-date'), checkInTime: val('place-in-time'), checkOut: val('place-out-date'), checkOutTime: val('place-out-time') };
-        Object.assign(old, bk);
-        if (bk.checkIn) { old.date = bk.checkIn; if (bk.checkInTime) old.time = bk.checkInTime; }
-        if (bk.confNo) { old.needsBooking = true; old.booked = true; }
         logIt('edited', old.name + ' in ' + cityName(old.city));
         ui.editing = null;
       } else {
