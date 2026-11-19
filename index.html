@@ -1572,8 +1572,8 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<button type="button" class="title" data-act="select" data-id="' + p.id + '">' + (p.kind === 'stay' ? BED : '') + esc(p.name) + '</button>' +
       (p.note ? '<div class="sub">' + (p.kind === 'stay' && p.hotel ? 'Stay · ' : '') + esc(p.note) + '</div>' : '') + locLine(p) +
       (p.by ? '<div class="by">Added by ' + esc(person(p.by)) + '</div>' : '') +
-      '<div class="when when-static ' + (p.needsBooking && !p.booked ? 'when-needed' : 'when-ready') + '">' +
-      esc(niceDate(p.date)) + (p.time ? ' · ' + esc(fmtClock(p.time)) : '') + '</div>';
+      (p.date ? '<div class="when when-static ' + (p.needsBooking && !p.booked ? 'when-needed' : 'when-ready') + '">' +
+      esc(niceDate(p.date)) + (p.time ? ' · ' + esc(fmtClock(p.time)) : '') + '</div>' : '');
     if (ui.locFor === p.id) {
       h += '<form class="locform" data-id="' + p.id + '"><input id="loc-' + p.id + '" class="grow" placeholder="Paste a Google Maps link, or 32.85, -117.27" aria-label="Location for ' + esc(p.name) + '">' +
         '<button type="submit" class="primary">Save</button><button type="button" class="link" data-act="cancel-loc">Cancel</button><div class="err" data-err hidden style="flex-basis:100%"></div></form>';
