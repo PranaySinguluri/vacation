@@ -240,6 +240,34 @@ html { overflow-x: hidden }
   .stop .wx { margin-left: 0; }
   .stop-editor { margin-left: 0; }
 }
+.quick-add { display: flex; justify-content: flex-end; margin: 4px 0 12px; }
+.wx-historical { font-size: 10px; font-weight: 600; white-space: nowrap; color: var(--muted); }
+.wx { flex-wrap: wrap; max-width: 128px; }
+.edit-overlay { position: fixed; inset: 0; background: rgba(10,24,48,.52); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.edit-sheet { width: min(440px, 100%); max-height: min(92dvh, 900px); overflow-y: auto; border-radius: 24px; background: var(--surface); box-shadow: 0 20px 65px rgba(0,0,0,.25); padding: 22px; }
+.edit-stop-form { display: flex; flex-direction: column; gap: 17px; }
+.edit-stop-form .field { display: flex; flex-direction: column; gap: 6px; font-weight: 700; }
+.edit-stop-form input, .edit-stop-form select, .edit-stop-form textarea { width: 100%; min-width: 0; font-size: 15px; }
+.edit-top { display: grid; grid-template-columns: 36px 1fr 36px; align-items: center; text-align: center; }
+.edit-top h3 { font-size: 20px; margin: 0; }
+.edit-close, .edit-trash { border: 0; background: transparent; font-size: 23px; padding: 4px; }
+.edit-trash { color: #dc2626; }
+.edit-types { border: 0; padding: 0; margin: 0; min-width: 0; }
+.edit-types legend { font-weight: 700; margin-bottom: 8px; }
+.edit-type-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.edit-type-choice input { position: absolute; opacity: 0; width: 1px; }
+.edit-type-choice span { display: flex; flex-direction: column; gap: 4px; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 12px; min-height: 68px; font-size: 14px; cursor: pointer; }
+.edit-type-choice span b { font-size: 20px; }
+.edit-type-choice input:checked + span { border: 2px solid var(--primary); background: var(--primary-soft); color: var(--primary); }
+.edit-type-choice input:focus-visible + span { outline: 3px solid var(--primary); outline-offset: 2px; }
+.edit-date-area h4 { margin: 0 0 8px; font-size: 15px; }
+.edit-dates { flex-wrap: nowrap; gap: 10px; }
+.edit-dates .field { flex: 1 1 50%; min-width: 0; }
+.edit-stay-dates { display: none; margin-top: 10px; }
+.edit-stop-form:has(input[name="place-type"][value="stay"]:checked) .edit-stay-dates { display: block; }
+.edit-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; margin-top: 8px; }
+.edit-actions button { min-height: 45px; }
+@media (max-width: 440px) { .edit-sheet { padding: 16px; border-radius: 20px; } .edit-stop-form { gap: 12px; } }
 .when-static { font-weight: 700; font-size: 13px; padding: 5px 0; }
 .when-needed { color: var(--owe); }
 .when-ready { color: var(--good); }
@@ -1075,8 +1103,9 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (!p.date || !hasLL(p)) return null;
     var ahead = daysAhead(p.date);
     if (ahead === null) return null;
-    if (ahead < 0 || ahead > 15 || !p.time) return null;
-    var mode = 'forecast';
+    if (ahead < 0 || !p.time) return null;
+    var mode = ahead >= 0 && ahead <= 15 ? 'forecast' : ahead > 15 ? 'lastyear' : null;
+    if (!mode) return null;
     var day = mode === 'lastyear' ? (+p.date.slice(0, 4) - 1) + p.date.slice(4) : p.date;
     return { mode: mode, day: day, key: mode + '|' + p.lat.toFixed(2) + ',' + p.lng.toFixed(2) + '|' + day, lat: p.lat, lng: p.lng };
   }
@@ -1146,7 +1175,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     var x = wxInfo(p);
     if (!x) return '';
     return '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">' + WX_ICONS[x.icon] + '</svg>' +
-      '<b class="wxt">' + x.temp + '°C</b>';
+      '<b class="wxt">' + x.temp + '°C</b>' + (wxPlan(p).mode === 'lastyear' ? '<small class="wx-historical">Last year</small>' : '');
   }
   function fmtClock(t) { var m = toMin(t), h = Math.floor(m / 60), mm = m % 60; return ((h + 11) % 12 + 1) + (mm ? ':' + String(mm).padStart(2, '0') : '') + ' ' + (h < 12 ? 'AM' : 'PM'); }
   function wxHTML(p) {
@@ -1339,17 +1368,18 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<div class="sub">Drive distances come from OpenStreetMap road routing when the page can reach it. Ones marked "estimate" are straight-line distance with a road allowance.</div></section>';
 
     h += shotCard(c);
+    h += '<div class="quick-add"><button type="button" class="primary" data-act="add-stop">+ Add stop</button></div>';
     var ed = ui.editing ? placeById(ui.editing) : null;
-    var editForm = ed ? '<form class="card" id="place-form"><h3>Edit ' + esc(ed.name) + '</h3><div class="row">' +
-      '<label class="field" style="flex:2 1 220px">Place<input id="place-name" maxlength="80" value="' + esc(ed.name) + '"></label>' +
-      '<label class="field">Day<input id="place-date" type="date" value="' + esc(ed.date) + '"></label>' +
-      '<label class="field">Time<input id="place-time" type="time" value="' + esc(ed.time) + '"></label></div>' +
-      '<label class="field">Note<input id="place-note" maxlength="140" placeholder="Booking number, opening hours, price" value="' + esc(ed.note) + '"></label>' +
-      '<label class="field">Google Maps link (optional)<input id="place-link" placeholder="Paste a link to pin the exact spot"></label>' +
-      '<div class="err" data-err hidden></div>' +
-      '<label class="field">Booking link (optional)<input id="place-booking-link" inputmode="url" placeholder="Existing confirmation link" value="' + esc(ed.bookingLink || '') + '"></label>' +
-      '<label class="field">Booking status<select id="place-booking"><option value="needed"' + (ed.needsBooking && !ed.booked ? ' selected' : '') + '>Booking needed</option><option value="booked"' + (ed.needsBooking && ed.booked ? ' selected' : '') + '>Booked</option><option value="none"' + (!ed.needsBooking ? ' selected' : '') + '>No booking</option></select></label>' +
-      '<div class="row"><button class="primary" type="submit">Save changes</button><button type="button" class="link" data-act="cancel-edit">Cancel</button></div></form>' : '';
+    var editForm = ed ? '<div class="edit-overlay"><div class="edit-sheet" role="dialog" aria-modal="true" aria-labelledby="edit-stop-heading">' +
+      '<form id="place-form" class="edit-stop-form"><div class="edit-top"><button type="button" class="edit-close" data-act="cancel-edit" aria-label="Close editor">✕</button><h3 id="edit-stop-heading">Edit Stop</h3><button type="button" class="edit-trash" data-act="ask-edit-delete" data-id="' + ed.id + '" aria-label="Delete stop">🗑</button></div>' +
+      '<label class="field">Title<input id="place-name" maxlength="80" required value="' + esc(ed.name) + '"></label>' +
+      '<fieldset class="edit-types"><legend>Type</legend><div class="edit-type-row">' +
+      [['stay','🛏','Stay'],['activity','⛺','Activity'],['other','•••','Other']].map(function (x) { return '<label class="edit-type-choice"><input type="radio" name="place-type" value="' + x[0] + '"' + ((ed.kind || 'other') === x[0] ? ' checked' : '') + '><span><b>' + x[1] + '</b>' + x[2] + '</span></label>'; }).join('') + '</div></fieldset>' +
+      '<div class="edit-date-area"><h4>Date &amp; Time</h4><div class="row edit-dates"><label class="field">Date<input id="place-date" type="date" value="' + esc(ed.date) + '"></label><label class="field">Time<input id="place-time" type="time" value="' + esc(ed.time) + '"></label></div>' +
+      '<div class="edit-stay-dates"><div class="row edit-dates"><label class="field">Check-out date<input id="place-checkout" type="date" value="' + esc(ed.checkOut || '') + '"></label><label class="field">Check-out time<input id="place-checkout-time" type="time" value="' + esc(ed.checkOutTime || '') + '"></label></div></div></div>' +
+      '<label class="field">Booking<select id="place-booking"><option value="needed"' + (ed.needsBooking && !ed.booked ? ' selected' : '') + '>🔴 Booking needed</option><option value="booked"' + (ed.needsBooking && ed.booked ? ' selected' : '') + '>🟢 Booked</option><option value="none"' + (!ed.needsBooking ? ' selected' : '') + '>🟢 No booking</option></select></label>' +
+      '<label class="field edit-notes">Notes<textarea id="place-note" maxlength="140" rows="2" placeholder="Add a note">' + esc(ed.note || '') + '</textarea></label>' +
+      '<div class="err" data-err hidden></div><div class="edit-actions"><button type="button" data-act="cancel-edit">Cancel</button><button class="primary" type="submit">Save Changes</button></div></form></div></div>' : '';
     if (ui.adding) h += '<form class="card" id="place-form"><h3>Add a stop in ' + esc(c.name) + '</h3>' +
       '<div class="search"><label class="flabel" for="place-name">Search places</label><div class="searchbox">' + SEARCH_ICON +
       '<input id="place-name" maxlength="80" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="place-suggest" placeholder="Search, like USS Midway Museum"></div>' +
@@ -1365,12 +1395,13 @@ if (typeof module !== 'undefined') module.exports = Core;
       list.forEach(function (p, i) {
         if (i) h += '<li class="leg" data-a="' + list[i - 1].id + '" data-b="' + p.id + '" data-na="' + i + '" data-nb="' + (i + 1) + '">' + legHTML(list[i - 1], p, i, i + 1) + '</li>';
         h += stopHTML(p, i, list.length);
-        if (ed && ed.id === p.id) h += '<li class="stop-editor">' + editForm + '</li>';
+        // Editor is a fixed overlay, outside the stop list.
       });
       h += '</ol>';
     } else if (!completed.length) h += '<div class="card"><p class="empty">No stops in ' + esc(c.name) + ' yet. Use Add stop to add the first one.</p></div>';
     if (completed.length) h += '<details class="card completed-stops"><summary>Completed Stops (' + completed.length + ')</summary><ol class="stops">' +
-      completed.map(function (p, i) { return stopHTML(p, i, completed.length) + (ed && ed.id === p.id ? '<li class="stop-editor">' + editForm + '</li>' : ''); }).join('') + '</ol></details>';
+      completed.map(function (p, i) { return stopHTML(p, i, completed.length); }).join('') + '</ol></details>';
+    if (editForm) h += editForm;
     return h;
   }
 
@@ -1701,8 +1732,14 @@ if (typeof module !== 'undefined') module.exports = Core;
     else if (a === 'cancel-loc') ui.locFor = null;
     else if (a === 'ask') ui.confirm = d.id;
     else if (a === 'cancel') ui.confirm = null;
-    else if (a === 'add-stop') { ui.adding = !(ui.adding || ui.editing); ui.editing = null; results = []; active = -1; searchSeq++; }
+    else if (a === 'add-stop') { ui.adding = ui.editing ? true : !ui.adding; ui.editing = null; results = []; active = -1; searchSeq++; }
     else if (a === 'edit-place') { ui.editing = d.id; ui.adding = false; }
+    else if (a === 'ask-edit-delete') {
+      if (window.confirm('Remove this stop from the itinerary?')) {
+        act('delete-place', { id: d.id });
+      }
+      return;
+    }
     else if (a === 'cancel-edit') { ui.adding = false; ui.editing = null; ui.editingExp = null; results = []; active = -1; searchSeq++; }
     else if (a === 'delete-place') {
       var gp = placeById(d.id);
@@ -1859,6 +1896,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
 
   app.addEventListener('click', function (ev) {
+    if (ev.target.classList && ev.target.classList.contains('edit-overlay')) { act('cancel-edit', {}); return; }
     if (ui.menu && !ev.target.closest('.acctmenu') && !ev.target.closest('[data-act="toggle-menu"]')) {
       ui.menu = false;
       var mn = document.querySelector('.acctmenu'); if (mn) mn.remove();
@@ -2069,7 +2107,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     }
 
     if (form.id === 'place-form') {
-      var name = val('place-name'), link = val('place-link'), pll = link ? Core.parseLatLng(link) : null;
+      var name = val('place-name'), link = ui.editing ? '' : val('place-link'), pll = link ? Core.parseLatLng(link) : null;
       if (!name) return fail('Type the name of the place.');
       if (link && !pll) return fail('That link has no location in it. Use the full link from the address bar (short share links do not include it), or type latitude, longitude.');
       var clash = cityPlaces(ui.tab).some(function (p) { return p.id !== ui.editing && p.name.toLowerCase() === name.toLowerCase(); });
@@ -2080,13 +2118,13 @@ if (typeof module !== 'undefined') module.exports = Core;
         if (pll) { old.lat = pll.lat; old.lng = pll.lng; old.pin = true; delete old.geo; }
         else if (old.name !== name && !old.pin) { old.lat = null; old.lng = null; old.q = ''; delete old.geo; delete geoTried[old.id]; }
         Object.assign(old, rec);
+        old.kind = (form.querySelector('input[name="place-type"]:checked') || {}).value || old.kind || 'other';
+        if (old.kind === 'stay') { old.checkIn = rec.date; old.checkInTime = rec.time; old.checkOut = val('place-checkout'); old.checkOutTime = val('place-checkout-time'); }
+        else { delete old.checkIn; delete old.checkInTime; delete old.checkOut; delete old.checkOutTime; }
         var bs = val('place-booking');
         old.needsBooking = bs !== 'none';
         old.booked = bs === 'booked';
-        var bookingUrl = val('place-booking-link');
-        if (bookingUrl && !cleanLink(bookingUrl)) return fail('Enter a valid booking link.');
-        old.bookingLink = cleanLink(bookingUrl);
-        logIt('edited', old.name + ' in ' + cityName(old.city));
+         logIt('edited', old.name + ' in ' + cityName(old.city));
         ui.editing = null;
       } else {
         var sb = document.getElementById('place-stay'), sst = sb && sb.checked ? stayOf(ui.tab) : null;
