@@ -941,7 +941,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   function cleanPlace(p) {
     var ok = hasLL(p);
     return { id: String(p.id), city: p.city, name: String(p.name || '').slice(0, 80), lat: ok ? p.lat : null, lng: ok ? p.lng : null,
-      note: String(p.note || '').slice(0, 140), date: p.date || '', time: p.time || '', q: p.q || '', pin: !!p.pin };
+      note: String(p.note || '').slice(0, 140), date: p.date || '', time: p.time || '', q: String(p.q || '').slice(0,250), mapLink: safeMapsLink(p.mapLink), pin: !!p.pin };
   }
 
   /* Brings over what someone already entered in the previous version of the page. */
@@ -1471,9 +1471,47 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (e.target.id === 'place-name') setTimeout(function () { var a = document.activeElement; if (!a || a.id !== 'place-name') { results = []; active = -1; showSuggest(); } }, 150);
   });
 
+  /* A Google Maps share URL may redirect to a place without exposing coordinates.
+     Save safe URLs as links and street addresses as route queries; never invent a map pin. */
+  function safeMapsLink(text) {
+    try {
+      var u = new URL(String(text || '').trim());
+      var h = u.hostname.toLowerCase();
+      if (u.protocol !== 'https:' || u.username || u.password) return '';
+      if (h === 'maps.app.goo.gl' || h === 'goo.gl') return u.href;
+      if ((h === 'google.com' || h === 'www.google.com' || h === 'maps.google.com') &&
+          (u.pathname.indexOf('/maps') === 0 || h === 'maps.google.com')) return u.href;
+    } catch (e) {}
+    return '';
+  }
+  function locationEntry(text, city) {
+    var value = String(text || '').trim(), coords = Core.parseLatLng(value);
+    if (coords) return {kind:'coordinates', lat:coords.lat, lng:coords.lng};
+    if (!value || value.length > 500) return null;
+    if (/^(https?:\/\/|[a-z]+:\/\/)/i.test(value)) {
+      var link = safeMapsLink(value);
+      return link ? {kind:'mapslink', mapLink:link} : null;
+    }
+    if (!/[a-z]/i.test(value) || value.length < 5 || /[<>]/.test(value)) return null;
+    var cityLabel = cityName(city);
+    var routeQuery = value + (cityLabel && value.toLowerCase().indexOf(cityLabel.toLowerCase()) < 0 ? ', ' + cityLabel : '');
+    return {kind:'address', q:routeQuery.slice(0,250)};
+  }
+  function applyLocation(p, entry) {
+    if (!p || !entry) return;
+    if (entry.kind === 'coordinates') {
+      p.lat=entry.lat; p.lng=entry.lng; p.pin=true;
+      delete p.mapLink; delete p.geo;
+    } else {
+      p.lat=null; p.lng=null; p.pin=false;
+      p.geo='none'; // don't override an explicit address with an unrelated name lookup
+      if (entry.kind === 'address') { p.q=entry.q; delete p.mapLink; }
+      else if (entry.kind === 'mapslink') { p.mapLink=entry.mapLink; }
+    }
+  }
   /* ---------- Google Maps links ---------- */
   function searchText(p) { if (p.pin && hasLL(p)) return p.lat + ',' + p.lng; var c = cityById(p.city); return p.q || (p.name + ', ' + (c ? c.name : '')); }
-  function mapURL(p) { return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(searchText(p)); }
+  function mapURL(p) { return safeMapsLink(p.mapLink) || ('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(searchText(p))); }
   function routeURL(list) {
     var s = list.slice(0, 10).map(searchText);
     if (s.length < 2) return '';
@@ -1741,6 +1779,10 @@ if (typeof module !== 'undefined') module.exports = Core;
   /* ---------- Views ---------- */
   function locLine(p) {
     if (hasLL(p)) return '';
+    if (p.q || safeMapsLink(p.mapLink)) return '<div class="loc finding">' +
+      (p.q ? 'Address saved for Google Maps directions' : 'Google Maps link saved') +
+      ' · No GPS pin yet. <a href="' + esc(mapURL(p)) + '" target="_blank" rel="noopener noreferrer">Open map</a> ' +
+      '<button type="button" class="link" data-act="set-loc" data-id="' + p.id + '">Change</button></div>';
     if (p.kind === 'stay') return '<div class="loc finding">Add the address once it is booked. <button type="button" class="link" data-act="set-loc" data-id="' + p.id + '">Set location</button></div>';
     var finding = p.geo !== 'none' && canGeocode();
     return '<div class="loc' + (finding ? ' finding' : '') + '">' + (finding ? 'Finding the location…' : 'Location not found.') +
@@ -1793,8 +1835,10 @@ if (typeof module !== 'undefined') module.exports = Core;
       (p.date ? '<div class="when when-static ' + (p.needsBooking && !p.booked ? 'when-needed' : 'when-ready') + '">' +
       esc(niceDate(p.date)) + (p.time ? ' · ' + esc(fmtClock(p.time)) : '') + '</div>' : '');
     if (ui.locFor === p.id) {
-      h += '<form class="locform" data-id="' + p.id + '"><input id="loc-' + p.id + '" class="grow" placeholder="Paste a Google Maps link, or 32.85, -117.27" aria-label="Location for ' + esc(p.name) + '">' +
-        '<button type="submit" class="primary">Save</button><button type="button" class="link" data-act="cancel-loc">Cancel</button><div class="err" data-err hidden style="flex-basis:100%"></div></form>';
+      h += '<form class="locform" data-id="' + p.id + '"><input id="loc-' + p.id + '" class="grow" value="' + esc(p.q || p.mapLink || '') + '" placeholder="Street address, Google Maps link, or lat, lng" aria-label="Location for ' + esc(p.name) + '">' +
+        '<button type="submit" class="primary">Save</button><button type="button" class="link" data-act="cancel-loc">Cancel</button>' +
+        '<small class="sub" style="flex-basis:100%">Street addresses work in Google Maps directions; only coordinates create an exact marker on the trip map. Short Google Maps links open directly.</small>' +
+        '<div class="err" data-err hidden style="flex-basis:100%"></div></form>';
     }
     if (ui.confirm === p.id) {
       h += '<div class="row"><span class="sub">Remove this stop?</span><button type="button" class="link danger" data-act="delete-place" data-id="' + p.id + '">Yes, remove</button><button type="button" class="link" data-act="cancel">Keep</button></div>';
@@ -1854,7 +1898,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<a id="search-google-link" target="_blank" rel="noopener noreferrer" href="' + searchMapsHref('',c.id) + '">Search Google Maps</a></div>' +
       '<div class="sub search-credit">Place data © OpenStreetMap contributors</div>' +
       (stayOf(c.id) ? '<label class="chip staychk"><input type="checkbox" id="place-stay"> This is where we are staying (' + esc(stayOf(c.id).note.charAt(0).toLowerCase() + stayOf(c.id).note.slice(1)) + ')</label>' : '') +
-      '<label class="field">Or paste a Google Maps link<input id="place-link" placeholder="Pins the exact spot"></label>' +
+      '<label class="field">Street address, Google Maps link, or coordinates<input id="place-link" placeholder="723 S Casino Center Blvd, Las Vegas, NV 89101"></label>' +
       '<div class="err" data-err hidden></div>' +
       '<div class="row"><button type="submit">Add by name</button><button type="button" class="link" data-act="cancel-edit">Cancel</button></div></form>';
 
@@ -2650,16 +2694,24 @@ if (typeof module !== 'undefined') module.exports = Core;
     }
 
     if (form.classList.contains('locform')) {
-      var target = placeById(form.dataset.id), ll = Core.parseLatLng(val('loc-' + form.dataset.id));
-      if (!ll) return fail('No location found in that. Use the full link from the address bar (short share links do not include it), or type latitude, longitude.');
-      if (target) { target.lat = ll.lat; target.lng = ll.lng; target.pin = true; delete target.geo; save(); }
+      var target = placeById(form.dataset.id), entry = locationEntry(val('loc-' + form.dataset.id), target && target.city);
+      if (!entry) return fail('Enter a street address, coordinates, or a Google Maps URL. Other links are not supported.');
+      if (target) {
+        applyLocation(target, entry);
+        logIt('edited', 'location for ' + target.name + ' in ' + cityName(target.city));
+        save();
+        ui.msg = entry.kind === 'coordinates' ? 'Exact location pin saved.' :
+          entry.kind === 'address' ? 'Address saved for Google Maps directions. An exact map pin still needs coordinates.' :
+          'Google Maps link saved. The short link opens in Maps but does not contain coordinates for the trip map.';
+      }
       ui.locFor = null; render(); return;
     }
 
     if (form.id === 'place-form') {
-      var name = val('place-name'), link = ui.editing ? '' : val('place-link'), pll = link ? Core.parseLatLng(link) : null;
+      var name = val('place-name'), link = ui.editing ? '' : val('place-link'), entry = link ? locationEntry(link, ui.tab) : null;
+      var pll = entry && entry.kind === 'coordinates' ? entry : null;
       if (!name) return fail('Type the name of the place.');
-      if (link && !pll) return fail('That link has no location in it. Use the full link from the address bar (short share links do not include it), or type latitude, longitude.');
+      if (link && !entry) return fail('Enter a street address, Google Maps URL, or coordinates in the location field.');
       var clash = cityPlaces(ui.tab).some(function (p) { return p.id !== ui.editing && p.name.toLowerCase() === name.toLowerCase(); });
       if (clash) return fail(name + ' is already on the list.');
       var rec = { name: name, note: val('place-note'), date: val('place-date'), time: val('place-time') };
@@ -2680,11 +2732,13 @@ if (typeof module !== 'undefined') module.exports = Core;
         var sb = document.getElementById('place-stay'), sst = sb && sb.checked ? stayOf(ui.tab) : null;
         if (sst) {
           fillStay(sst, { name: name, lat: pll ? pll.lat : null, lng: pll ? pll.lng : null, q: '', pin: !!pll });
-          if (!pll) { sst.lat = null; sst.lng = null; delete sst.geo; delete geoTried[sst.id]; }
+          if (entry) applyLocation(sst,entry);
+          else if (!pll) { sst.lat = null; sst.lng = null; delete sst.geo; delete geoTried[sst.id]; }
           ui.sel = sst.id; ui.adding = false;
           save(); render(); return;
         }
         var np = Object.assign({ id: 'u-' + uid(), city: ui.tab, lat: pll ? pll.lat : null, lng: pll ? pll.lng : null, q: '', pin: !!pll }, rec);
+        if(entry) applyLocation(np,entry);
         stamp(np);
         data.places.push(np);
         logIt('added', np.name + ' in ' + cityName(ui.tab));
