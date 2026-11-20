@@ -519,6 +519,8 @@ html { overflow-x: hidden }
 }
 
 .edit-no-date-done { width: 100%; min-height: 42px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--primary); font-weight: 700; }
+
+.tripphotos{overflow:hidden}.tripphotos .tp-brand{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:12px}.tripphotos .tp-logo{width:27px;height:27px;flex:none}.tripphotos .tp-brandname{font-size:14px;font-weight:750;color:#27334a}.tripphotos .tp-pill{font-size:11px;font-weight:700;color:#146534;background:#e5f6e9;border-radius:999px;padding:4px 9px}.tripphotos .tp-title{margin:0 0 7px;font-size:clamp(24px,5vw,33px);line-height:1.18;letter-spacing:-.8px;color:#10203d}.tripphotos .tp-desc{margin:0 0 16px;color:#56637a;font-size:14px;line-height:1.5}.tripphotos .tp-actions{display:flex;gap:9px;flex-wrap:wrap;margin:0 0 16px}.tripphotos .tp-actions a{display:inline-flex;align-items:center;justify-content:center;gap:7px;text-align:center;border-radius:12px;text-decoration:none;padding:12px 15px;font-weight:750;font-size:13px}.tripphotos .tp-main{color:#fff;background:#195bd7;flex:1 1 160px}.tripphotos .tp-alt{color:#1954b4;background:#f2f6ff;border:1px solid #d7e2f7;flex:1 1 105px}.tripphotos .tp-mosaic{display:grid;grid-template-columns:1.25fr 1fr 1fr;grid-template-rows:105px 105px;gap:6px;overflow:hidden;border-radius:15px}.tripphotos .tp-tile{position:relative;overflow:hidden;background:#d7e9f6}.tripphotos .tp-tile img{display:block;width:100%;height:100%;object-fit:cover}.tripphotos .tp-tile:first-child{grid-row:span 2}.tripphotos .tp-tile span{position:absolute;bottom:6px;left:7px;color:#fff;font-size:11px;font-weight:750;text-shadow:0 1px 6px #000,0 0 4px #000}.tripphotos .tp-caption{margin:8px 0 0;font-size:11px;color:#66738b}.tripphotos .tp-foot{display:flex;gap:8px;align-items:flex-start;background:#f3f7fd;padding:11px 12px;border-radius:11px;margin-top:13px;color:#4b5b75;font-size:12px;line-height:1.5}@media(max-width:480px){.tripphotos .tp-mosaic{grid-template-rows:86px 86px;gap:5px}.tripphotos .tp-actions a{padding:11px 12px}}
 </style>
 </head>
 <body>
@@ -1681,11 +1683,29 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (!CLOUD.on || CLOUD.state !== 'ready') {
       return '<section class="card"><h2 class="pagehead">Photos</h2><p class="sub" style="margin:0">Sign in with Google to open the shared trip photos album.</p></section>';
     }
-    return '<section class="card"><h2 class="pagehead">2026 Trip Photos</h2>' +
-      '<p class="sub">View, add, and download our shared San Diego, Los Angeles, and Las Vegas photos in Google Photos.</p>' +
-      '<p><a class="btn primary" href="' + album + '" target="_blank" rel="noopener noreferrer">Open 2026 Trip Photos</a></p>' +
-      '<p class="sub">Use your own Google account. To add photos, the album owner must enable Collaborate in Google Photos sharing settings.</p>' +
-      '<p class="sub">Privacy: anyone who gets a link-shared album URL may be able to see its photos. Share the link only with trusted travelers; for stricter privacy, invite specific Google accounts and turn off link sharing.</p></section>';
+    var img = function (url, label) {
+      return '<div class="tp-tile"><img src="' + url + '" alt="Sample destination photo: ' + label + '" loading="lazy" referrerpolicy="no-referrer"><span>' + label + '</span></div>';
+    };
+    var photosIcon = '<svg class="tp-logo" viewBox="0 0 48 48" aria-hidden="true"><path fill="#4285F4" d="M24 24V3c11.6 0 21 9.4 21 21H24z"/><path fill="#34A853" d="M24 24h21c0 11.6-9.4 21-21 21V24z"/><path fill="#FBBC05" d="M24 24v21C12.4 45 3 35.6 3 24h21z"/><path fill="#EA4335" d="M24 24H3C3 12.4 12.4 3 24 3v21z"/></svg>';
+    return '<section class="card tripphotos">' +
+      '<div class="tp-brand">' + photosIcon + '<span class="tp-brandname">Google Photos</span><span class="tp-pill">Shared album</span></div>' +
+      '<h2 class="tp-title">2026 Trip Photos</h2>' +
+      '<p class="tp-desc">One album for all seven travelers. Add memories, browse pictures, and save your favorites.</p>' +
+      '<div class="tp-actions">' +
+        '<a class="tp-main" href="' + album + '" target="_blank" rel="noopener noreferrer">↗ View All Photos</a>' +
+        '<a class="tp-alt" href="' + album + '" target="_blank" rel="noopener noreferrer">＋ Add Photos</a>' +
+        '<a class="tp-alt" href="' + album + '" target="_blank" rel="noopener noreferrer">↓ Download</a>' +
+      '</div>' +
+      '<div class="tp-mosaic" aria-label="Sample trip destination images">' +
+        img('https://images.unsplash.com/photo-1533105079780-92b9be482077?w=700&auto=format&fit=crop&q=75','San Diego') +
+        img('https://images.unsplash.com/photo-1534258936925-c58bed479fcb?w=500&auto=format&fit=crop&q=75','Los Angeles') +
+        img('https://images.unsplash.com/photo-1605833556294-ea5c7a74f57d?w=500&auto=format&fit=crop&q=75','Las Vegas') +
+        img('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=500&auto=format&fit=crop&q=75','Beach days') +
+        img('https://images.unsplash.com/photo-1470770841072-f978cf4d019e?w=500&auto=format&fit=crop&q=75','Trip memories') +
+      '</div>' +
+      '<p class="tp-caption">Destination previews only — your real pictures are in the shared Google Photos album.</p>' +
+      '<div class="tp-foot"><span aria-hidden="true">🔒</span><span>Open with your own Google account. Adding photos requires collaboration to be enabled. Anyone with the album link may be able to view it, so share it only with your group.</span></div>' +
+      '</section>';
   }
   var SPENDING_KEY = 'tripwallet.spending.v1';
   var spending = [];
