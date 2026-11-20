@@ -1901,7 +1901,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     }).join('');
     var summary='<div class="sw-summary"><div class="sw-summary-line">You '+(net>0?'get back':net<0?'owe':'are settled up')+' <strong class="'+(net>=0?'sw-green':'sw-red')+'">'+(net===0?'':money(Math.abs(net)))+'</strong>'+(net===0?'':' overall')+'</div>'+
       (debts?'<div class="sw-debts">'+debts+'</div>':'<p class="sw-muted">No outstanding balances</p>')+
-      '<div class="sw-actions"><button type="button" data-act="expense-show-balances">Balances</button><button type="button" data-act="expense-show-payments">Settle up</button><button type="button" data-act="expense-show-activity">Activity</button></div></div>';
+      '<div class="sw-actions"><button type="button" data-act="expense-show-balances">Your balances</button></div></div>';
     var activity=data.log.filter(function(l){return l.kind==='expense'&&(!mine||(l.involved||[]).indexOf(view)>=0);}).slice().reverse().slice(0,100);
     var timelineChanges=activity.filter(function(l){return l.act==='edited'||l.act==='removed';});
     var allEntries=relevant.map(function(e){
@@ -1933,16 +1933,14 @@ if (typeof module !== 'undefined') module.exports = Core;
       }).join('')+'</div>';
     }).join('');
     activity=activity.slice(0,40);
-    var activityHtml='<div class="sw-extra" id="sw-activity"><h3>Recent changes</h3>'+(activity.length?activity.map(function(l){return '<div class="sw-change">'+esc(person(l.who))+' '+esc(l.act)+' '+esc(l.text)+'<small>'+esc((l.at||'').slice(0,16).replace('T',' '))+'</small></div>';}).join(''):'<p class="sw-muted">No recent changes recorded.</p>')+'</div>';
     var balancesHtml='<div class="sw-extra" id="sw-balances"><h3>Your balances</h3>'+
       (mine?(settlements.length?settlements.map(function(p){
         var other=p.from===view?p.to:p.from, incoming=p.to===view;
-        return '<div class="sw-balance-row"><span>'+esc(person(other))+'</span><strong class="'+(incoming?'sw-green':'sw-red')+'">'+(incoming?'You get back ':'You owe ')+money(p.amount)+'</strong></div>';
+        return '<div class="sw-balance-row"><span>'+esc(person(other))+'</span><strong class="'+(incoming?'sw-green':'sw-red')+'">'+(incoming?'You get back ':'You owe ')+money(p.amount)+'</strong><button type="button" data-act="expense-settle" data-from="'+esc(p.from)+'" data-to="'+esc(p.to)+'" data-amount="'+p.amount+'">Settle up</button></div>';
       }).join(''):'<p class="sw-muted">You are settled up.</p>'):'<p class="sw-muted">Sign in to see your balances.</p>')+'</div>';
-    var paymentHtml='<div class="sw-extra" id="sw-payments"><h3>Suggested settlements</h3>'+(settlements.length?settlements.map(function(p){return '<div class="sw-balance-row"><span>'+esc(person(p.from))+' → '+esc(person(p.to))+' · '+money(p.amount)+'</span><button type="button" data-act="expense-settle" data-from="'+esc(p.from)+'" data-to="'+esc(p.to)+'" data-amount="'+p.amount+'">Record payment</button></div>';}).join(''):'<p class="sw-muted">You have no outstanding settlements.</p>')+'</div>';
     return '<section class="sw-expenses"><div class="sw-heading"><div><span class="sw-kicker">VACATION · SHARED EXPENSES</span><h2>'+esc(mine?person(view):'Trip')+'’s expenses</h2></div><span class="sw-usd">USD</span></div>'+
       summary+'<div class="sw-feed"><h3>Expense history</h3>'+(timeline||'<p class="sw-muted">No shared expenses yet. Add the first one below.</p>')+'</div>'+
-      '<div class="sw-details">'+balancesHtml+paymentHtml+activityHtml+'</div>'+
+      '<div class="sw-details">'+balancesHtml+'</div>'+
       (spending.length?'<p class="sw-muted">There are '+spending.length+' older local-only purchases on this device, not included in shared balances.</p>':'')+
       '<button type="button" class="sw-add" data-act="expense-add">＋ Add expense</button></section>'+
       (expenseFormOpen?'<div class="edit-overlay expense-overlay" role="presentation"><div class="edit-sheet expense-sheet" role="dialog" aria-modal="true" aria-label="Expense"><div class="edit-top"><span></span><h3>'+(editingSharedExpense?'Edit':'Add')+' Expense</h3><button type="button" class="edit-close" data-act="expense-close" aria-label="Close">×</button></div><div id="expense-entry-form">'+spendingForm()+'</div></div></div>':'');
