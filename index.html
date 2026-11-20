@@ -2460,7 +2460,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       var amt=Core.toMinor(val('sp-amount')),payer=val('sp-payer'),category=val('sp-category'),date=val('sp-date');
       var split=Array.from(form.querySelectorAll('input[name="sp-split"]:checked')).map(function(c){return c.value;});
       if(!amt||amt<=0||!isPerson(payer))return fail('Enter an amount and choose who paid.');
-      if(!date || !/^\\d{4}-\\d{2}-\\d{2}$/.test(date))return fail('Choose a valid date.');
+      if(!date || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date))return fail('Choose a valid date.');
       if(!split.length)return fail('Select at least one traveler.');
       if(split.some(function(id){return !isPerson(id);})||new Set(split).size!==split.length)return fail('Invalid traveler selection.');
       if(CLOUD.on && CLOUD.state!=='ready')return fail('Shared expenses are not synced yet. Wait for sign-in and try again.');
