@@ -238,22 +238,22 @@ test('personal balances hide unrelated travelers',()=>{
   h.data.payments=[];
   h.setMe(c);
   const page=h.costsTab();
-  const balances=page.split('id="sw-balances"')[1].split('id="sw-payments"')[0];
+  const balances=page.split('id="sw-balances"')[1].split('<button type="button" class="sw-add"')[0];
   assert.ok(balances.includes('Your balances'));
   assert.ok(balances.includes('Pranay'));
   assert.ok(!balances.includes('Akshaya'));
   assert.ok(!balances.includes('Megha'));
-  const settlements=page.split('id="sw-payments"')[1].split('id="sw-activity"')[0];
+  const settlements=balances;
   assert.equal((settlements.match(/data-act="expense-settle"/g)||[]).length,1);
   assert.ok(settlements.includes('data-from="'+c+'"'));
 });
 test('unrelated traveler sees no personal settlements',()=>{
   h.setMe(a);
   const page=h.costsTab();
-  const balances=page.split('id="sw-balances"')[1].split('id="sw-payments"')[0];
+  const balances=page.split('id="sw-balances"')[1].split('<button type="button" class="sw-add"')[0];
   assert.ok(balances.includes('You are settled up'));
-  const settlements=page.split('id="sw-payments"')[1].split('id="sw-activity"')[0];
-  assert.ok(settlements.includes('no outstanding settlements'));
+  const settlements=balances;
+  assert.ok(settlements.includes('You are settled up'));
   assert.ok(!settlements.includes('data-act="expense-settle"'));
 });
 
@@ -273,6 +273,22 @@ test('expense edit activity appears in timeline for involved traveler only',()=>
   h.setMe(a);
   const other=h.costsTab().split('<h3>Expense history</h3>')[1].split('<div class="sw-details">')[0];
   assert.ok(!other.includes('Pranay edited an expense'));
+});
+
+test('addition activity names actor separately from payer',()=>{
+  h.data.expenses=[{id:'attribution',amount:1000,paidBy:c,by:p,split:[p,c],date:'2026-11-19',category:'Food',desc:'Dinner'}];
+  h.data.log.push({id:'added-activity',kind:'expense',who:p,act:'added',text:'shared expense Food $10.00',at:'2026-11-19T21:22:00Z',involved:[p,c]});
+  h.setMe(c);
+  const timeline=h.costsTab().split('<h3>Expense history</h3>')[1].split('<div class="sw-details">')[0];
+  assert.ok(timeline.includes('Pranay added an expense'));
+  assert.ok(timeline.includes('Added by Pranay'));
+  assert.ok(timeline.includes('Haneela paid'));
+});
+test('settlement activity shows recording traveler',()=>{
+  h.data.log.push({id:'settled-activity',kind:'expense',who:c,act:'settled',text:'Haneela paid Pranay $5.00',at:'2026-11-19T21:23:00Z',involved:[p,c]});
+  h.setMe(p);
+  const timeline=h.costsTab().split('<h3>Expense history</h3>')[1].split('<div class="sw-details">')[0];
+  assert.ok(timeline.includes('Haneela recorded a settlement'));
 });
 
 console.log('PASS '+passed+' deterministic regression checks across 4 city tabs, Photos, Expenses, forms, import, themes and split calculations.');
