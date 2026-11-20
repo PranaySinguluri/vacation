@@ -1683,27 +1683,15 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (!CLOUD.on || CLOUD.state !== 'ready') {
       return '<section class="card"><h2 class="pagehead">Photos</h2><p class="sub" style="margin:0">Sign in with Google to open the shared trip photos album.</p></section>';
     }
-    var img = function (url, label) {
-      return '<div class="tp-tile"><img src="' + url + '" alt="Sample destination photo: ' + label + '" loading="lazy" referrerpolicy="no-referrer"><span>' + label + '</span></div>';
-    };
     var photosIcon = '<svg class="tp-logo" viewBox="0 0 48 48" aria-hidden="true"><path fill="#4285F4" d="M24 24V3c11.6 0 21 9.4 21 21H24z"/><path fill="#34A853" d="M24 24h21c0 11.6-9.4 21-21 21V24z"/><path fill="#FBBC05" d="M24 24v21C12.4 45 3 35.6 3 24h21z"/><path fill="#EA4335" d="M24 24H3C3 12.4 12.4 3 24 3v21z"/></svg>';
     return '<section class="card tripphotos">' +
       '<div class="tp-brand">' + photosIcon + '<span class="tp-brandname">Google Photos</span><span class="tp-pill">Shared album</span></div>' +
       '<h2 class="tp-title">2026 Trip Photos</h2>' +
-      '<p class="tp-desc">One album for all seven travelers. Add memories, browse pictures, and save your favorites.</p>' +
       '<div class="tp-actions">' +
         '<a class="tp-main" href="' + album + '" target="_blank" rel="noopener noreferrer">↗ View All Photos</a>' +
         '<a class="tp-alt" href="' + album + '" target="_blank" rel="noopener noreferrer">＋ Add Photos</a>' +
         '<a class="tp-alt" href="' + album + '" target="_blank" rel="noopener noreferrer">↓ Download</a>' +
       '</div>' +
-      '<div class="tp-mosaic" aria-label="Sample trip destination images">' +
-        img('https://images.unsplash.com/photo-1533105079780-92b9be482077?w=700&auto=format&fit=crop&q=75','San Diego') +
-        img('https://images.unsplash.com/photo-1534258936925-c58bed479fcb?w=500&auto=format&fit=crop&q=75','Los Angeles') +
-        img('https://images.unsplash.com/photo-1605833556294-ea5c7a74f57d?w=500&auto=format&fit=crop&q=75','Las Vegas') +
-        img('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=500&auto=format&fit=crop&q=75','Beach days') +
-        img('https://images.unsplash.com/photo-1470770841072-f978cf4d019e?w=500&auto=format&fit=crop&q=75','Trip memories') +
-      '</div>' +
-      '<p class="tp-caption">Destination previews only — your real pictures are in the shared Google Photos album.</p>' +
       '<div class="tp-foot"><span aria-hidden="true">🔒</span><span>Open with your own Google account. Adding photos requires collaboration to be enabled. Anyone with the album link may be able to view it, so share it only with your group.</span></div>' +
       '</section>';
   }
