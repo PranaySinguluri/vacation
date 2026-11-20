@@ -183,4 +183,25 @@ test('activity log created on expense deletion',()=>{
   assert.equal(entry.kind,'expense');assert.ok(entry.involved.includes(p));assert.ok(entry.involved.includes(r));
 });
 
+
+test('Haneela sees You owe Pranay for Pranay-paid shared expense',()=>{
+  h.data.expenses=[{id:'direction-test',amount:24300,paidBy:p,split:ids,date:'2026-11-19',category:'Other',desc:''}];
+  h.data.payments=[];
+  h.setMe(c);
+  const page=h.costsTab();
+  assert.ok(page.includes('You owe Pranay'));
+  assert.ok(!page.includes('Pranay you owe'));
+});
+test('Pranay sees Haneela owes you',()=>{
+  h.setMe(p);const page=h.costsTab();
+  assert.ok(page.includes('Haneela owes you'));
+});
+test('Arizona stop time uses Phoenix timezone',()=>{
+  assert.ok(html.includes("p.city === 'az' ? 'America/Phoenix' : 'America/Los_Angeles'"));
+});
+test('footer gets latest code commit timestamp, not old v26 date',()=>{
+  assert.ok(html.includes('api.github.com/repos/PranaySinguluri/vacation/commits'));
+  assert.ok(!html.includes("new Date('2026-11-20T00:48:00Z')"));
+});
+
 console.log('PASS '+passed+' deterministic regression checks across 4 city tabs, Photos, Expenses, forms, import, themes and split calculations.');
