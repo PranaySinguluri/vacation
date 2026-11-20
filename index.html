@@ -580,6 +580,25 @@ html { overflow-x: hidden }
   .sw-balance-row button,.sw-add{background:var(--primary);color:var(--primary-ink)}
   .version{color:var(--muted)}
 }
+
+/* Photo card: inherited text colors instead of light-only hardcoded navy. */
+.tripphotos .tp-brandname,.tripphotos .tp-title{color:var(--ink)}
+.tripphotos .tp-desc{color:var(--muted)}
+.tripphotos .tp-main{background:var(--primary);color:var(--primary-ink)}
+.tripphotos .tp-foot{background:var(--primary-soft);color:var(--ink);border:1px solid var(--line)}
+.tripphotos .tp-pill{background:var(--good-soft);color:var(--good)}
+@media(prefers-color-scheme:dark){
+  /* Keep the beach identity while giving the entire header a twilight palette. */
+  .hero .beach{filter:brightness(.53) saturate(.92) hue-rotate(12deg)}
+  .hero{background:#12324d}
+  .hero h1,.hero .hero-sub{color:#fff;text-shadow:0 2px 8px #071a2acc}
+  .hero .av{background:#183e56;color:#d9f4ff;border:1px solid #75b8dc}
+  .hero .av.me{background:#b7e8ff;color:#092f48;box-shadow:0 0 0 2px #133a51,0 0 0 4px #b7e8ff}
+  .tripphotos .tp-brandname,.tripphotos .tp-title{color:var(--ink)}
+  .tripphotos .tp-foot{background:#203b5a;color:#ecf3ff;border-color:#466281}
+  .tripphotos .tp-pill{background:#193c32;color:#9df0c5}
+  .tripphotos .tp-main{background:#78b4ff;color:#091a2c}
+}
 </style>
 </head>
 <body>
