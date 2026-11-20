@@ -2460,7 +2460,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       if(!split.length)return fail('Select at least one traveler.');
       var item={id:uid(),amount:amt,paidBy:payer,category:category,currency:'USD',date:date,split:split,merchant:'',desc:'',time:'',quantity:'',unit:'',unitPrice:''};
       var existing=editingSharedExpense&&data.expenses.find(function(e){return e.id===editingSharedExpense;});
-      if(existing){Object.assign(existing,item,{id:existing.id});logIt('edited','shared expense '+category);}
+      if(existing){var originalId=existing.id;Object.assign(existing,item,{id:originalId});logIt('edited','shared expense '+category);}
       else{data.expenses.push(stamp(item));logIt('added','shared expense '+category);}
       expenseFormOpen=false;editingSharedExpense=null;save();render();return;
     }
