@@ -1775,6 +1775,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     }).join('') + '</ul>';
   }
   var expenseCategoryFilter = 'All';
+  var expenseFormOpen = false;
   function costsTab() {
     var usd = spending.filter(function(e){return e.currency === 'USD';});
     var sum = function(arr){return arr.reduce(function(n,e){return n+(Number(e.amount)||0);},0);};
@@ -1790,10 +1791,10 @@ if (typeof module !== 'undefined') module.exports = Core;
       return '<li class="exp-item"><span class="exp-date">'+esc(e.date||'—')+'</span><div class="exp-detail"><strong>'+esc(e.merchant||e.desc||e.category)+'</strong><small>'+esc(e.category)+' · Paid by '+esc(person(e.paidBy))+'</small></div><span class="exp-amount">'+fmt(e.amount)+'</span><button type="button" class="link danger exp-remove" data-act="remove-spending" data-id="'+esc(e.id)+'">Remove</button></li>';
     }).join('')+'</ul>' : '<p class="exp-empty">'+(usd.length?'No expenses in this category.':'No expenses added yet.')+'</p>';
     return '<section class="card exp-dashboard exp-compact">'+
-      '<div class="exp-heading"><div><h2>Trip Expenses</h2><p>Purchases recorded in USD.</p></div><button type="button" class="primary" data-act="expense-add" aria-expanded="false" aria-controls="expense-entry-form">＋ Add Expense</button></div>'+
+      '<div class="exp-heading"><div><h2>Trip Expenses</h2><p>Purchases recorded in USD.</p></div><button type="button" class="primary" data-act="expense-add" aria-expanded="'+expenseFormOpen+'" aria-controls="expense-entry-form">＋ Add Expense</button></div>'+
       (usd.length?'<div class="exp-grid">'+metric('Total spent · USD',fmt(sum(usd)))+metric('You paid · USD',fmt(sum(usd.filter(function(e){return e.paidBy===me;}))))+'</div>':'')+
       filters+entries+
-      '</section><div id="expense-entry-form" hidden>'+spendingForm()+'</div>';
+      '</section><div id="expense-entry-form"'+(expenseFormOpen?'':' hidden')+'>'+spendingForm()+'</div>';
   }
 
   function exportSpending() {
@@ -1975,12 +1976,6 @@ if (typeof module !== 'undefined') module.exports = Core;
     geocodeMissing();
   }
 
-  app.addEventListener('click', function(e) {
-    var btn = e.target.closest('[data-act="expense-filter"],[data-act="expense-add"]');
-    if (!btn) return;
-    if (btn.dataset.act === 'expense-filter') { expenseCategoryFilter = btn.dataset.id; render(); }
-    if (btn.dataset.act === 'expense-add') { var form = document.getElementById('expense-entry-form'); if (form) { form.hidden = !form.hidden; btn.setAttribute('aria-expanded', String(!form.hidden)); if (!form.hidden) form.scrollIntoView({behavior:'smooth',block:'start'}); } }
-  });
   /* ---------- Actions ---------- */
   function reorderCity(cid, ids) {
     var byId = {};
@@ -2000,6 +1995,8 @@ if (typeof module !== 'undefined') module.exports = Core;
       try { localStorage.setItem(TAB_KEY, d.id); } catch (e) {}
     }
     else if (a === 'select') { ui.editing = d.id; ui.adding = false; ui.sel = d.id; }
+    else if (a === 'expense-add') { expenseFormOpen = !expenseFormOpen; render(); if (expenseFormOpen) { var expenseForm = document.getElementById('expense-entry-form'); if (expenseForm) expenseForm.scrollIntoView({behavior:'smooth',block:'start'}); } return; }
+    else if (a === 'expense-filter') { expenseCategoryFilter = d.id || 'All'; render(); return; }
     else if (a === 'download-backup') { downloadBackup(); return; }
     else if (a === 'export-spending') { exportSpending(); return; }
     else if (a === 'remove-spending') { spending = spending.filter(function (e) { return e.id !== d.id; }); saveSpending(); }
@@ -2456,6 +2453,7 @@ if (typeof module !== 'undefined') module.exports = Core;
         e.date === item.date && e.merchant.toLowerCase() === item.merchant.toLowerCase() && e.paidBy === item.paidBy; });
       if (duplicate && !window.confirm('A similar purchase already exists. Save another anyway?')) return;
       spending.push(item);
+      expenseFormOpen = false;
       if (!saveSpending()) { spending.pop(); return fail('Could not save. Check device storage.'); }
       render(); return;
     }
