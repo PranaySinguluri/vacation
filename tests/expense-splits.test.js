@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const html = fs.readFileSync(require('node:path').join(__dirname,'..','index.html'),'utf8');
-const script = html.match(/<script id="core">([\\s\\S]*?)<\\/script>/);
+const script = html.match(new RegExp('<script id="core">([\\s\\S]*?)</script>'));
 assert.ok(script, 'core script exists');
 const sandbox = {module:{exports:{}}, TextEncoder, TextDecoder, Uint8Array};
 vm.runInNewContext(script[1],sandbox);
@@ -51,6 +51,6 @@ check('settlement suggestions sum correctly',()=>{
   assert.equal(settlements.reduce((sum,p)=>sum+p.amount,0),1001-C.shares(1001,ids).P);
 });
 check('empty ledger',()=>assert.ok(Object.values(C.balances(trip([]))).every(x=>x===0)));
-check('edit form restores category',()=>assert.match(html,/editExpense && \\(editExpense\\.category\\|\\|'Other'\\)===c/));
-check('shared form validates selected travelers',()=>assert.match(html,/new Set\\(split\\)\\.size!==split\\.length/));
+check('edit form restores category',()=>assert.ok(html.includes("editExpense && (editExpense.category||'Other')===c")));
+check('shared form validates selected travelers',()=>assert.ok(html.includes('new Set(split).size!==split.length')));
 console.log('Passed '+count+' expense split regression checks.');
