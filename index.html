@@ -2656,34 +2656,49 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (ev.target.id === 'sp-all') checks.forEach(function(c) { c.checked = all.checked; });
     else all.checked = checks.every(function(c) { return c.checked; });
   });
-  /* Swipe right for the next city (San Diego → Los Angeles), left for the previous city.
-     Keep normal vertical scrolling, horizontal carousels and interactive controls intact. */
-  var citySwipe = null;
+  /* iPhone city swipes: work across itinerary cards, including their titles.
+     Capture horizontal movement while leaving vertical page scrolling untouched. */
+  var citySwipe = null, citySwipeIgnoreClick = false;
   app.addEventListener('touchstart', function (ev) {
     citySwipe = null;
-    if (!cityById(ui.tab) || ev.touches.length !== 1 || drag || ui.editing || ui.adding || ui.confirm) return;
-    if (ev.target.closest('button, a, input, select, textarea, label, .tabs, .grip, .edit-overlay, [role="dialog"], [contenteditable], [data-no-swipe]')) return;
+    if (!cityById(ui.tab) || ev.touches.length !== 1 || ui.editing || ui.adding || ui.confirm || ui.menu) return;
+    if (ev.target.closest('input, select, textarea, a, .tabs, .grip, .edit-overlay, [role="dialog"], [contenteditable], .mapslot, [data-no-swipe]')) return;
     var node = ev.target;
     while (node && node !== app) {
       if (node.scrollWidth > node.clientWidth + 8 && /auto|scroll/.test(getComputedStyle(node).overflowX)) return;
       node = node.parentElement;
     }
-    citySwipe = { x: ev.touches[0].clientX, y: ev.touches[0].clientY, tab: ui.tab };
+    citySwipe = { x: ev.touches[0].clientX, y: ev.touches[0].clientY, tab: ui.tab, horizontal: false };
   }, { passive: true });
+  app.addEventListener('touchmove', function (ev) {
+    if (!citySwipe || ev.touches.length !== 1) return;
+    var dx = ev.touches[0].clientX - citySwipe.x;
+    var dy = ev.touches[0].clientY - citySwipe.y;
+    if (!citySwipe.horizontal && Math.abs(dx) > 18 && Math.abs(dx) > Math.abs(dy) * 1.4) citySwipe.horizontal = true;
+    if (citySwipe.horizontal && ev.cancelable) ev.preventDefault();
+  }, { passive: false });
   app.addEventListener('touchcancel', function () { citySwipe = null; }, { passive: true });
   app.addEventListener('touchend', function (ev) {
     var start = citySwipe;
     citySwipe = null;
-    if (!start || ev.changedTouches.length !== 1 || drag || ui.tab !== start.tab) return;
+    if (!start || ev.changedTouches.length !== 1 || ui.tab !== start.tab || !start.horizontal) return;
     var dx = ev.changedTouches[0].clientX - start.x;
     var dy = ev.changedTouches[0].clientY - start.y;
-    if (Math.abs(dx) < 75 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
+    if (Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
     var index = CITIES.findIndex(function (c) { return c.id === start.tab; });
     var next = index + (dx > 0 ? 1 : -1);
     if (index < 0 || next < 0 || next >= CITIES.length) return;
+    citySwipeIgnoreClick = true;
     act('tab', { id: CITIES[next].id });
     render();
+    setTimeout(function () { citySwipeIgnoreClick = false; }, 350);
   }, { passive: true });
+  app.addEventListener('click', function (ev) {
+    if (!citySwipeIgnoreClick) return;
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+    citySwipeIgnoreClick = false;
+  }, true);
   /* ---------- Long press prevents accidental drag while scrolling ---------- */
   app.addEventListener('pointerdown', function (e) {
     var g = e.target.closest('.grip');
