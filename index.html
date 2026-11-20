@@ -521,6 +521,9 @@ html { overflow-x: hidden }
 .edit-no-date-done { width: 100%; min-height: 42px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--primary); font-weight: 700; }
 
 .tripphotos{overflow:hidden}.tripphotos .tp-brand{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:12px}.tripphotos .tp-logo{width:27px;height:27px;flex:none}.tripphotos .tp-brandname{font-size:14px;font-weight:750;color:#27334a}.tripphotos .tp-pill{font-size:11px;font-weight:700;color:#146534;background:#e5f6e9;border-radius:999px;padding:4px 9px}.tripphotos .tp-title{margin:0 0 7px;font-size:clamp(24px,5vw,33px);line-height:1.18;letter-spacing:-.8px;color:#10203d}.tripphotos .tp-desc{margin:0 0 16px;color:#56637a;font-size:14px;line-height:1.5}.tripphotos .tp-actions{display:flex;gap:9px;flex-wrap:wrap;margin:0 0 16px}.tripphotos .tp-actions a{display:inline-flex;align-items:center;justify-content:center;gap:7px;text-align:center;border-radius:12px;text-decoration:none;padding:12px 15px;font-weight:750;font-size:13px}.tripphotos .tp-main{color:#fff;background:#195bd7;flex:1 1 160px}.tripphotos .tp-alt{color:#1954b4;background:#f2f6ff;border:1px solid #d7e2f7;flex:1 1 105px}.tripphotos .tp-mosaic{display:grid;grid-template-columns:1.25fr 1fr 1fr;grid-template-rows:105px 105px;gap:6px;overflow:hidden;border-radius:15px}.tripphotos .tp-tile{position:relative;overflow:hidden;background:#d7e9f6}.tripphotos .tp-tile img{display:block;width:100%;height:100%;object-fit:cover}.tripphotos .tp-tile:first-child{grid-row:span 2}.tripphotos .tp-tile span{position:absolute;bottom:6px;left:7px;color:#fff;font-size:11px;font-weight:750;text-shadow:0 1px 6px #000,0 0 4px #000}.tripphotos .tp-caption{margin:8px 0 0;font-size:11px;color:#66738b}.tripphotos .tp-foot{display:flex;gap:8px;align-items:flex-start;background:#f3f7fd;padding:11px 12px;border-radius:11px;margin-top:13px;color:#4b5b75;font-size:12px;line-height:1.5}@media(max-width:480px){.tripphotos .tp-mosaic{grid-template-rows:86px 86px;gap:5px}.tripphotos .tp-actions a{padding:11px 12px}}
+
+/* Expenses dashboard */
+.exp-dashboard .exp-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.exp-dashboard .exp-heading h2{margin:0;font-size:26px}.exp-dashboard .exp-heading p{margin:5px 0 0;color:var(--muted);font-size:13px}.exp-dashboard .exp-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:20px 0}.exp-dashboard .exp-metric{padding:14px;border:1px solid #d7e2f4;border-radius:14px;background:#f3f7ff;min-width:0}.exp-dashboard .exp-metric:nth-child(2){background:#f6f9ff}.exp-dashboard .exp-metric:nth-child(3){background:#f0f9f5}.exp-dashboard .exp-metric:nth-child(4){background:#fff9e9}.exp-dashboard .exp-metric small{display:block;color:#50617b;font-size:12px}.exp-dashboard .exp-metric strong{display:block;font-size:20px;color:#10203d;margin-top:5px;overflow-wrap:anywhere}.exp-dashboard .exp-note{font-size:12px;color:#5a6981;margin:10px 0}.exp-dashboard .exp-filters{display:flex;gap:7px;overflow-x:auto;padding:4px 0 10px}.exp-dashboard .exp-filter{border:1px solid #d7e2f4;border-radius:999px;padding:9px 15px;white-space:nowrap;background:#fff;color:#15488e;font-weight:700}.exp-dashboard .exp-filter[aria-pressed=true]{background:#1565dc;color:#fff}.exp-dashboard .exp-list{list-style:none;padding:0;margin:0}.exp-dashboard .exp-item{display:grid;grid-template-columns:90px minmax(0,1fr) 90px;align-items:center;gap:12px;padding:13px 4px;border-bottom:1px solid #e2e8f2}.exp-dashboard .exp-item .exp-date{color:#61708a;font-size:12px}.exp-dashboard .exp-item .exp-detail{min-width:0}.exp-dashboard .exp-item .exp-detail strong{display:block;overflow-wrap:anywhere}.exp-dashboard .exp-item .exp-detail small{color:#65748a}.exp-dashboard .exp-item .exp-amount{text-align:right;font-weight:750}.exp-dashboard .exp-item .exp-remove{grid-column:2 / 4;justify-self:end}.exp-dashboard .exp-bottom{display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;margin-top:16px}.exp-dashboard .exp-bottom a{display:inline-flex;align-items:center;text-decoration:none}.exp-dashboard .exp-empty{padding:20px 6px;color:#65748a}.exp-dashboard .exp-form-toggle{margin-top:12px}.exp-dashboard .exp-subtitle{margin:0 0 6px;font-size:16px}@media(max-width:700px){.exp-dashboard .exp-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.exp-dashboard .exp-item{grid-template-columns:65px minmax(0,1fr) 78px;gap:7px}.exp-dashboard .exp-metric strong{font-size:17px}}
 </style>
 </head>
 <body>
@@ -1771,13 +1774,28 @@ if (typeof module !== 'undefined') module.exports = Core;
         '<button type="button" class="link danger" data-act="remove-spending" data-id="' + esc(e.id) + '">Remove</button></li>';
     }).join('') + '</ul>';
   }
+  var expenseCategoryFilter = 'All';
   function costsTab() {
-    return '<section class="card splitwise sw-only"><h2 class="pagehead">Expenses</h2>' +
-      '<p class="sub" style="margin:0">The group tracks shared costs in Splitwise. Add every cost there so there is one set of numbers and Splitwise works out who owes whom.</p>' +
-      '<div><a class="btn primary big" href="' + SPLITWISE_URL + '" target="_blank" rel="noopener">Open the group in Splitwise</a></div></section>' +
-      '<section class="card"><h3>Trip spending · Gas, Food, Other</h3><p class="sub">Separate from Splitwise. Purchases are saved on this device; export before clearing browser data.</p>' +
-      '<div class="row"><button type="button" data-act="export-spending">Export Excel (.xlsx)</button><button type="button" data-act="find-gas">Find nearby gas stations</button></div>' +
-      gasList() + spendingList() + '</section>' + spendingForm();
+    var usd = spending.filter(function(e){return e.currency === 'USD';});
+    var cad = spending.filter(function(e){return e.currency === 'CAD';});
+    var sum = function(arr){return arr.reduce(function(n,e){return n + (Number(e.amount)||0);},0);};
+    var my = spending.filter(function(e){return e.paidBy === me;});
+    var fmt = function(n){return '$' + (n/100).toFixed(2);};
+    var metric = function(label,value){return '<div class="exp-metric"><small>' + label + '</small><strong>' + value + '</strong></div>';};
+    var cats = ['All','Gas','Food','Other'];
+    var filtered = spending.filter(function(e){return expenseCategoryFilter === 'All' || e.category === expenseCategoryFilter;}).slice().reverse();
+    var filters = cats.map(function(cat){var count = spending.filter(function(e){return cat === 'All' || e.category === cat;}).length;return '<button type="button" class="exp-filter" data-act="expense-filter" data-id="' + cat + '" aria-pressed="' + (expenseCategoryFilter === cat) + '">' + cat + ' (' + count + ')</button>';}).join('');
+    var entries = filtered.length ? '<ul class="exp-list">' + filtered.map(function(e){
+      return '<li class="exp-item"><span class="exp-date">' + esc(e.date || '—') + '</span><div class="exp-detail"><strong>' + esc(e.merchant || e.desc || e.category) + '</strong><small>' + esc(e.category) + ' · Paid by ' + esc(person(e.paidBy)) + '</small></div><span class="exp-amount">' + esc(e.currency) + ' ' + fmt(e.amount) + '</span><button type="button" class="link danger exp-remove" data-act="remove-spending" data-id="' + esc(e.id) + '">Remove</button></li>';
+    }).join('') + '</ul>' : '<p class="exp-empty">No purchases recorded for this category yet.</p>';
+    return '<section class="card exp-dashboard">' +
+      '<div class="exp-heading"><div><h2>🪙 Trip Expenses</h2><p>Track purchases and open Splitwise to settle shared costs.</p></div><button type="button" class="primary" data-act="expense-add">＋ Add Expense</button></div>' +
+      '<div class="exp-grid">' + metric('USD spent',fmt(sum(usd))) + metric('CAD spent',fmt(sum(cad))) + metric('You paid · USD',fmt(sum(my.filter(function(e){return e.currency === 'USD';})))) + metric('You paid · CAD',fmt(sum(my.filter(function(e){return e.currency === 'CAD';})))) + '</div>' +
+      '<p class="exp-note">These totals use purchases saved on this device only. Shared splits, balances and settlements are managed in Splitwise.</p>' +
+      '<div class="exp-filters">' + filters + '</div>' + entries +
+      '<div class="exp-bottom"><a class="btn primary" href="' + SPLITWISE_URL + '" target="_blank" rel="noopener noreferrer">View All Shared Expenses ↗</a><a class="btn" href="' + SPLITWISE_URL + '" target="_blank" rel="noopener noreferrer">⚖ Settle Up in Splitwise</a></div>' +
+      '</section><section class="card"><h3 class="exp-subtitle">Purchase tools</h3><div class="row"><button type="button" data-act="export-spending">Export Excel (.xlsx)</button><button type="button" data-act="find-gas">Find nearby gas stations</button></div>' + gasList() + '</section>' +
+      '<div id="expense-entry-form">' + spendingForm() + '</div>';
   }
 
   function exportSpending() {
@@ -1959,6 +1977,12 @@ if (typeof module !== 'undefined') module.exports = Core;
     geocodeMissing();
   }
 
+  app.addEventListener('click', function(e) {
+    var btn = e.target.closest('[data-act="expense-filter"],[data-act="expense-add"]');
+    if (!btn) return;
+    if (btn.dataset.act === 'expense-filter') { expenseCategoryFilter = btn.dataset.id; render(); }
+    if (btn.dataset.act === 'expense-add') { var form = document.getElementById('expense-entry-form'); if (form) form.scrollIntoView({behavior:'smooth',block:'start'}); }
+  });
   /* ---------- Actions ---------- */
   function reorderCity(cid, ids) {
     var byId = {};
