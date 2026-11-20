@@ -20,11 +20,12 @@ const window={confirm:()=>true};window.top=window.self=window;
 const storage={getItem:()=>null,setItem(){},removeItem(){}};
 const location={protocol:'file:',origin:'file://',pathname:'/index.html',hash:''};
 const calls=[];
-let photonFailures=1,manualFailures=0;
+let photonFailures=1,manualFailures=0,photonEmpty=0;
 const fetchMock=async function(url){
   calls.push(url);
   if(url.includes('photon.komoot.io')){
     if(photonFailures-->0) throw Error('Search service temporarily unavailable');
+    if(photonEmpty-->0) return {ok:true,json:async()=>({features:[]})};
     return {ok:true,json:async()=>({features:[
       {properties:{name:'GoCar Tours',city:'Las Vegas',state:'Nevada'},geometry:{coordinates:[-115.12,36.15]}},
       {properties:{name:'Bad coordinates'},geometry:{coordinates:[999,999]}}
@@ -55,8 +56,9 @@ async function run(){
   assert.ok(!html.includes('searchDown = true'),'no sticky outage flag');
   // Explicit lookup uses separate service; not requested on every keypress.
   nameInput.value='GoCar';
-  photonFailures=1;
+  photonEmpty=1;
   await h.runSearch('GoCar');
+  assert.match(status.textContent,/No matches/);
   await h.searchExactName();
   assert.match(suggestion.innerHTML,/GoCar Tours/);
   assert.equal(calls.filter(u=>u.includes('nominatim.openstreetmap.org')).length,1);
