@@ -1,0 +1,20 @@
+name: Vacation regression tests
+on:
+  push:
+    branches: [main, audit-all-tabs-regression-fixes]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test all tabs and split scenarios
+        run: |
+          node tests/expense-splits.test.js
+          node tests/all-tabs.test.js
