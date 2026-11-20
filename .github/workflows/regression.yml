@@ -20,3 +20,4 @@ jobs:
           node tests/all-tabs.test.js
           node tests/place-search.test.js
           node tests/location-input.test.js
+          node tests/address-autocomplete.test.js

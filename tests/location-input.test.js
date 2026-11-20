@@ -51,7 +51,7 @@ test('street address appears as saved and opens correct Google Maps search',()=>
   h.applyLocation(p,h.locationEntry(address,'lv'));
   assert.equal(p.geo,'none');
   assert.equal(p.q,address);
-  assert.match(h.locLine(p),/Address saved for Google Maps directions/);
+  assert.match(h.locLine(p),/Address: 723 S Casino Center Blvd, Las Vegas, NV 89101/);
   const url=new URL(h.mapURL(p));
   assert.equal(url.hostname,'www.google.com');
   assert.equal(url.searchParams.get('query'),address);
