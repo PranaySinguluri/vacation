@@ -1677,15 +1677,15 @@ if (typeof module !== 'undefined') module.exports = Core;
     return h + '</li>';
   }
   function photosTab() {
-    var folder = 'https://drive.google.com/drive/folders/1QLHbqWaa0QIf3FRMWJPsRsBaDVTOgyL9';
+    var album = 'https://photos.app.goo.gl/4YGmeSqShh4AEN4S8';
     if (!CLOUD.on || CLOUD.state !== 'ready') {
-      return '<section class="card"><h2 class="pagehead">Photos</h2><p class="sub" style="margin:0">Sign in with Google to open the shared trip photos folder.</p></section>';
+      return '<section class="card"><h2 class="pagehead">Photos</h2><p class="sub" style="margin:0">Sign in with Google to open the shared trip photos album.</p></section>';
     }
     return '<section class="card"><h2 class="pagehead">2026 Trip Photos</h2>' +
-      '<p class="sub">Open our private Google Drive folder to view, upload, and download photos from San Diego, Los Angeles, and Las Vegas.</p>' +
-      '<p><a class="btn primary" href="' + folder + '" target="_blank" rel="noopener noreferrer">Open trip photos in Google Drive</a></p>' +
-      '<p class="sub">First time? If Google Drive says you need access, tap Request access. The folder owner (vacationusa2026@gmail.com) must approve your Google account. After approval, use that same account to open the folder.</p>' +
-      '<p class="sub">To upload photos, the owner must grant Editor access. Editors can also change or delete shared files, so keep copies of important photos. Do not share the trip account password or make the folder public.</p></section>';
+      '<p class="sub">View, add, and download our shared San Diego, Los Angeles, and Las Vegas photos in Google Photos.</p>' +
+      '<p><a class="btn primary" href="' + album + '" target="_blank" rel="noopener noreferrer">Open 2026 Trip Photos</a></p>' +
+      '<p class="sub">Use your own Google account. To add photos, the album owner must enable Collaborate in Google Photos sharing settings.</p>' +
+      '<p class="sub">Privacy: anyone who gets a link-shared album URL may be able to see its photos. Share the link only with trusted travelers; for stricter privacy, invite specific Google accounts and turn off link sharing.</p></section>';
   }
   var SPENDING_KEY = 'tripwallet.spending.v1';
   var spending = [];
