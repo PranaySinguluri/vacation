@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-const scripts = [...html.matchAll(/<script[^>]*>([\\s\\S]*?)<\\/script>/g)].map(m=>m[1]);
+const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map(m=>m[1]);
 assert.equal(scripts.length,3,'expected footer, Core, and application scripts');
 const mod = {exports:{}};
 vm.runInNewContext(scripts[1],{module:mod,TextEncoder,TextDecoder,Uint8Array,URL,Intl});
@@ -18,7 +18,7 @@ const document = {getElementById:id=>id==='app'?app:null,querySelector:()=>null,
 const window = {confirm:()=>true};window.top=window.self=window;
 const location = {protocol:'file:',origin:'file://',pathname:'/index.html',hash:''};
 const noNetwork = ()=>new Promise(()=>{});
-const src = scripts[2].replace(/\\}\\)\\(\\);\\s*$/, 'return {act,render,cityTab,photosTab,costsTab,spendingForm,activityHTML,data,ui,CITIES,PEOPLE,CLOUD,person,validExpense,validPayment,cleanExpense,cleanPayment,merge,exportData,cleanLink,setMe:function(id){me=id;}};})();');
+const src = scripts[2].replace(/\}\)\(\);\s*$/, 'return {act,render,cityTab,photosTab,costsTab,spendingForm,activityHTML,data,ui,CITIES,PEOPLE,CLOUD,person,validExpense,validPayment,cleanExpense,cleanPayment,merge,exportData,cleanLink,setMe:function(id){me=id;}};})();');
 assert.notEqual(src,scripts[2],'test hook inserted');
 const appContext = {document,window,localStorage:storage,sessionStorage:storage,location,navigator:{},fetch:noNetwork,Core,URL,Intl,TextEncoder,TextDecoder,Uint8Array,console,setTimeout:()=>0,clearTimeout:()=>{}};
 const h = vm.runInNewContext(src,appContext);
@@ -71,7 +71,7 @@ test('photos signed-out message',()=>assert.match(h.photosTab(),/Sign in with Go
 test('photos signed-in shared album',()=>{
   h.CLOUD.on=true;h.CLOUD.state='ready';h.CLOUD.user={displayName:'Test'};
   assert.match(h.photosTab(),/Open Trip Photos/);
-  assert.match(h.photosTab(),/photos\\.app\\.goo\\.gl/);
+  assert.match(h.photosTab(),/photos\.app\.goo\.gl/);
   h.CLOUD.on=false;h.CLOUD.state='off';h.CLOUD.user=null;
 });
 test('expenses empty state',()=>assert.match(h.costsTab(),/No shared expenses yet/));
@@ -119,7 +119,7 @@ for(const id of ids){
 test('edit expense opens existing category and selected travelers',()=>{
   h.setMe(p);h.act('expense-edit',{id:'timeline'});
   assert.match(h.spendingForm(),/Save Changes/);
-  assert.match(h.spendingForm(),/<option selected>Food<\\/option>/);
+  assert.match(h.spendingForm(),/<option selected>Food<\/option>/);
 });
 test('delete expense removes record',()=>{
   h.act('expense-delete',{id:'timeline'});
@@ -134,8 +134,8 @@ test('settle up records payment',()=>{
 test('photos tab navigation',()=>{h.CLOUD.on=false;h.act('tab',{id:'photos'});assert.match(app.innerHTML,/Photos/);});
 test('expenses tab navigation',()=>{h.act('tab',{id:'costs'});assert.match(app.innerHTML,/Expense history/);});
 test('light and dark CSS rules present',()=>{
-  assert.match(html,/@media\\(prefers-color-scheme:dark\\)/);
-  assert.match(html,/\\.expense-sheet \\.sp-people label/);
+  assert.match(html,/@media\(prefers-color-scheme:dark\)/);
+  assert.match(html,/\.expense-sheet \.sp-people label/);
 });
 test('service worker present',()=>assert.ok(fs.readFileSync(path.join(__dirname,'..','sw.js'),'utf8').includes('activate')));
 console.log('PASS '+passed+' deterministic regression checks across 4 city tabs, Photos, Expenses, forms, import, themes and split calculations.');
