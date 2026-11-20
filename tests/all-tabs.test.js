@@ -257,4 +257,22 @@ test('unrelated traveler sees no personal settlements',()=>{
   assert.ok(!settlements.includes('data-act="expense-settle"'));
 });
 
+test('expense deletion is visible in personal expense timeline',()=>{
+  h.data.expenses.push({id:'timeline-deletion',amount:550,paidBy:p,split:[p,c],date:'2026-11-19',category:'Food',desc:'Dinner'});
+  h.setMe(c);h.act('expense-delete',{id:'timeline-deletion'});
+  const page=h.costsTab();
+  const timeline=page.split('<h3>Expense history</h3>')[1].split('<div class="sw-details">')[0];
+  assert.ok(timeline.includes('deleted an expense'));
+  assert.ok(timeline.includes('Dinner'));
+});
+test('expense edit activity appears in timeline for involved traveler only',()=>{
+  h.data.log.push({id:'test-edit-event',kind:'expense',who:p,act:'edited',text:'shared expense Gas $10.00',at:'2026-11-19T21:22:00Z',involved:[p,c]});
+  h.setMe(c);
+  const timeline=h.costsTab().split('<h3>Expense history</h3>')[1].split('<div class="sw-details">')[0];
+  assert.ok(timeline.includes('Pranay edited an expense'));
+  h.setMe(a);
+  const other=h.costsTab().split('<h3>Expense history</h3>')[1].split('<div class="sw-details">')[0];
+  assert.ok(!other.includes('Pranay edited an expense'));
+});
+
 console.log('PASS '+passed+' deterministic regression checks across 4 city tabs, Photos, Expenses, forms, import, themes and split calculations.');
