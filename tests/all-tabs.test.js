@@ -196,6 +196,15 @@ test('Pranay sees Haneela owes you',()=>{
   h.setMe(p);const page=h.costsTab();
   assert.ok(page.includes('Haneela owes you'));
 });
+test('green creditor summary says You get back',()=>{
+  h.setMe(p);const page=h.costsTab();
+  assert.ok(page.includes('You get back <strong class="sw-green">'));
+  assert.ok(!page.includes('You are owed'));
+});
+test('red debtor summary says You owe',()=>{
+  h.setMe(c);const page=h.costsTab();
+  assert.ok(page.includes('You owe <strong class="sw-red">'));
+});
 test('Arizona stop time uses Phoenix timezone',()=>{
   assert.ok(html.includes("p.city === 'az' ? 'America/Phoenix' : 'America/Los_Angeles'"));
 });
