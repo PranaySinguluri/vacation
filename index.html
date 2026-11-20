@@ -1370,7 +1370,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     q = String(q || '').trim();
     if (q.length < 3) { results = []; active = -1; showSuggest(); setStatus('Type at least 3 letters to search.'); return Promise.resolve(); }
     var cached = searchCache[searchKey(q,city)];
-    if (cached) { useSearchResults(seq,q,city,cached); return Promise.resolve(); }
+    if (cached && cached.length) { useSearchResults(seq,q,city,cached); return Promise.resolve(); }
     if (typeof fetch !== 'function') { setStatus('Online suggestions unavailable. Try Find places or Search Google Maps.'); return Promise.resolve(); }
     var c = CENTERS[city] || CENTERS.sd, controller = typeof AbortController === 'function' ? new AbortController() : null;
     searchAbort = controller;
@@ -1399,7 +1399,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     var input=document.getElementById('place-name'),q=input&&input.value.trim(),city=ui.tab;
     if (!q || q.length < 3) { setStatus('Enter at least 3 letters first.'); return Promise.resolve(); }
     var cached=searchCache[searchKey(q,city)],seq=++searchSeq;
-    if (cached) { useSearchResults(seq,q,city,cached); return Promise.resolve(); }
+    if (cached && cached.length) { useSearchResults(seq,q,city,cached); return Promise.resolve(); }
     if (typeof fetch !== 'function') { setStatus('Internet unavailable. Search Google Maps or Add by name.'); return Promise.resolve(); }
     var now=Date.now();
     if (now-lastExactLookup < 1200) { setStatus('Please wait a moment before another lookup.'); return Promise.resolve(); }
