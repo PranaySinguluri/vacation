@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
 <title>Trip Wallet</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Pacifico&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap">
 <style>
-/* Layout: booking-site style. White app bar, city tabs as pills, a route sketch per city,
-   then numbered stops with the drive between each pair. Light theme only, by choice. */
+/* System-aware light/dark palette; retain the vacation's coastal colors. */
 :root {
   --bg: #EEF2F8; --surface: #FFFFFF; --ink: #101B33; --muted: #59647A; --line: #DDE3EE;
   --primary: #1A5FD6; --primary-ink: #FFFFFF; --primary-soft: #E7EFFC; --primary-line: #8FB1EC;
@@ -535,6 +535,51 @@ html { overflow-x: hidden }
 .sw-details{margin-top:25px}.sw-extra{padding:16px 0;border-top:1px solid #3c4346;scroll-margin-top:18px}.sw-balance-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #33393b;font-size:13px}.sw-balance-row strong{font-size:13px}.sw-balance-row button{background:#178d7b;color:#fff;border:0;border-radius:12px;padding:8px;font-size:12px}.sw-change{padding:10px 0;border-bottom:1px solid #343a3d;font-size:13px}.sw-change small{display:block;color:#9aa5a9;margin-top:5px}
 .sw-add{position:sticky;bottom:15px;display:block;margin:20px 0 0 auto;background:#1da98c;color:white;border:0;border-radius:35px;padding:15px 24px;box-shadow:0 8px 25px #0008;font-size:16px;font-weight:700;z-index:2}
 @media(max-width:380px){.sw-expenses{padding:18px 12px 70px}.sw-summary-line{font-size:21px}.sw-event{grid-template-columns:25px 30px minmax(0,1fr) auto;gap:5px}.sw-event-amount{font-size:12px}}
+
+/* Shared light/dark app palette. The browser follows the device appearance automatically. */
+:root{
+  --sw-bg:#fff;--sw-ink:#101b33;--sw-muted:#59647a;--sw-border:#dde3ee;
+  --sw-good:#137a47;--sw-owe:#b23a20;--sw-accent:#1a5fd6;--sw-chip:#e7effc;
+}
+.sw-expenses{background:var(--sw-bg);color:var(--sw-ink);border:1px solid var(--sw-border);box-shadow:0 7px 25px #1b4b8010}
+.sw-heading h2,.sw-feed>h3,.sw-extra>h3,.sw-month h3,.sw-event-main strong{color:var(--sw-ink)}
+.sw-kicker,.sw-usd,.sw-muted,.sw-debt,.sw-day,.sw-event-main small,.sw-change small{color:var(--sw-muted)}
+.sw-usd,.sw-summary,.sw-event,.sw-extra,.sw-balance-row,.sw-change{border-color:var(--sw-border)}
+.sw-debts{border-color:var(--sw-border)}
+.sw-green{color:var(--sw-good)!important}.sw-red{color:var(--sw-owe)!important}
+.sw-avatar{background:var(--sw-chip);color:var(--sw-accent)}
+.sw-actions button{background:var(--sw-bg);color:var(--sw-ink);border-color:var(--sw-border)}
+.sw-actions button:first-child{background:var(--primary);border-color:var(--primary);color:var(--primary-ink)}
+.sw-event-amount{color:var(--sw-ink)}
+.sw-event-controls button{color:var(--sw-accent)}
+.sw-balance-row button,.sw-add{background:var(--primary);color:var(--primary-ink)}
+.sw-add{box-shadow:0 8px 22px #1a5fd633}
+@media(prefers-color-scheme:dark){
+  :root{
+    color-scheme:dark;
+    --bg:#0d1624;--surface:#172437;--ink:#ecf3ff;--muted:#aebdd0;--line:#34465c;
+    --primary:#78b4ff;--primary-ink:#091a2c;--primary-soft:#203b5a;--primary-line:#648ec2;
+    --sun:#ffd66a;--sun-soft:#42351d;--sun-ink:#ffe3a1;
+    --good:#66dca7;--good-soft:#193c32;--owe:#ff9c91;--owe-soft:#4c2b30;
+    --map:#15263b;--map-grid:#29425e;
+    --wxbg:#111827;--wxink:#fff;--wxsub:#c9d2e3;
+    --sw-bg:#172437;--sw-ink:#ecf3ff;--sw-muted:#aebdd0;--sw-border:#34465c;
+    --sw-good:#66dca7;--sw-owe:#ff9c91;--sw-accent:#8fc5ff;--sw-chip:#29425e;
+  }
+  body{background:var(--bg);color:var(--ink)}
+  .card,.appbar,.edit-sheet,.acctmenu,.logpop,.stop,.citytabs,.citytab,.exp-dashboard{color:var(--ink)}
+  input,select,textarea{background:var(--surface);color:var(--ink);border-color:var(--line)}
+  button:not(.primary):not(.sw-add):not(.sw-balance-row button):not(.sw-actions button:first-child){border-color:var(--line)}
+  .sw-expenses{box-shadow:0 8px 30px #0003}
+  .sw-add{box-shadow:0 8px 24px #0006}
+  .sw-event,.sw-extra,.sw-summary,.sw-balance-row,.sw-change{border-color:var(--sw-border)}
+  .sw-actions button{background:var(--sw-bg);color:var(--sw-ink)}
+  .sw-actions button:first-child{background:var(--primary);color:var(--primary-ink)}
+  .sw-avatar{background:var(--sw-chip);color:var(--sw-accent)}
+  .sw-event-controls button{color:var(--sw-accent)}
+  .sw-balance-row button,.sw-add{background:var(--primary);color:var(--primary-ink)}
+  .version{color:var(--muted)}
+}
 </style>
 </head>
 <body>
