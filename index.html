@@ -1015,7 +1015,7 @@ if (typeof module !== 'undefined') module.exports = Core;
 
   var ui = { tab: 'sd', menu: false, shot: null, albumEdit: null, undoOrder: null, linkOpen: null, linkEdit: null, showLog: false, adding: false, admin: false, adminOpen: false, share: false, sel: null, editing: null, editingExp: null, locFor: null, confirm: null, msg: '', importText: '' };
   try { ui.admin = sessionStorage.getItem(ADMIN_KEY) === '1'; } catch (e) {}
-  try { var savedTab = localStorage.getItem(TAB_KEY); if (savedTab && (savedTab === 'costs' || savedTab === 'photos' || cityById(savedTab))) ui.tab = savedTab; } catch (e) {}
+  try { var savedTab = localStorage.getItem(TAB_KEY); if (savedTab && (savedTab === 'photos' || cityById(savedTab))) ui.tab = savedTab; } catch (e) {}
 
   function save() {
     if (CLOUD.on) { if (CLOUD.state === 'ready') pushCloud(); return; }
@@ -2114,11 +2114,12 @@ if (typeof module !== 'undefined') module.exports = Core;
     var spent = data.expenses.reduce(function (a, e) { return a + e.amount; }, 0);
     h += '<div class="tabs" role="tablist">' + CITIES.map(function (c) {
       return '<button class="tab" role="tab" data-act="tab" data-id="' + c.id + '" aria-selected="' + (ui.tab === c.id) + '">' + esc(c.name) + ' <span class="count">' + cityPlaces(c.id).length + '</span></button>';
-    }).join('') + '<button class="tab" role="tab" data-act="tab" data-id="costs" aria-selected="' + (ui.tab === 'costs') + '">Expenses</button>' +
+    }).join('') +
       '<button class="tab" role="tab" data-act="tab" data-id="photos" aria-selected="' + (ui.tab === 'photos') + '">Photos</button></div>';
 
+    if (ui.tab === 'costs') ui.tab = 'photos';
     var c = cityById(ui.tab);
-    h += c ? cityTab(c) : ui.tab === 'photos' ? photosTab() : costsTab();
+    h += c ? cityTab(c) : photosTab();
     if (!CLOUD.on) h += '<div class="row backup-actions"><button type="button" data-act="download-backup">Download trip backup</button><label class="btn">Restore local backup<input id="restore-backup" type="file" accept=".json,application/json" hidden></label></div>';
     app.innerHTML = h;
     if (c) fetchLegs(cityPlaces(c.id));
@@ -2142,7 +2143,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (a !== 'ask') ui.confirm = null;
     if (a !== 'import') ui.msg = '';
     if (a === 'tab') {
-      ui.tab = d.id; ui.undoOrder = null; ui.adding = false; ui.editing = null; ui.editingExp = null; ui.locFor = null; ui.sel = null;
+      ui.tab = d.id === 'costs' ? 'photos' : d.id; ui.undoOrder = null; ui.adding = false; ui.editing = null; ui.editingExp = null; ui.locFor = null; ui.sel = null;
       try { localStorage.setItem(TAB_KEY, d.id); } catch (e) {}
     }
     else if (a === 'select') { ui.editing = d.id; ui.adding = false; ui.sel = d.id; }
