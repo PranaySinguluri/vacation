@@ -2142,7 +2142,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     }
     else if (a === 'expense-settle') {
       var amt=Number(d.amount);
-      if(!isPerson(d.from)||!isPerson(d.to)||!Number.isSafeInteger(amt)||amt<=0)return;
+      if(!isPerson(d.from)||!isPerson(d.to)||d.from===d.to||!Number.isSafeInteger(amt)||amt<=0)return;
       if(!window.confirm('Record '+Core.fmt(amt)+' paid by '+person(d.from)+' to '+person(d.to)+'? Only confirm after the payment happened.'))return;
       data.payments.push(stamp({id:uid(),from:d.from,to:d.to,amount:amt,date:today()}));
       logIt('settled',person(d.from)+' paid '+person(d.to)+' '+Core.fmt(amt));var pl=data.log[data.log.length-1];pl.kind='expense';pl.involved=[d.from,d.to];save();
