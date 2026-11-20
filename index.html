@@ -621,20 +621,24 @@ html { overflow-x: hidden }
 </head>
 <body>
 <div id="app"></div>
-<footer class="version" id="release-version">v26 · 2026-11-20 00:48 UTC</footer>
+<footer class="version" id="release-version">Checking latest code update…</footer>
 <script>
 (function () {
   var footer = document.getElementById('release-version');
-  var release = new Date('2026-11-20T00:48:00Z');
-  if (!footer || !Number.isFinite(release.getTime())) return;
-  try {
-    var local = new Intl.DateTimeFormat(undefined, {
-      year: 'numeric', month: 'short', day: 'numeric',
-      hour: 'numeric', minute: '2-digit', timeZoneName: 'short'
-    }).format(release);
-    footer.textContent = 'v26 · ' + local;
-    footer.title = 'Release time shown in your device timezone';
-  } catch (e) {}
+  if (!footer) return;
+  /* Commit time is not a deployment time; never show a hardcoded release timestamp. */
+  fetch('https://api.github.com/repos/PranaySinguluri/vacation/commits?path=index.html&per_page=1', {cache:'no-store'})
+    .then(function(r){ if(!r.ok) throw new Error('GitHub API unavailable'); return r.json(); })
+    .then(function(commits){
+      var latest=commits&&commits[0], sha=latest&&latest.sha;
+      var timestamp=latest&&latest.commit&&latest.commit.committer&&latest.commit.committer.date;
+      var date=new Date(timestamp);
+      if(!sha||!Number.isFinite(date.getTime())) throw new Error('No commit timestamp');
+      var local=new Intl.DateTimeFormat(undefined,{year:'numeric',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'}).format(date);
+      footer.textContent='Code updated '+local;
+      footer.title='Latest index.html commit '+sha.slice(0,7)+' · displayed in your device timezone; deployment may follow';
+    })
+    .catch(function(){footer.textContent='Latest update time unavailable';footer.title='Unable to verify the latest commit time';});
 })();
 </script>
 
@@ -1700,7 +1704,8 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   function stopTimePassed(p) {
     if (!p.date) return false;
-    var parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date());
+    var zone = p.city === 'az' ? 'America/Phoenix' : 'America/Los_Angeles';
+    var parts = new Intl.DateTimeFormat('en-US', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date());
     var f = {};
     parts.forEach(function (x) { f[x.type] = x.value; });
     var today = f.year + '-' + f.month + '-' + f.day;
@@ -1891,8 +1896,8 @@ if (typeof module !== 'undefined') module.exports = Core;
     var payments=(data.payments||[]).filter(function(p){return !mine||p.from===view||p.to===view;});
     var debts=settlements.map(function(p){
       var other=p.from===view?p.to:p.from;
-      var direction=p.to===view?'owes you':'you owe';
-      return '<div class="sw-debt"><span class="sw-avatar">'+esc(person(other).charAt(0))+'</span><span>'+esc(person(other))+' '+direction+'</span><strong class="'+(p.to===view?'sw-green':'sw-red')+'">'+money(p.amount)+'</strong></div>';
+      var direction=p.to===view?person(other)+' owes you':'You owe '+person(other);
+      return '<div class="sw-debt"><span class="sw-avatar">'+esc(person(other).charAt(0))+'</span><span>'+esc(direction)+'</span><strong class="'+(p.to===view?'sw-green':'sw-red')+'">'+money(p.amount)+'</strong></div>';
     }).join('');
     var summary='<div class="sw-summary"><div class="sw-summary-line">You '+(net>0?'are owed':net<0?'owe':'are settled up')+' <strong class="'+(net>=0?'sw-green':'sw-red')+'">'+(net===0?'':money(Math.abs(net)))+'</strong>'+(net===0?'':' overall')+'</div>'+
       (debts?'<div class="sw-debts">'+debts+'</div>':'<p class="sw-muted">No outstanding balances</p>')+
