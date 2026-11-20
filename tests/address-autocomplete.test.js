@@ -32,17 +32,17 @@ const h=vm.runInNewContext(src,{document,window,localStorage:storage,sessionStor
   fetch:fetchMock,Core,URL,Intl,TextEncoder,TextDecoder,Uint8Array,AbortController,console,
   setTimeout:()=>0,clearTimeout:()=>{}});
 let passed=0;
-function test(name,fn){try{fn();passed++;}catch(e){e.message='['+name+'] '+e.message;throw e;}}
+async function test(name,fn){try{await fn();passed++;}catch(e){e.message='['+name+'] '+e.message;throw e;}}
 function type(q){
   inp.value=q;
   for(const fn of handlers.input||[]) fn({target:inp});
 }
 async function run(){
   h.ui.tab='lv'; h.ui.adding=true;
-  test('house number alone does not claim a full address',()=>{
+  await test('house number alone does not claim a full address',()=>{
     type('723');assert.equal(h.typedAddress(),null);assert.equal(suggestion.hidden,true);
   });
-  test('street address appears instantly before any network response',()=>{
+  await test('street address appears instantly before any network response',()=>{
     const before=callCount;
     type('723 S Casino Center Blvd');
     assert.equal(callCount,before);
@@ -51,25 +51,25 @@ async function run(){
     assert.match(suggestion.innerHTML,/data-act="pick-address"/);
     assert.match(suggestion.innerHTML,/not verified in map data/);
   });
-  test('complete address renders without duplicate city',()=>{
+  await test('complete address renders without duplicate city',()=>{
     type('723 S Casino Center Blvd, Las Vegas, NV 89101');
     const visible=suggestion.innerHTML;
     assert.ok(visible.includes('723 S Casino Center Blvd, Las Vegas, NV 89101'));
     assert.ok(!visible.includes('Las Vegas, NV 89101, Las Vegas'));
   });
-  test('provider labels house number and street when searching by address',()=>{
+  await test('provider labels house number and street when searching by address',()=>{
     const result=h.labelOf({properties:{name:'GoCar Tours',housenumber:'723',street:'S Casino Center Blvd',city:'Las Vegas',state:'Nevada'}},'723 S Casino');
     assert.equal(result.name,'723 S Casino Center Blvd');
     assert.ok(result.where.includes('GoCar Tours'));
   });
-  test('a failed online search keeps typed address available',async()=>{
+  await test('a failed online search keeps typed address available',async()=>{
     fetchError=true;
     await h.runSearch('723 S Casino Center Blvd, Las Vegas, NV 89101');
     assert.equal(suggestion.hidden,false);
     assert.match(suggestion.innerHTML,/data-act="pick-address"/);
     assert.match(status.textContent,/Use the typed address/);
   });
-  test('clicking typed address creates stop with correct Google Maps address',()=>{
+  await test('clicking typed address creates stop with correct Google Maps address',()=>{
     const count=h.data.places.length;
     h.pickTypedAddress();
     assert.equal(h.data.places.length,count+1);
@@ -83,7 +83,7 @@ async function run(){
     assert.ok(!h.ui.adding);
     assert.match(h.locLine(p),/Address: 723 S Casino Center Blvd/);
   });
-  test('duplicate typed address does not create duplicate stop',()=>{
+  await test('duplicate typed address does not create duplicate stop',()=>{
     h.ui.adding=true;
     type('723 S Casino Center Blvd, Las Vegas, NV 89101');
     const count=h.data.places.length;
@@ -91,12 +91,12 @@ async function run(){
     assert.equal(h.data.places.length,count);
     assert.match(status.textContent,/already a stop/);
   });
-  test('names without a street number remain normal place searches',()=>{
+  await test('names without a street number remain normal place searches',()=>{
     type('GoCar Tours');
     assert.equal(h.typedAddress(),null);
     assert.equal(suggestion.hidden,true);
   });
-  test('unsafe markup is not displayed as HTML',()=>{
+  await test('unsafe markup is not displayed as HTML',()=>{
     type("723 S Casino Center Blvd <img src=x onerror=alert(1)>");
     assert.equal(h.typedAddress(),null);
     assert.ok(!suggestion.innerHTML.includes('<img'));
