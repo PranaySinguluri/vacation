@@ -844,8 +844,8 @@ if (typeof module !== 'undefined') module.exports = Core;
   var CITIES = [
     { id: 'sd', name: 'San Diego', stay: 'Motel for the nights of Dec 24 and 25 (on the booking list)' },
     { id: 'la', name: 'Los Angeles', stay: 'Motel for the nights of Dec 26 and 27 (on the booking list)' },
-    { id: 'lv', name: 'Las Vegas', stay: 'Motel for the night of Dec 31 (on the booking list)' },
-    { id: 'az', name: 'Arizona', stay: 'Nights of Dec 28 to 30 have no stay on the booking list yet' }
+    { id: 'az', name: 'Arizona', stay: 'Nights of Dec 28 to 30 have no stay on the booking list yet' },
+    { id: 'lv', name: 'Las Vegas', stay: 'Motel for the night of Dec 31 (on the booking list)' }
   ];
   /* [city, name, lat, lng, note, date, time, Google Maps search text] */
   var SEED = [
@@ -1015,7 +1015,7 @@ if (typeof module !== 'undefined') module.exports = Core;
 
   var ui = { tab: 'sd', menu: false, shot: null, albumEdit: null, undoOrder: null, linkOpen: null, linkEdit: null, showLog: false, adding: false, admin: false, adminOpen: false, share: false, sel: null, editing: null, editingExp: null, locFor: null, confirm: null, msg: '', importText: '' };
   try { ui.admin = sessionStorage.getItem(ADMIN_KEY) === '1'; } catch (e) {}
-  try { var savedTab = localStorage.getItem(TAB_KEY); if (savedTab && (savedTab === 'photos' || cityById(savedTab))) ui.tab = savedTab; } catch (e) {}
+  /* Always open on San Diego; switching tabs still works during the session. */
 
   function save() {
     if (CLOUD.on) { if (CLOUD.state === 'ready') pushCloud(); return; }
@@ -2656,7 +2656,8 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (ev.target.id === 'sp-all') checks.forEach(function(c) { c.checked = all.checked; });
     else all.checked = checks.every(function(c) { return c.checked; });
   });
-  /* iPhone city swipes: work across itinerary cards, including their titles.
+  /* Swipe right to the next trip city, left to the previous city, starting at San Diego.
+     iPhone city swipes work across itinerary cards, including their titles.
      Capture horizontal movement while leaving vertical page scrolling untouched. */
   var citySwipe = null, citySwipeIgnoreClick = false;
   app.addEventListener('touchstart', function (ev) {
