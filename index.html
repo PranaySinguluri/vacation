@@ -2687,7 +2687,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     var dy = ev.changedTouches[0].clientY - start.y;
     if (Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
     var index = CITIES.findIndex(function (c) { return c.id === start.tab; });
-    var next = index + (dx > 0 ? 1 : -1);
+    var next = index + (dx < 0 ? 1 : -1);
     if (index < 0 || next < 0 || next >= CITIES.length) return;
     citySwipeIgnoreClick = true;
     act('tab', { id: CITIES[next].id });

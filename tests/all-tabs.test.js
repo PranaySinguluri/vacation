@@ -291,4 +291,11 @@ test('settlement activity shows recording traveler',()=>{
   assert.ok(timeline.includes('Haneela recorded a settlement'));
 });
 
+test('swipe left opens next city and swipe right goes back',()=>{
+  assert.ok(html.includes('var next = index + (dx < 0 ? 1 : -1);'));
+  assert.ok(!html.includes('var next = index + (dx > 0 ? 1 : -1);'));
+  const direction = (index,dx) => index + (dx < 0 ? 1 : -1);
+  assert.equal(direction(0,-100),1);
+  assert.equal(direction(1,100),0);
+});
 console.log('PASS '+passed+' deterministic regression checks across 4 city tabs, Photos, Expenses, forms, import, themes and split calculations.');
