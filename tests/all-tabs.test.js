@@ -138,4 +138,49 @@ test('light and dark CSS rules present',()=>{
   assert.match(html,/\.expense-sheet \.sp-people label/);
 });
 test('service worker present',()=>assert.ok(fs.readFileSync(path.join(__dirname,'..','sw.js'),'utf8').includes('activate')));
+
+test('booking parser rejects impossible February 31',()=>assert.equal(Core.parseBooking('Check in Feb 31, 2026').checkIn,''));
+test('booking parser rejects non-leap February 29',()=>assert.equal(Core.parseBooking('Feb 29, 2026').checkIn,''));
+test('booking parser accepts leap February 29',()=>assert.equal(Core.parseBooking('Feb 29, 2028').checkIn,'2028-02-29'));
+test('booking parser extracts valid confirmation',()=>assert.equal(Core.parseBooking('Confirmation: ABCD1234').conf,'ABCD1234'));
+for(const [name,input,lat,lng] of [
+  ['raw coordinates','36.1, -115.2',36.1,-115.2],
+  ['integer Google Maps URL','https://maps.google.com/?q=36,-115',36,-115],
+  ['decimal Google Maps URL','https://www.google.com/maps/@36.1,-115.2,13z',36.1,-115.2],
+  ['Google Maps !3d !4d','https://www.google.com/maps/place/x/data=!3d36.1!4d-115.2',36.1,-115.2]
+]){
+  test(name,()=>{const v=Core.parseLatLng(input);assert.ok(v);assert.equal(v.lat,lat);assert.equal(v.lng,lng);});
+}
+test('reject out-of-range coordinates',()=>assert.equal(Core.parseLatLng('95, -115'),null));
+test('stop completion and restoration',()=>{
+  h.ui.tab='sd';const x=h.data.places.find(e=>e.city==='sd');
+  assert.ok(x);h.act('complete-stop',{id:x.id});assert.ok(x.completedAt);
+  h.act('restore-stop',{id:x.id});assert.ok(!x.completedAt);
+});
+test('stop booking toggle',()=>{
+  h.ui.tab='sd';const x=h.data.places.find(e=>e.city==='sd');
+  const prev=!!x.booked;h.act('toggle-booked',{id:x.id});assert.equal(!!x.booked,!prev);
+  h.act('toggle-booked',{id:x.id});assert.equal(!!x.booked,prev);
+});
+test('add-stop opens and closes form',()=>{
+  h.ui.tab='sd';h.ui.adding=false;h.act('add-stop',{});assert.equal(h.ui.adding,true);
+  h.act('cancel-edit',{});assert.equal(h.ui.adding,false);
+});
+test('stop deletion and undo',()=>{
+  h.ui.tab='sd';const x=h.data.places.find(e=>e.city==='sd');
+  assert.ok(x);const count=h.data.places.length;
+  h.act('delete-place',{id:x.id});assert.equal(h.data.places.length,count-1);
+  h.act('undo-stop',{});assert.equal(h.data.places.length,count);
+});
+test('self-settlement action is rejected',()=>{
+  const count=h.data.payments.length;h.act('expense-settle',{from:p,to:p,amount:'100'});
+  assert.equal(h.data.payments.length,count);
+});
+test('activity log created on expense deletion',()=>{
+  h.data.expenses.push({id:'activity-test',amount:100,paidBy:p,split:[p,r],date:'2026-12-24',category:'Food',desc:''});
+  h.act('expense-delete',{id:'activity-test'});
+  const entry=h.data.log.at(-1);
+  assert.equal(entry.kind,'expense');assert.ok(entry.involved.includes(p));assert.ok(entry.involved.includes(r));
+});
+
 console.log('PASS '+passed+' deterministic regression checks across 4 city tabs, Photos, Expenses, forms, import, themes and split calculations.');
