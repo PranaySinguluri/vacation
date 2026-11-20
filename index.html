@@ -725,9 +725,9 @@ var Core = (function () {
   /* Pulls coordinates out of a Google Maps link, or "lat, lng" text. */
   function parseLatLng(s) {
     s = String(s || '').trim();
-    var m = /!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/.exec(s)
-      || /[?&](?:q|query|ll|destination)=(-?\d{1,2}\.\d+)(?:,|%2C)\s*(-?\d{1,3}\.\d+)/i.exec(s)
-      || /@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/.exec(s)
+    var m = /!3d(-?\\d{1,2}(?:\\.\\d+)?)!4d(-?\\d{1,3}(?:\\.\\d+)?)/.exec(s)
+      || /[?&](?:q|query|ll|destination)=(-?\\d{1,2}(?:\\.\\d+)?)(?:,|%2C)\\s*(-?\\d{1,3}(?:\\.\\d+)?)/i.exec(s)
+      || /@(-?\\d{1,2}(?:\\.\\d+)?),(-?\\d{1,3}(?:\\.\\d+)?)/.exec(s)
       || /^(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)$/.exec(s);
     if (!m) return null;
     var lat = +m[1], lng = +m[2];
@@ -758,7 +758,11 @@ var Core = (function () {
       else if (m[5]) { mo = MON[m[5].toLowerCase()]; d = +m[4]; y = +m[6]; }
       else if (m[7]) { mo = +m[7]; d = +m[8]; y = +m[9]; }
       else { y = +m[10]; mo = +m[11]; d = +m[12]; }
-      if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) dates.push(y + '-' + pad(mo) + '-' + pad(d));
+      if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) {
+        var dt = new Date(Date.UTC(y, mo - 1, d));
+        if (dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d)
+          dates.push(y + '-' + pad(mo) + '-' + pad(d));
+      }
     }
     var times = [], tr = /\b(\d{1,2})(?::(\d{2}))?\s*([ap])\.?\s*m\b\.?/gi;
     while ((m = tr.exec(t))) {
@@ -908,11 +912,22 @@ if (typeof module !== 'undefined') module.exports = Core;
     };
   }
   function validExpense(e) {
-    return !!(e && e.id && typeof e.desc === 'string' && Number.isInteger(e.amount) && e.amount > 0 && isPerson(e.paidBy) && Array.isArray(e.split) && e.split.length && e.split.every(isPerson));
+    return !!(e && e.id && typeof e.desc === 'string' && Number.isInteger(e.amount) && e.amount > 0 && isPerson(e.paidBy) && Array.isArray(e.split) && e.split.length && e.split.every(isPerson) && new Set(e.split).size === e.split.length);
   }
-  function cleanExpense(e) { return { id: String(e.id), desc: e.desc.slice(0, 80), amount: e.amount, paidBy: e.paidBy, split: e.split.slice(), date: e.date || '' }; }
-  function validPayment(p) { return !!(p && p.id && Number.isInteger(p.amount) && p.amount > 0 && isPerson(p.from) && isPerson(p.to)); }
-  function cleanPayment(p) { return { id: String(p.id), from: p.from, to: p.to, amount: p.amount, date: p.date || '' }; }
+  function cleanExpense(e) {
+    var out = { id: String(e.id), desc: e.desc.slice(0, 80), amount: e.amount, paidBy: e.paidBy, split: e.split.slice(), date: e.date || '', currency: 'USD' };
+    if (typeof e.category === 'string' && ['Gas','Food','Transport','Activities','Other'].indexOf(e.category) >= 0) out.category = e.category;
+    if (typeof e.by === 'string' && isPerson(e.by)) out.by = e.by;
+    if (typeof e.at === 'string') out.at = e.at.slice(0, 35);
+    return out;
+  }
+  function validPayment(p) { return !!(p && p.id && Number.isInteger(p.amount) && p.amount > 0 && isPerson(p.from) && isPerson(p.to) && p.from !== p.to); }
+  function cleanPayment(p) {
+    var out = { id: String(p.id), from: p.from, to: p.to, amount: p.amount, date: p.date || '' };
+    if (typeof p.by === 'string' && isPerson(p.by)) out.by = p.by;
+    if (typeof p.at === 'string') out.at = p.at.slice(0, 35);
+    return out;
+  }
   function cleanPlace(p) {
     var ok = hasLL(p);
     return { id: String(p.id), city: p.city, name: String(p.name || '').slice(0, 80), lat: ok ? p.lat : null, lng: ok ? p.lng : null,
