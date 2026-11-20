@@ -524,7 +524,7 @@ html { overflow-x: hidden }
 
 /* Expenses dashboard */
 .exp-dashboard .exp-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.exp-dashboard .exp-heading h2{margin:0;font-size:26px}.exp-dashboard .exp-heading p{margin:5px 0 0;color:var(--muted);font-size:13px}.exp-dashboard .exp-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:20px 0}.exp-dashboard .exp-metric{padding:14px;border:1px solid #d7e2f4;border-radius:14px;background:#f3f7ff;min-width:0}.exp-dashboard .exp-metric:nth-child(2){background:#f6f9ff}.exp-dashboard .exp-metric:nth-child(3){background:#f0f9f5}.exp-dashboard .exp-metric:nth-child(4){background:#fff9e9}.exp-dashboard .exp-metric small{display:block;color:#50617b;font-size:12px}.exp-dashboard .exp-metric strong{display:block;font-size:20px;color:#10203d;margin-top:5px;overflow-wrap:anywhere}.exp-dashboard .exp-note{font-size:12px;color:#5a6981;margin:10px 0}.exp-dashboard .exp-filters{display:flex;gap:7px;overflow-x:auto;padding:4px 0 10px}.exp-dashboard .exp-filter{border:1px solid #d7e2f4;border-radius:999px;padding:9px 15px;white-space:nowrap;background:#fff;color:#15488e;font-weight:700}.exp-dashboard .exp-filter[aria-pressed=true]{background:#1565dc;color:#fff}.exp-dashboard .exp-list{list-style:none;padding:0;margin:0}.exp-dashboard .exp-item{display:grid;grid-template-columns:90px minmax(0,1fr) 90px;align-items:center;gap:12px;padding:13px 4px;border-bottom:1px solid #e2e8f2}.exp-dashboard .exp-item .exp-date{color:#61708a;font-size:12px}.exp-dashboard .exp-item .exp-detail{min-width:0}.exp-dashboard .exp-item .exp-detail strong{display:block;overflow-wrap:anywhere}.exp-dashboard .exp-item .exp-detail small{color:#65748a}.exp-dashboard .exp-item .exp-amount{text-align:right;font-weight:750}.exp-dashboard .exp-item .exp-remove{grid-column:2 / 4;justify-self:end}.exp-dashboard .exp-bottom{display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;margin-top:16px}.exp-dashboard .exp-bottom a{display:inline-flex;align-items:center;text-decoration:none}.exp-dashboard .exp-empty{padding:20px 6px;color:#65748a}.exp-dashboard .exp-form-toggle{margin-top:12px}.exp-dashboard .exp-subtitle{margin:0 0 6px;font-size:16px}@media(max-width:700px){.exp-dashboard .exp-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.exp-dashboard .exp-item{grid-template-columns:65px minmax(0,1fr) 78px;gap:7px}.exp-dashboard .exp-metric strong{font-size:17px}}
-.exp-compact .exp-grid{grid-template-columns:repeat(2,minmax(0,1fr));margin:14px 0}.exp-compact .exp-item{padding:9px 2px}.exp-compact .exp-empty{padding:12px 0;margin:0}.exp-compact .exp-heading h2{font-size:23px}.exp-compact .exp-heading p{margin:3px 0}.exp-compact .exp-heading button{white-space:nowrap}#expense-entry-form[hidden]{display:none!important}@media(max-width:480px){.exp-compact .exp-metric{padding:10px}.exp-compact .exp-grid{gap:8px}.exp-compact .exp-heading{align-items:flex-start}.exp-compact .exp-heading button{padding:10px 12px}}</style>
+.exp-compact .exp-grid{grid-template-columns:repeat(2,minmax(0,1fr));margin:14px 0}.exp-compact .exp-item{padding:9px 2px}.exp-compact .exp-empty{padding:12px 0;margin:0}.exp-compact .exp-heading h2{font-size:23px}.exp-compact .exp-heading p{margin:3px 0}.exp-compact .exp-heading button{white-space:nowrap}#expense-entry-form[hidden]{display:none!important}@media(max-width:480px){.exp-compact .exp-metric{padding:10px}.exp-compact .exp-grid{gap:8px}.exp-compact .exp-heading{align-items:flex-start}.exp-compact .exp-heading button{padding:10px 12px}}.expense-sheet{width:min(440px,100%);max-height:92dvh;padding:16px;overscroll-behavior:contain}.expense-sheet .edit-top{margin-bottom:12px}.expense-sheet #spending-form{padding:0;border:0;box-shadow:none;margin:0;background:transparent}.expense-sheet #spending-form>h3{display:none}.expense-sheet #spending-form .row{gap:10px}.expense-sheet #spending-form .field{min-width:0;flex:1 1 130px}.expense-sheet #spending-form input,.expense-sheet #spending-form select{width:100%;min-width:0}.expense-sheet #spending-form button[type=submit]{width:100%;margin-top:8px}</style>
 </head>
 <body>
 <div id="app"></div>
@@ -1794,7 +1794,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<div class="exp-heading"><div><h2>Trip Expenses</h2><p>Purchases recorded in USD.</p></div><button type="button" class="primary" data-act="expense-add" aria-expanded="'+expenseFormOpen+'" aria-controls="expense-entry-form">＋ Add Expense</button></div>'+
       (usd.length?'<div class="exp-grid">'+metric('Total spent · USD',fmt(sum(usd)))+metric('You paid · USD',fmt(sum(usd.filter(function(e){return e.paidBy===me;}))))+'</div>':'')+
       filters+entries+
-      '</section><div id="expense-entry-form"'+(expenseFormOpen?'':' hidden')+'>'+spendingForm()+'</div>';
+      '</section>'+(expenseFormOpen?'<div class="edit-overlay expense-overlay" role="presentation"><div class="edit-sheet expense-sheet" role="dialog" aria-modal="true" aria-label="Add expense"><div class="edit-top"><span></span><h3>Add Expense</h3><button type="button" class="edit-close" data-act="expense-close" aria-label="Close">×</button></div><div id="expense-entry-form">'+spendingForm()+'</div></div></div>':'');
   }
 
   function exportSpending() {
@@ -1904,6 +1904,7 @@ if (typeof module !== 'undefined') module.exports = Core;
           '<div class="sub">' + esc(u.email || '') + '</div>' + (me ? '<div class="sub">Traveling as ' + esc(person(me)) + '</div>' : '') + '</div></div>' +
           (CLOUD.state === 'ready' ? '<button type="button" role="menuitem" data-act="invite">Invite friends</button>' +
             (ui.admin ? '<button type="button" role="menuitem" data-act="toggle-log" aria-controls="activity-card">Activity</button>' : '') : '') +
+          '<button type="button" role="menuitem" data-act="download-backup">Download trip backup</button>' +
           '<button type="button" role="menuitem" data-act="sign-out">Sign out</button></div>';
       }
       if (CLOUD.state === 'ready' && ui.admin && ui.showLog) right += activityHTML();
@@ -1967,8 +1968,7 @@ if (typeof module !== 'undefined') module.exports = Core;
 
     var c = cityById(ui.tab);
     h += c ? cityTab(c) : ui.tab === 'photos' ? photosTab() : costsTab();
-    h += '<div class="row backup-actions"><button type="button" data-act="download-backup">Download trip backup</button>' +
-      (!CLOUD.on ? '<label class="btn">Restore local backup<input id="restore-backup" type="file" accept=".json,application/json" hidden></label>' : '') + '</div>';
+    if (!CLOUD.on) h += '<div class="row backup-actions"><button type="button" data-act="download-backup">Download trip backup</button><label class="btn">Restore local backup<input id="restore-backup" type="file" accept=".json,application/json" hidden></label></div>';
     app.innerHTML = h;
     if (c) fetchLegs(cityPlaces(c.id));
     if (c) wxQueueFor(cityPlaces(c.id));
@@ -1995,7 +1995,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       try { localStorage.setItem(TAB_KEY, d.id); } catch (e) {}
     }
     else if (a === 'select') { ui.editing = d.id; ui.adding = false; ui.sel = d.id; }
-    else if (a === 'expense-add') { expenseFormOpen = !expenseFormOpen; render(); if (expenseFormOpen) { var expenseForm = document.getElementById('expense-entry-form'); if (expenseForm) expenseForm.scrollIntoView({behavior:'smooth',block:'start'}); } return; }
+    else if (a === 'expense-add' || a === 'expense-close') { expenseFormOpen = a === 'expense-add'; render(); if (expenseFormOpen) { var field = document.getElementById('sp-amount'); if (field) field.focus({preventScroll:true}); } return; }
     else if (a === 'expense-filter') { expenseCategoryFilter = d.id || 'All'; render(); return; }
     else if (a === 'download-backup') { downloadBackup(); return; }
     else if (a === 'export-spending') { exportSpending(); return; }
@@ -2195,6 +2195,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
 
   app.addEventListener('click', function (ev) {
+    if (ev.target.classList && ev.target.classList.contains('expense-overlay')) { act('expense-close', {}); return; }
     if (ev.target.classList && ev.target.classList.contains('edit-overlay')) { act('cancel-edit', {}); return; }
     if (ui.menu && !ev.target.closest('.acctmenu') && !ev.target.closest('[data-act="toggle-menu"]')) {
       ui.menu = false;
