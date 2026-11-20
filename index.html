@@ -525,7 +525,22 @@ html { overflow-x: hidden }
 </head>
 <body>
 <div id="app"></div>
-<footer class="version">v26 · 2026-11-20 00:48 UTC</footer>
+<footer class="version" id="release-version">v26 · 2026-11-20 00:48 UTC</footer>
+<script>
+(function () {
+  var footer = document.getElementById('release-version');
+  var release = new Date('2026-11-20T00:48:00Z');
+  if (!footer || !Number.isFinite(release.getTime())) return;
+  try {
+    var local = new Intl.DateTimeFormat(undefined, {
+      year: 'numeric', month: 'short', day: 'numeric',
+      hour: 'numeric', minute: '2-digit', timeZoneName: 'short'
+    }).format(release);
+    footer.textContent = 'v26 · ' + local;
+    footer.title = 'Release time shown in your device timezone';
+  } catch (e) {}
+})();
+</script>
 
 <script id="core">
 /* Pure logic: money in integer cents, distances, link parsing, share codes. */
