@@ -725,9 +725,9 @@ var Core = (function () {
   /* Pulls coordinates out of a Google Maps link, or "lat, lng" text. */
   function parseLatLng(s) {
     s = String(s || '').trim();
-    var m = /!3d(-?\\d{1,2}(?:\\.\\d+)?)!4d(-?\\d{1,3}(?:\\.\\d+)?)/.exec(s)
-      || /[?&](?:q|query|ll|destination)=(-?\\d{1,2}(?:\\.\\d+)?)(?:,|%2C)\\s*(-?\\d{1,3}(?:\\.\\d+)?)/i.exec(s)
-      || /@(-?\\d{1,2}(?:\\.\\d+)?),(-?\\d{1,3}(?:\\.\\d+)?)/.exec(s)
+    var m = /!3d(-?\d{1,2}(?:\.\d+)?)!4d(-?\d{1,3}(?:\.\d+)?)/.exec(s)
+      || /[?&](?:q|query|ll|destination)=(-?\d{1,2}(?:\.\d+)?)(?:,|%2C)\s*(-?\d{1,3}(?:\.\d+)?)/i.exec(s)
+      || /@(-?\d{1,2}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)/.exec(s)
       || /^(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)$/.exec(s);
     if (!m) return null;
     var lat = +m[1], lng = +m[2];
