@@ -1488,7 +1488,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     var value = String(text || '').trim(), coords = Core.parseLatLng(value);
     if (coords) return {kind:'coordinates', lat:coords.lat, lng:coords.lng};
     if (!value || value.length > 500) return null;
-    if (/^(https?:\/\/|[a-z]+:\/\/)/i.test(value)) {
+    if (/^(?:[a-z][a-z0-9+.-]*:|www\.)/i.test(value)) {
       var link = safeMapsLink(value);
       return link ? {kind:'mapslink', mapLink:link} : null;
     }
@@ -1506,7 +1506,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       p.lat=null; p.lng=null; p.pin=false;
       p.geo='none'; // don't override an explicit address with an unrelated name lookup
       if (entry.kind === 'address') { p.q=entry.q; delete p.mapLink; }
-      else if (entry.kind === 'mapslink') { p.mapLink=entry.mapLink; }
+      else if (entry.kind === 'mapslink') { p.mapLink=entry.mapLink; p.q=''; }
     }
   }
   /* ---------- Google Maps links ---------- */
