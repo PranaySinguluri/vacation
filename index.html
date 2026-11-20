@@ -599,6 +599,24 @@ html { overflow-x: hidden }
   .tripphotos .tp-pill{background:#193c32;color:#9df0c5}
   .tripphotos .tp-main{background:#78b4ff;color:#091a2c}
 }
+
+/* Expense editor: compact mobile dialog, readable chips in either phone theme. */
+.expense-overlay{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom));background:rgba(7,18,33,.66)}
+.expense-sheet{box-sizing:border-box;width:min(440px,100%);max-height:min(90dvh,760px);overflow-y:auto;overscroll-behavior:contain;padding:14px 16px 16px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:20px;box-shadow:0 22px 65px #0006}
+.expense-sheet .edit-top{margin:0 0 12px;color:var(--ink)}
+.expense-sheet #spending-form{display:flex;flex-direction:column;gap:12px;margin:0;padding:0;border:0;background:transparent;box-shadow:none}
+.expense-sheet #spending-form .row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin:0}
+.expense-sheet #spending-form .field{display:flex;flex-direction:column;flex:none!important;min-width:0;width:100%;gap:5px;margin:0;font-size:13px;line-height:1.3;color:var(--muted)}
+.expense-sheet #spending-form .field input,.expense-sheet #spending-form .field select{box-sizing:border-box;width:100%;min-width:0;min-height:44px;margin:0;padding:9px 11px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:10px;font-size:16px}
+.expense-sheet .sp-split{min-width:0;margin:0;padding:11px;border:1px solid var(--line);border-radius:13px;color:var(--ink)}
+.expense-sheet .sp-split legend{padding:0 5px;font-weight:750;color:var(--ink)}
+.expense-sheet .sp-all{display:flex;align-items:center;gap:9px;margin:0 0 10px;color:var(--ink);font-size:14px}
+.expense-sheet .sp-people{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.expense-sheet .sp-people label{display:flex;align-items:center;gap:8px;min-width:0;margin:0;padding:9px 8px;border-radius:9px;background:var(--primary-soft);border:1px solid var(--line);color:var(--ink)!important;font-size:13px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}
+.expense-sheet .sp-split input[type=checkbox]{box-sizing:border-box;appearance:auto;width:18px!important;height:18px!important;min-height:18px!important;flex:0 0 18px;margin:0;accent-color:var(--primary)}
+.expense-sheet #sp-preview{margin:10px 0 0;font-size:12px;color:var(--muted)}
+.expense-sheet #spending-form button[type=submit]{position:sticky;bottom:0;z-index:2;display:block;width:100%;min-height:46px;margin:2px 0 0;border-radius:11px;background:var(--primary);color:var(--primary-ink);font-size:15px;font-weight:750}
+@media(max-width:370px){.expense-sheet{padding:12px}.expense-sheet .sp-people{gap:5px}.expense-sheet .sp-people label{font-size:12px;padding:8px 5px}}
 </style>
 </head>
 <body>
