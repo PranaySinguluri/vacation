@@ -19,3 +19,4 @@ jobs:
           node tests/expense-splits.test.js
           node tests/all-tabs.test.js
           node tests/place-search.test.js
+          node tests/location-input.test.js
