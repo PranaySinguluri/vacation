@@ -792,7 +792,7 @@ if (typeof module !== 'undefined') module.exports = Core;
 (function () {
   var KEY = 'tripwallet.v3', LEGS_KEY = 'tripwallet.legs', ADMIN_KEY = 'tripwallet.admin', TAB_KEY = 'tripwallet.tab';
   /* SHA-256 of "tripwallet:" + the admin PIN. The PIN itself is not in the page. */
-  var SEARCH_HINT = 'Type a place name for suggestions. If they fail, tap Find places or Search Google Maps.';
+  var SEARCH_HINT = 'Search by place name or street address. Enter a full address to select it directly.';
   var SEARCH_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
   /* Search results are ranked near the city whose tab is open. */
   var CENTERS = { sd: [32.7157, -117.1611], la: [34.0522, -118.2437], lv: [36.1699, -115.1398], az: [36.2, -112.0] };
@@ -1322,21 +1322,37 @@ if (typeof module !== 'undefined') module.exports = Core;
 
   /* ---------- Place search (Photon, a free OpenStreetMap search made for type-ahead) ---------- */
   var searchSeq = 0, searchTimer = null, results = [], active = -1;
-  function labelOf(f) {
+  function labelOf(f, query) {
     var p = f.properties || {};
     var street = p.street ? (p.housenumber ? p.housenumber + ' ' : '') + p.street : '';
-    var name = p.name || street || p.city || '';
-    var where = [p.name ? street : '', p.city || p.county || '', p.state || ''].filter(function (x, i, arr) { return x && x !== name && arr.indexOf(x) === i; });
+    var addressSearch = /^\\d{1,6}\\s+[a-z]/i.test(String(query || ''));
+    var name = (addressSearch && street ? street : p.name || street || p.city || '');
+    var where = [(p.name && name === street ? p.name : p.name ? street : ''), p.city || p.county || '', p.state || ''].filter(function (x, i, arr) { return x && x !== name && arr.indexOf(x) === i; });
     return { name: name, where: where.join(', ') };
+  }
+  /* Display a selectable typed address immediately, without claiming that it
+     was verified by the external geocoder. It remains usable if Photon is down. */
+  function typedAddress() {
+    var input = document.getElementById('place-name');
+    var q = input && input.value.trim();
+    if (!ui.adding || !q || !/^\\d{1,6}\\s+[a-z][a-z0-9 .,'#\\/-]{3,}$/i.test(q)) return null;
+    var entry = locationEntry(q, ui.tab);
+    return entry && entry.kind === 'address' ? entry : null;
   }
   function setStatus(t) { var el = document.getElementById('search-status'); if (el) el.textContent = t; }
   function showSuggest() {
     var ul = document.getElementById('place-suggest'), inp = document.getElementById('place-name');
     if (!ul || !inp) return;
-    if (!results.length) { ul.hidden = true; ul.innerHTML = ''; inp.setAttribute('aria-expanded', 'false'); inp.removeAttribute('aria-activedescendant'); return; }
-    ul.innerHTML = results.map(function (r, i) {
-      return '<li role="option" id="sg-' + i + '" aria-selected="' + (i === active) + '"><button type="button" tabindex="-1" data-act="pick" data-i="' + i + '"><b>' + esc(r.name) + '</b>' + (r.where ? '<span>' + esc(r.where) + '</span>' : '') + '</button></li>';
-    }).join('');
+    var typed = typedAddress();
+    if (!results.length && !typed) { ul.hidden = true; ul.innerHTML = ''; inp.setAttribute('aria-expanded', 'false'); inp.removeAttribute('aria-activedescendant'); return; }
+    ul.innerHTML = (typed ?
+      '<li role="option" id="sg-address"><button type="button" data-act="pick-address"><b>' +
+      esc(typed.q) + '</b><span>Use this typed address · not verified in map data</span></button></li>' : '') +
+      results.map(function (r, i) {
+        return '<li role="option" id="sg-' + i + '" aria-selected="' + (i === active) +
+          '"><button type="button" tabindex="-1" data-act="pick" data-i="' + i +
+          '"><b>' + esc(r.name) + '</b>' + (r.where ? '<span>' + esc(r.where) + '</span>' : '') + '</button></li>';
+      }).join('');
     ul.hidden = false;
     inp.setAttribute('aria-expanded', 'true');
     if (active >= 0) inp.setAttribute('aria-activedescendant', 'sg-' + active); else inp.removeAttribute('aria-activedescendant');
@@ -1361,7 +1377,8 @@ if (typeof module !== 'undefined') module.exports = Core;
     searchCache[searchKey(q,city)] = results.slice();
     active = results.length ? 0 : -1;
     showSuggest();
-    setStatus(results.length ? 'Select a place to add it, or try another search.' :
+    setStatus(results.length ? 'Select a search result, or use your typed address.' :
+      typedAddress() ? 'No verified result. You can still select the typed address for Google Maps directions.' :
       'No matches here. Try Find places, Google Maps, or Add by name.');
   }
   function runSearch(q) {
@@ -1371,7 +1388,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (q.length < 3) { results = []; active = -1; showSuggest(); setStatus('Type at least 3 letters to search.'); return Promise.resolve(); }
     var cached = searchCache[searchKey(q,city)];
     if (cached && cached.length) { useSearchResults(seq,q,city,cached); return Promise.resolve(); }
-    if (typeof fetch !== 'function') { setStatus('Online suggestions unavailable. Try Find places or Search Google Maps.'); return Promise.resolve(); }
+    if (typeof fetch !== 'function') { showSuggest(); setStatus(typedAddress()?'Use the typed address shown; online suggestions are unavailable.':'Online suggestions unavailable. Try Find places or Search Google Maps.'); return Promise.resolve(); }
     var c = CENTERS[city] || CENTERS.sd, controller = typeof AbortController === 'function' ? new AbortController() : null;
     searchAbort = controller;
     setStatus('Searching nearby places…');
@@ -1384,7 +1401,7 @@ if (typeof module !== 'undefined') module.exports = Core;
         var list = (js && Array.isArray(js.features) ? js.features : []).filter(function(f){
           return f && f.geometry && Array.isArray(f.geometry.coordinates);
         }).map(function(f){
-          var l=labelOf(f);
+          var l=labelOf(f,q);
           return {name:l.name,where:l.where,lat:+f.geometry.coordinates[1],lng:+f.geometry.coordinates[0]};
         });
         useSearchResults(seq,q,city,list);
@@ -1392,7 +1409,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       .catch(function(){
         if (seq !== searchSeq || city !== ui.tab) return;
         results=[]; active=-1; showSuggest();
-        setStatus('Suggestions temporarily unavailable. Tap Find places for a one-time lookup, or use Google Maps. You can retry typing.');
+        setStatus(typedAddress() ? 'Use the typed address shown (not verified), or try Find places.' : 'Suggestions temporarily unavailable. Tap Find places for a one-time lookup, or use Google Maps. You can retry typing.');
       }).then(function(){ if (timeout) clearTimeout(timeout); if (searchAbort===controller) searchAbort=null; });
   }
   function searchExactName() {
@@ -1425,6 +1442,32 @@ if (typeof module !== 'undefined') module.exports = Core;
         setStatus('Lookup unavailable right now. Search Google Maps or Add by name.');
       });
   }
+  function pickTypedAddress() {
+    var addr = typedAddress();
+    if (!addr) { setStatus('Complete the street address first.'); return; }
+    var input=document.getElementById('place-name'), typedName=input.value.trim();
+    var stayBox=document.getElementById('place-stay'), stay=stayBox&&stayBox.checked?stayOf(ui.tab):null;
+    var name=typedName.split(',')[0].trim().slice(0,80);
+    if (!name) return;
+    if (stay) {
+      fillStay(stay,{name:name,lat:null,lng:null,q:addr.q,pin:false});
+      applyLocation(stay,addr);
+      ui.adding=false;ui.sel=stay.id;results=[];active=-1;
+      ui.msg='Address saved for Google Maps directions. Exact coordinates are not verified.';
+      save();render();return;
+    }
+    if (cityPlaces(ui.tab).some(function (p) {return p.name.toLowerCase()===name.toLowerCase();})) {
+      setStatus('This address is already a stop. Use Set location on that stop to change it.');return;
+    }
+    var np={id:'u-'+uid(),city:ui.tab,name:name,lat:null,lng:null,
+      note:'',date:'',time:'',q:'',pin:false};
+    applyLocation(np,addr);
+    stamp(np);data.places.push(np);
+    logIt('added',np.name+' in '+cityName(ui.tab));
+    results=[];active=-1;ui.adding=false;ui.sel=np.id;
+    ui.msg='Added '+name+' using your entered address. Google Maps can navigate there; the exact GPS point is not verified.';
+    save();render();
+  }
   function pick(i) {
     var r = results[i];
     if (!r) return;
@@ -1451,18 +1494,20 @@ if (typeof module !== 'undefined') module.exports = Core;
     clearTimeout(searchTimer);
     ++searchSeq;
     if (searchAbort) { searchAbort.abort(); searchAbort=null; }
-    results=[];active=-1;showSuggest();
+    results=[];active=-1;
     var q = e.target.value.trim();
+    showSuggest();
     var mapsLink=document.getElementById('search-google-link');
     if(mapsLink) mapsLink.href=searchMapsHref(q,ui.tab);
     if(q.length < 3){setStatus('Type at least 3 letters to search.');return;}
+    if (typedAddress()) setStatus('Use the address shown, or choose a verified search result if available.');
     searchTimer = setTimeout(function () { runSearch(q); }, 650);
   });
   app.addEventListener('keydown', function (e) {
-    if (e.target.id !== 'place-name' || !ui.adding || !results.length) return;
+    if (e.target.id !== 'place-name' || !ui.adding || (!results.length && !typedAddress())) return;
     if (e.key === 'ArrowDown') { active = (active + 1) % results.length; showSuggest(); e.preventDefault(); }
     else if (e.key === 'ArrowUp') { active = (active - 1 + results.length) % results.length; showSuggest(); e.preventDefault(); }
-    else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); pick(active); }
+    else if (e.key === 'Enter') { e.preventDefault(); if(active >= 0) pick(active); else if (typedAddress()) pickTypedAddress(); }
     else if (e.key === 'Escape') { results = []; active = -1; showSuggest(); }
   });
   /* Keep focus in the search box while a result is tapped. */
@@ -1780,7 +1825,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   function locLine(p) {
     if (hasLL(p)) return '';
     if (p.q || safeMapsLink(p.mapLink)) return '<div class="loc finding">' +
-      (p.q ? 'Address saved for Google Maps directions' : 'Google Maps link saved') +
+      (p.q ? 'Address: ' + esc(p.q) : 'Google Maps link saved') +
       ' · No GPS pin yet. <a href="' + esc(mapURL(p)) + '" target="_blank" rel="noopener noreferrer">Open map</a> ' +
       '<button type="button" class="link" data-act="set-loc" data-id="' + p.id + '">Change</button></div>';
     if (p.kind === 'stay') return '<div class="loc finding">Add the address once it is booked. <button type="button" class="link" data-act="set-loc" data-id="' + p.id + '">Set location</button></div>';
@@ -1891,7 +1936,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<div class="edit-actions"><button type="button" data-act="cancel-edit">Cancel</button><button class="primary" type="submit">Save Changes</button></div></form></div></div>' : '';
     if (ui.adding) h += '<form class="card" id="place-form"><h3>Add a stop in ' + esc(c.name) + '</h3>' +
       '<div class="search"><label class="flabel" for="place-name">Search places</label><div class="searchbox">' + SEARCH_ICON +
-      '<input id="place-name" maxlength="80" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="place-suggest" placeholder="Search, like USS Midway Museum"></div>' +
+      '<input id="place-name" maxlength="80" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="place-suggest" placeholder="Place or address, e.g. 723 S Casino Center"></div>' +
       '<ul class="suggest" id="place-suggest" role="listbox" aria-label="Search results" hidden></ul></div>' +
       '<div class="sub" id="search-status" role="status" aria-live="polite">' + SEARCH_HINT + '</div>' +
       '<div class="search-fallback"><button type="button" data-act="search-exact">Find places</button>' +
@@ -2513,6 +2558,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (!app.contains(b)) return;
     var a = b.getAttribute('data-act');
     if (a === 'search-exact') { searchExactName(); return; }
+    if (a === 'pick-address') { pickTypedAddress(); return; }
     if (a === 'pick') { pick(+b.dataset.i); return; }
     if (a === 'copy') {
       var el = document.getElementById(b.getAttribute('data-target')), label = b.textContent;
