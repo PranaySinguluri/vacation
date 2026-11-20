@@ -1325,7 +1325,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   function labelOf(f, query) {
     var p = f.properties || {};
     var street = p.street ? (p.housenumber ? p.housenumber + ' ' : '') + p.street : '';
-    var addressSearch = /^\\d{1,6}\\s+[a-z]/i.test(String(query || ''));
+    var addressSearch = /^\d{1,6}\s+[a-z]/i.test(String(query || ''));
     var name = (addressSearch && street ? street : p.name || street || p.city || '');
     var where = [(p.name && name === street ? p.name : p.name ? street : ''), p.city || p.county || '', p.state || ''].filter(function (x, i, arr) { return x && x !== name && arr.indexOf(x) === i; });
     return { name: name, where: where.join(', ') };
@@ -1335,7 +1335,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   function typedAddress() {
     var input = document.getElementById('place-name');
     var q = input && input.value.trim();
-    if (!ui.adding || !q || !/^\\d{1,6}\\s+[a-z][a-z0-9 .,'#\\/-]{3,}$/i.test(q)) return null;
+    if (!ui.adding || !q || !/^\d{1,6}\s+[a-z][a-z0-9 .,'#-]{3,}$/i.test(q)) return null;
     var entry = locationEntry(q, ui.tab);
     return entry && entry.kind === 'address' ? entry : null;
   }
