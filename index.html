@@ -1903,7 +1903,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       (debts?'<div class="sw-debts">'+debts+'</div>':'<p class="sw-muted">No outstanding balances</p>')+
       '<div class="sw-actions"><button type="button" data-act="expense-show-balances">Your balances</button></div></div>';
     var activity=data.log.filter(function(l){return l.kind==='expense'&&(!mine||(l.involved||[]).indexOf(view)>=0);}).slice().reverse().slice(0,100);
-    var timelineChanges=activity.filter(function(l){return l.act==='edited'||l.act==='removed';});
+    var timelineChanges=activity.filter(function(l){return l.act==='added'||l.act==='edited'||l.act==='removed'||l.act==='settled';});
     var allEntries=relevant.map(function(e){
       return {at:e.date||e.at||'',sort:(e.date||'')+'T12:00:00',kind:'expense',e:e};
     }).concat(payments.map(function(p){return {at:p.date||p.at||'',sort:p.at||((p.date||'')+'T12:00:00'),kind:'payment',p:p};}))
@@ -1920,16 +1920,19 @@ if (typeof module !== 'undefined') module.exports = Core;
       return '<div class="sw-month"><h3>'+esc(heading)+'</h3>'+grouped[month].map(function(x){
         var day=(x.at||'').slice(8,10)||'—';
         if(x.kind==='change'){
-          var l=x.l, verb=l.act==='removed'?'deleted':'edited';
-          return '<div class="sw-event sw-change-event"><span class="sw-day">'+esc(day)+'</span><span class="sw-symbol">'+(verb==='deleted'?'🗑':'✏️')+'</span><div class="sw-event-main"><strong>'+esc(person(l.who))+' '+verb+' an expense</strong><small>'+esc(l.text||'Shared expense')+'</small><small>'+esc((l.at||'').slice(11,16))+' UTC · Activity record</small></div></div>';
+          var l=x.l, verb=l.act==='removed'?'deleted':l.act==='edited'?'edited':l.act==='settled'?'recorded a settlement':'added';
+          var icon=l.act==='removed'?'🗑':l.act==='edited'?'✏️':l.act==='settled'?'⚖':'➕';
+          var eventTitle=person(l.who)+' '+verb+(l.act==='settled'?'':' an expense');
+          var eventTime=l.at&&Number.isFinite(Date.parse(l.at))?new Date(l.at).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'Time unavailable';
+          return '<div class="sw-event sw-change-event"><span class="sw-day">'+esc(day)+'</span><span class="sw-symbol">'+icon+'</span><div class="sw-event-main"><strong>'+esc(eventTitle)+'</strong><small>'+esc(l.text||'Shared expense')+'</small><small>'+esc(eventTime)+'</small></div></div>';
         }
         if(x.kind==='payment'){
           var p=x.p;
-          return '<div class="sw-event"><span class="sw-day">'+esc(day)+'</span><span class="sw-symbol">⚖</span><div class="sw-event-main"><strong>'+esc(person(p.from))+' paid '+esc(person(p.to))+'</strong><small>Settlement recorded</small></div><span class="sw-event-amount sw-green">'+money(p.amount)+'</span></div>';
+          return '<div class="sw-event"><span class="sw-day">'+esc(day)+'</span><span class="sw-symbol">⚖</span><div class="sw-event-main"><strong>'+esc(person(p.from))+' paid '+esc(person(p.to))+'</strong><small>Settlement recorded by '+esc(person(p.by||p.from))+'</small></div><span class="sw-event-amount sw-green">'+money(p.amount)+'</span></div>';
         }
         var e=x.e,participants=(e.split||[]);
         var share=mine&&participants.indexOf(view)>=0?Core.shares(e.amount,participants)[view]:0;
-        return '<div class="sw-event"><span class="sw-day">'+esc(day)+'</span><span class="sw-symbol">'+(e.category==='Food'?'🍴':e.category==='Gas'?'⛽':e.category==='Transport'?'🚗':e.category==='Activities'?'🎟':'🧾')+'</span><div class="sw-event-main"><strong>'+esc(e.desc||e.category||'Expense')+'</strong><small>'+esc(person(e.paidBy))+' paid '+money(e.amount)+'</small><small>'+(mine?'Your share '+money(share)+' · ':'')+participants.length+' travelers</small><div class="sw-event-controls"><button type="button" data-act="expense-edit" data-id="'+esc(e.id)+'">Edit</button><button type="button" data-act="expense-delete" data-id="'+esc(e.id)+'">Delete</button></div></div><span class="sw-event-amount">'+money(e.amount)+'</span></div>';
+        return '<div class="sw-event"><span class="sw-day">'+esc(day)+'</span><span class="sw-symbol">'+(e.category==='Food'?'🍴':e.category==='Gas'?'⛽':e.category==='Transport'?'🚗':e.category==='Activities'?'🎟':'🧾')+'</span><div class="sw-event-main"><strong>'+esc(e.desc||e.category||'Expense')+'</strong><small>'+esc(person(e.paidBy))+' paid '+money(e.amount)+'</small><small>Added by '+esc(person(e.by||e.paidBy))+'</small><small>'+(mine?'Your share '+money(share)+' · ':'')+participants.length+' travelers</small><div class="sw-event-controls"><button type="button" data-act="expense-edit" data-id="'+esc(e.id)+'">Edit</button><button type="button" data-act="expense-delete" data-id="'+esc(e.id)+'">Delete</button></div></div><span class="sw-event-amount">'+money(e.amount)+'</span></div>';
       }).join('')+'</div>';
     }).join('');
     activity=activity.slice(0,40);
