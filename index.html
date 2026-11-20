@@ -1677,12 +1677,15 @@ if (typeof module !== 'undefined') module.exports = Core;
     return h + '</li>';
   }
   function photosTab() {
+    var folder = 'https://drive.google.com/drive/folders/1QLHbqWaa0QIf3FRMWJPsRsBaDVTOgyL9';
     if (!CLOUD.on || CLOUD.state !== 'ready') {
-      return '<section class="card"><h2 class="pagehead">Photos</h2><p class="sub" style="margin:0">The shared photos link is on the signed-in trip site. Open it from the GitHub link and sign in with Google.</p></section>';
+      return '<section class="card"><h2 class="pagehead">Photos</h2><p class="sub" style="margin:0">Sign in with Google to open the shared trip photos folder.</p></section>';
     }
-    return '<section class="card"><h2 class="pagehead">Photos</h2>' +
-      '<p class="sub" style="margin:0">One shared Google Photos album for the whole group. To make one: in Google Photos, create an album, tap Share, turn on the link, and paste it here. Everyone can then open it and add their photos.</p>' +
-      '<ul class="list albums">' + albumRow('group', 'Group photos', '') + '</ul></section>';
+    return '<section class="card"><h2 class="pagehead">2026 Trip Photos</h2>' +
+      '<p class="sub">Open our private Google Drive folder to view, upload, and download photos from San Diego, Los Angeles, and Las Vegas.</p>' +
+      '<p><a class="btn primary" href="' + folder + '" target="_blank" rel="noopener noreferrer">Open trip photos in Google Drive</a></p>' +
+      '<p class="sub">First time? If Google Drive says you need access, tap Request access. The folder owner (vacationusa2026@gmail.com) must approve your Google account. After approval, use that same account to open the folder.</p>' +
+      '<p class="sub">To upload photos, the owner must grant Editor access. Editors can also change or delete shared files, so keep copies of important photos. Do not share the trip account password or make the folder public.</p></section>';
   }
   var SPENDING_KEY = 'tripwallet.spending.v1';
   var spending = [];
