@@ -233,4 +233,28 @@ test('creditor sees six suggested settlements',()=>{
   assert.equal((section.match(/data-act="expense-settle"/g)||[]).length,6);
 });
 
+test('personal balances hide unrelated travelers',()=>{
+  h.data.expenses=[{id:'personal-balances',amount:300,paidBy:p,split:[p,c],date:'2026-11-19',category:'Other',desc:''}];
+  h.data.payments=[];
+  h.setMe(c);
+  const page=h.costsTab();
+  const balances=page.split('id="sw-balances"')[1].split('id="sw-payments"')[0];
+  assert.ok(balances.includes('Your balances'));
+  assert.ok(balances.includes('Pranay'));
+  assert.ok(!balances.includes('Akshaya'));
+  assert.ok(!balances.includes('Megha'));
+  const settlements=page.split('id="sw-payments"')[1].split('id="sw-activity"')[0];
+  assert.equal((settlements.match(/data-act="expense-settle"/g)||[]).length,1);
+  assert.ok(settlements.includes('data-from="'+c+'"'));
+});
+test('unrelated traveler sees no personal settlements',()=>{
+  h.setMe(a);
+  const page=h.costsTab();
+  const balances=page.split('id="sw-balances"')[1].split('id="sw-payments"')[0];
+  assert.ok(balances.includes('You are settled up'));
+  const settlements=page.split('id="sw-payments"')[1].split('id="sw-activity"')[0];
+  assert.ok(settlements.includes('no outstanding settlements'));
+  assert.ok(!settlements.includes('data-act="expense-settle"'));
+});
+
 console.log('PASS '+passed+' deterministic regression checks across 4 city tabs, Photos, Expenses, forms, import, themes and split calculations.');

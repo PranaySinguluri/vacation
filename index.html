@@ -1927,8 +1927,12 @@ if (typeof module !== 'undefined') module.exports = Core;
     }).join('');
     var activity=data.log.filter(function(l){return l.kind==='expense'&&(!mine||(l.involved||[]).indexOf(view)>=0);}).slice().reverse().slice(0,40);
     var activityHtml='<div class="sw-extra" id="sw-activity"><h3>Recent changes</h3>'+(activity.length?activity.map(function(l){return '<div class="sw-change">'+esc(person(l.who))+' '+esc(l.act)+' '+esc(l.text)+'<small>'+esc((l.at||'').slice(0,16).replace('T',' '))+'</small></div>';}).join(''):'<p class="sw-muted">No recent changes recorded.</p>')+'</div>';
-    var balancesHtml='<div class="sw-extra" id="sw-balances"><h3>Group balances</h3>'+PEOPLE.map(function(p){var v=bal[p.id]||0;return '<div class="sw-balance-row"><span>'+esc(p.name)+'</span><strong class="'+(v>=0?'sw-green':'sw-red')+'">'+(v===0?'Settled':v>0?'Gets back '+money(v):'Owes '+money(-v))+'</strong></div>';}).join('')+'</div>';
-    var paymentHtml='<div class="sw-extra" id="sw-payments"><h3>Suggested settlements</h3>'+(settlements.length?settlements.map(function(p){return '<div class="sw-balance-row"><span>'+esc(person(p.from))+' → '+esc(person(p.to))+' · '+money(p.amount)+'</span><button type="button" data-act="expense-settle" data-from="'+esc(p.from)+'" data-to="'+esc(p.to)+'" data-amount="'+p.amount+'">Record payment</button></div>';}).join(''):'<p class="sw-muted">Everyone is settled.</p>')+'</div>';
+    var balancesHtml='<div class="sw-extra" id="sw-balances"><h3>Your balances</h3>'+
+      (mine?(settlements.length?settlements.map(function(p){
+        var other=p.from===view?p.to:p.from, incoming=p.to===view;
+        return '<div class="sw-balance-row"><span>'+esc(person(other))+'</span><strong class="'+(incoming?'sw-green':'sw-red')+'">'+(incoming?'You get back ':'You owe ')+money(p.amount)+'</strong></div>';
+      }).join(''):'<p class="sw-muted">You are settled up.</p>'):'<p class="sw-muted">Sign in to see your balances.</p>')+'</div>';
+    var paymentHtml='<div class="sw-extra" id="sw-payments"><h3>Suggested settlements</h3>'+(settlements.length?settlements.map(function(p){return '<div class="sw-balance-row"><span>'+esc(person(p.from))+' → '+esc(person(p.to))+' · '+money(p.amount)+'</span><button type="button" data-act="expense-settle" data-from="'+esc(p.from)+'" data-to="'+esc(p.to)+'" data-amount="'+p.amount+'">Record payment</button></div>';}).join(''):'<p class="sw-muted">You have no outstanding settlements.</p>')+'</div>';
     return '<section class="sw-expenses"><div class="sw-heading"><div><span class="sw-kicker">VACATION · SHARED EXPENSES</span><h2>'+esc(mine?person(view):'Trip')+'’s expenses</h2></div><span class="sw-usd">USD</span></div>'+
       summary+'<div class="sw-feed"><h3>Expense history</h3>'+(timeline||'<p class="sw-muted">No shared expenses yet. Add the first one below.</p>')+'</div>'+
       '<div class="sw-details">'+balancesHtml+paymentHtml+activityHtml+'</div>'+
