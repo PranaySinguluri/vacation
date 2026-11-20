@@ -1899,7 +1899,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       var direction=p.to===view?person(other)+' owes you':'You owe '+person(other);
       return '<div class="sw-debt"><span class="sw-avatar">'+esc(person(other).charAt(0))+'</span><span>'+esc(direction)+'</span><strong class="'+(p.to===view?'sw-green':'sw-red')+'">'+money(p.amount)+'</strong></div>';
     }).join('');
-    var summary='<div class="sw-summary"><div class="sw-summary-line">You '+(net>0?'are owed':net<0?'owe':'are settled up')+' <strong class="'+(net>=0?'sw-green':'sw-red')+'">'+(net===0?'':money(Math.abs(net)))+'</strong>'+(net===0?'':' overall')+'</div>'+
+    var summary='<div class="sw-summary"><div class="sw-summary-line">You '+(net>0?'get back':net<0?'owe':'are settled up')+' <strong class="'+(net>=0?'sw-green':'sw-red')+'">'+(net===0?'':money(Math.abs(net)))+'</strong>'+(net===0?'':' overall')+'</div>'+
       (debts?'<div class="sw-debts">'+debts+'</div>':'<p class="sw-muted">No outstanding balances</p>')+
       '<div class="sw-actions"><button type="button" data-act="expense-show-balances">Balances</button><button type="button" data-act="expense-show-payments">Settle up</button><button type="button" data-act="expense-show-activity">Activity</button></div></div>';
     var allEntries=relevant.map(function(e){
