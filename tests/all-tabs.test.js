@@ -214,22 +214,22 @@ test('footer gets latest code commit timestamp, not old v26 date',()=>{
 });
 
 
-test('each debtor only sees own suggested settlement',()=>{
+test('each debtor only sees own personal balance settlement',()=>{
   h.data.expenses=[{id:'settlement-visibility',amount:24300,paidBy:p,split:ids,date:'2026-11-19',category:'Other',desc:''}];
   h.data.payments=[];
   for(const id of ids.filter(id=>id!==p)){
     h.setMe(id);
     const page=h.costsTab();
-    const section=page.split('<h3>Suggested settlements</h3>')[1].split('</div></div>')[0];
+    const section=page.split('id="sw-balances"')[1].split('<button type="button" class="sw-add"')[0];
     assert.ok(section.includes('data-from="'+id+'"'));
     assert.equal((section.match(/data-act="expense-settle"/g)||[]).length,1);
     assert.ok(section.includes('data-to="'+p+'"'));
   }
 });
-test('creditor sees six suggested settlements',()=>{
+test('creditor sees six personal balance settlements',()=>{
   h.setMe(p);
   const page=h.costsTab();
-  const section=page.split('<h3>Suggested settlements</h3>')[1].split('</div></div>')[0];
+  const section=page.split('id="sw-balances"')[1].split('<button type="button" class="sw-add"')[0];
   assert.equal((section.match(/data-act="expense-settle"/g)||[]).length,6);
 });
 
