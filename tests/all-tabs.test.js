@@ -132,7 +132,7 @@ test('settle up records payment',()=>{
   assert.equal(h.data.payments.at(-1).amount,100);
 });
 test('photos tab navigation',()=>{h.CLOUD.on=false;h.act('tab',{id:'photos'});assert.match(app.innerHTML,/Photos/);});
-test('expenses tab navigation',()=>{h.act('tab',{id:'costs'});assert.match(app.innerHTML,/Expense history/);});
+test('removed expenses tab redirects to Photos',()=>{h.act('tab',{id:'costs'});assert.equal(h.ui.tab,'photos');assert.match(app.innerHTML,/Photos/);assert.ok(!app.innerHTML.includes('data-id="costs"'));});
 test('light and dark CSS rules present',()=>{
   assert.match(html,/@media\(prefers-color-scheme:dark\)/);
   assert.match(html,/\.expense-sheet \.sp-people label/);
