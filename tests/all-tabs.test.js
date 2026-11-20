@@ -213,4 +213,24 @@ test('footer gets latest code commit timestamp, not old v26 date',()=>{
   assert.ok(!html.includes("new Date('2026-11-20T00:48:00Z')"));
 });
 
+
+test('each debtor only sees own suggested settlement',()=>{
+  h.data.expenses=[{id:'settlement-visibility',amount:24300,paidBy:p,split:ids,date:'2026-11-19',category:'Other',desc:''}];
+  h.data.payments=[];
+  for(const id of ids.filter(id=>id!==p)){
+    h.setMe(id);
+    const page=h.costsTab();
+    const section=page.split('<h3>Suggested settlements</h3>')[1].split('</div></div>')[0];
+    assert.ok(section.includes('data-from="'+id+'"'));
+    assert.equal((section.match(/data-act="expense-settle"/g)||[]).length,1);
+    assert.ok(section.includes('data-to="'+p+'"'));
+  }
+});
+test('creditor sees six suggested settlements',()=>{
+  h.setMe(p);
+  const page=h.costsTab();
+  const section=page.split('<h3>Suggested settlements</h3>')[1].split('</div></div>')[0];
+  assert.equal((section.match(/data-act="expense-settle"/g)||[]).length,6);
+});
+
 console.log('PASS '+passed+' deterministic regression checks across 4 city tabs, Photos, Expenses, forms, import, themes and split calculations.');
