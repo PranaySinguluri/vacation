@@ -558,6 +558,10 @@ var Core = (function () {
   }
   /* Equal split; leftover cents go one each to the first people so shares always add up. */
   function shares(total, ids) {
+    if (!Number.isSafeInteger(total) || total < 0) throw new RangeError('Split total must be a nonnegative integer number of cents.');
+    if (!Array.isArray(ids) || !ids.length || ids.some(function(id){return typeof id !== 'string' || !id;}))
+      throw new RangeError('Select at least one valid traveler.');
+    if (new Set(ids).size !== ids.length) throw new RangeError('A traveler cannot be included twice.');
     var n = ids.length, base = Math.floor(total / n), extra = total - base * n, out = {};
     ids.forEach(function (id, i) { out[id] = base + (i < extra ? 1 : 0); });
     return out;
@@ -1751,11 +1755,11 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   function spendingForm() {
     var editExpense = editingSharedExpense && data.expenses.find(function(e){return e.id===editingSharedExpense;});
-    return '<form class="card" id="spending-form"><div class="row"><label class="field">Category<select id="sp-category"><option>Gas</option><option>Food</option><option>Transport</option><option>Activities</option><option>Other</option></select></label><label class="field">Amount (USD)<input id="sp-amount" value="'+(editExpense?(editExpense.amount/100).toFixed(2):'')+'" type="number" inputmode="decimal" min="0.01" step="0.01" required placeholder="0.00"></label></div>' +
+    return '<form class="card" id="spending-form"><div class="row"><label class="field">Category<select id="sp-category">'+['Gas','Food','Transport','Activities','Other'].map(function(c){return '<option'+(editExpense && (editExpense.category||'Other')===c?' selected':'')+'>'+c+'</option>';}).join('')+'</select></label><label class="field">Amount (USD)<input id="sp-amount" value="'+(editExpense?(editExpense.amount/100).toFixed(2):'')+'" type="number" inputmode="decimal" min="0.01" step="0.01" required placeholder="0.00"></label></div>' +
     '<label class="field">Paid by<select id="sp-payer" required><option value="">Choose traveler</option>'+PEOPLE.map(function(p){return '<option value="'+esc(p.id)+'"'+(p.id===(editExpense?editExpense.paidBy:me)?' selected':'')+'>'+esc(p.name)+'</option>';}).join('')+'</select></label>' +
     '<label class="field">Date<input id="sp-date" type="date" required value="'+(editExpense?esc(editExpense.date):today())+'"></label>' +
     '<fieldset class="sp-split"><legend>Split between</legend><label class="sp-all"><input type="checkbox" id="sp-all"'+(!editExpense||editExpense.split.length===PEOPLE.length?' checked':'')+'> All 7 travelers</label><div class="sp-people">'+PEOPLE.map(function(p){return '<label><input type="checkbox" name="sp-split" value="'+esc(p.id)+'"'+(!editExpense||editExpense.split.indexOf(p.id)>=0?' checked':'')+'> '+esc(p.name)+'</label>';}).join('')+'</div><div id="sp-preview" class="sub">Split equally among selected travelers</div></fieldset>' +
-    '<div class="err" data-err hidden></div><button type="submit" class="primary">Add Expense</button></form>';
+    '<div class="err" data-err hidden></div><button type="submit" class="primary">'+(editExpense?'Save Changes':'Add Expense')+'</button></form>';
   }
   function spendingList() {
     if (!spending.length) return '<p class="sub">No purchases recorded on this device yet.</p>';
@@ -2456,8 +2460,10 @@ if (typeof module !== 'undefined') module.exports = Core;
       var amt=Core.toMinor(val('sp-amount')),payer=val('sp-payer'),category=val('sp-category'),date=val('sp-date');
       var split=Array.from(form.querySelectorAll('input[name="sp-split"]:checked')).map(function(c){return c.value;});
       if(!amt||amt<=0||!isPerson(payer))return fail('Enter an amount and choose who paid.');
-      if(!date)return fail('Choose a date.');
+      if(!date || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date))return fail('Choose a valid date.');
       if(!split.length)return fail('Select at least one traveler.');
+      if(split.some(function(id){return !isPerson(id);})||new Set(split).size!==split.length)return fail('Invalid traveler selection.');
+      if(CLOUD.on && CLOUD.state!=='ready')return fail('Shared expenses are not synced yet. Wait for sign-in and try again.');
       var item={id:uid(),amount:amt,paidBy:payer,category:category,currency:'USD',date:date,split:split,merchant:'',desc:'',time:'',quantity:'',unit:'',unitPrice:''};
       var existing=editingSharedExpense&&data.expenses.find(function(e){return e.id===editingSharedExpense;});
       if(existing){var originalId=existing.id;Object.assign(existing,item,{id:originalId});logIt('edited','shared expense '+category);}
