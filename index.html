@@ -1490,7 +1490,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     save(); render();
   }
   app.addEventListener('input', function (e) {
-    if (e.target.id !== 'place-name' || !ui.adding) return;
+    if (e.target.id !== 'place-name' || !ui.adding || !document.getElementById('place-suggest')) return;
     clearTimeout(searchTimer);
     ++searchSeq;
     if (searchAbort) { searchAbort.abort(); searchAbort=null; }
@@ -1935,17 +1935,12 @@ if (typeof module !== 'undefined') module.exports = Core;
       (!ed.date && !ed.completedAt ? '<button type="button" class="edit-no-date-done" data-act="complete-stop" data-id="' + ed.id + '">Done · Mark this stop completed</button>' : '') +
       '<div class="edit-actions"><button type="button" data-act="cancel-edit">Cancel</button><button class="primary" type="submit">Save Changes</button></div></form></div></div>' : '';
     if (ui.adding) h += '<form class="card" id="place-form"><h3>Add a stop in ' + esc(c.name) + '</h3>' +
-      '<div class="search"><label class="flabel" for="place-name">Search places</label><div class="searchbox">' + SEARCH_ICON +
-      '<input id="place-name" maxlength="80" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="place-suggest" placeholder="Place or address, e.g. 723 S Casino Center"></div>' +
-      '<ul class="suggest" id="place-suggest" role="listbox" aria-label="Search results" hidden></ul></div>' +
-      '<div class="sub" id="search-status" role="status" aria-live="polite">' + SEARCH_HINT + '</div>' +
-      '<div class="search-fallback"><button type="button" data-act="search-exact">Find places</button>' +
-      '<a id="search-google-link" target="_blank" rel="noopener noreferrer" href="' + searchMapsHref('',c.id) + '">Search Google Maps</a></div>' +
-      '<div class="sub search-credit">Place data © OpenStreetMap contributors</div>' +
+      '<label class="field">Place name (optional when entering an address)<input id="place-name" maxlength="80" autocomplete="off" placeholder="GoCar Tours"></label>' +
+      '<label class="field">Street address or Google Maps link<input id="place-link" maxlength="500" autocomplete="street-address" placeholder="723 S Casino Center Blvd, Las Vegas, NV 89101"></label>' +
+      '<p class="sub">Enter the name, the address, or both. No search or suggestions needed. Addresses open in Google Maps; an exact map pin requires coordinates.</p>' +
       (stayOf(c.id) ? '<label class="chip staychk"><input type="checkbox" id="place-stay"> This is where we are staying (' + esc(stayOf(c.id).note.charAt(0).toLowerCase() + stayOf(c.id).note.slice(1)) + ')</label>' : '') +
-      '<label class="field">Street address, Google Maps link, or coordinates<input id="place-link" placeholder="723 S Casino Center Blvd, Las Vegas, NV 89101"></label>' +
       '<div class="err" data-err hidden></div>' +
-      '<div class="row"><button type="submit">Add by name</button><button type="button" class="link" data-act="cancel-edit">Cancel</button></div></form>';
+      '<div class="row"><button class="primary" type="submit">Add stop</button><button type="button" class="link" data-act="cancel-edit">Cancel</button></div></form>';
 
     if (list.length) {
       h += '<ol class="stops" id="stops" data-city="' + c.id + '">';
@@ -2754,10 +2749,17 @@ if (typeof module !== 'undefined') module.exports = Core;
     }
 
     if (form.id === 'place-form') {
-      var name = val('place-name'), link = ui.editing ? '' : val('place-link'), entry = link ? locationEntry(link, ui.tab) : null;
+      var name = val('place-name'), link = ui.editing ? '' : val('place-link');
+      var entry = link ? locationEntry(link, ui.tab) : null;
+      if (link && !entry) return fail('Enter a valid street address, Google Maps URL, or coordinates.');
+      // Treat a numbered address entered into the name field as an address too.
+      if (!entry && !ui.editing && /^\\d{1,6}\\s+[a-z]/i.test(name)) {
+        var addressFromName = locationEntry(name, ui.tab);
+        if (addressFromName && addressFromName.kind === 'address') entry = addressFromName;
+      }
+      if (!name && entry && entry.kind === 'address') name = entry.q.split(',')[0].trim().slice(0,80);
+      if (!name) return fail('Enter a place name or a street address.');
       var pll = entry && entry.kind === 'coordinates' ? entry : null;
-      if (!name) return fail('Type the name of the place.');
-      if (link && !entry) return fail('Enter a street address, Google Maps URL, or coordinates in the location field.');
       var clash = cityPlaces(ui.tab).some(function (p) { return p.id !== ui.editing && p.name.toLowerCase() === name.toLowerCase(); });
       if (clash) return fail(name + ' is already on the list.');
       var rec = { name: name, note: val('place-note'), date: val('place-date'), time: val('place-time') };
