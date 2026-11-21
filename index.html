@@ -623,6 +623,9 @@ html { overflow-x: hidden }
 .search-fallback a{color:var(--primary)}
 .search-credit{font-size:11px;margin:0 0 5px}
 
+
+.map-link-preview{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px;color:var(--muted);font-size:13px}
+.map-link-preview a{color:var(--primary);font-weight:650}
 </style>
 </head>
 <body>
@@ -792,7 +795,7 @@ if (typeof module !== 'undefined') module.exports = Core;
 (function () {
   var KEY = 'tripwallet.v3', LEGS_KEY = 'tripwallet.legs', ADMIN_KEY = 'tripwallet.admin', TAB_KEY = 'tripwallet.tab';
   /* SHA-256 of "tripwallet:" + the admin PIN. The PIN itself is not in the page. */
-  var SEARCH_HINT = 'Search by place name or street address. Enter a full address to select it directly.';
+  var SEARCH_HINT = 'Search by name or address. If no result appears, paste a Google Maps link below or add the stop manually.';
   var SEARCH_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
   /* Search results are ranked near the city whose tab is open. */
   var CENTERS = { sd: [32.7157, -117.1611], la: [34.0522, -118.2437], lv: [36.1699, -115.1398], az: [36.2, -112.0] };
@@ -1490,6 +1493,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     save(); render();
   }
   app.addEventListener('input', function (e) {
+    if (e.target.id === 'place-link' && ui.adding) { previewGoogleLink(); return; }
     if (e.target.id !== 'place-name' || !ui.adding || !document.getElementById('place-suggest')) return;
     clearTimeout(searchTimer);
     ++searchSeq;
@@ -1529,29 +1533,89 @@ if (typeof module !== 'undefined') module.exports = Core;
     } catch (e) {}
     return '';
   }
-  function locationEntry(text, city) {
-    var value = String(text || '').trim(), coords = Core.parseLatLng(value);
-    if (coords) return {kind:'coordinates', lat:coords.lat, lng:coords.lng};
-    if (!value || value.length > 500) return null;
-    if (/^(?:[a-z][a-z0-9+.-]*:|www\.)/i.test(value)) {
-      var link = safeMapsLink(value);
-      return link ? {kind:'mapslink', mapLink:link} : null;
+  function explicitGoogleCoords(url) {
+    /* Map viewport @lat,lng is NOT necessarily the selected place location. */
+    var t=String(url||''), u, m=/!3d(-?\d{1,2}(?:\.\d+)?)!4d(-?\d{1,3}(?:\.\d+)?)/.exec(t);
+    if (!m) {
+      try {
+        u=new URL(t);
+        var q=u.searchParams.get('query')||u.searchParams.get('q')||u.searchParams.get('destination')||u.searchParams.get('ll')||'';
+        m=/^(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)$/.exec(q.trim());
+      } catch(e) {}
     }
-    if (!/[a-z]/i.test(value) || value.length < 5 || /[<>]/.test(value)) return null;
-    var cityLabel = cityName(city);
-    var routeQuery = value + (cityLabel && value.toLowerCase().indexOf(cityLabel.toLowerCase()) < 0 ? ', ' + cityLabel : '');
-    return {kind:'address', q:routeQuery.slice(0,250)};
+    if(!m)return null;
+    var lat=+m[1],lng=+m[2];
+    return Number.isFinite(lat)&&Number.isFinite(lng)&&Math.abs(lat)<=90&&Math.abs(lng)<=180?{lat:lat,lng:lng}:null;
+  }
+  function googleMapsDetails(text) {
+    var link=safeMapsLink(text);
+    if(!link)return null;
+    var u=new URL(link),short=u.hostname==='maps.app.goo.gl'||u.hostname==='goo.gl';
+    var name='',query='',part=u.pathname.match(/\/(?:place|search)\/([^\/?]+)/);
+    if(part)try{name=decodeURIComponent(part[1].replace(/\+/g,' ')).replace(/\s+/g,' ').trim();}catch(e){}
+    query=u.searchParams.get('query')||u.searchParams.get('q')||u.searchParams.get('destination')||'';
+    if(!name&&query&&!/^[-\d.,\s]+$/.test(query))name=query.trim();
+    if(name.length>80)name=name.slice(0,80);
+    return {url:link,name:name,query:query,coords:short?null:explicitGoogleCoords(link),short:short};
+  }
+  function locationEntry(text, city) {
+    var value=String(text||'').trim();
+    if(!value||value.length>1000)return null;
+    /* Do not permit non-Google URLs to become coordinates via an @lat,lng substring. */
+    if (/^(?:[a-z][a-z0-9+.-]*:|www\.)/i.test(value)) {
+      var map=googleMapsDetails(value);
+      if(!map)return null;
+      return {kind:'mapslink',mapLink:map.url,q:map.query||map.name||'',coords:map.coords};
+    }
+    var coords=Core.parseLatLng(value);
+    if(coords)return {kind:'coordinates',lat:coords.lat,lng:coords.lng};
+    if(!/[a-z]/i.test(value)||value.length<5||/[<>]/.test(value))return null;
+    var cityLabel=cityName(city);
+    var routeQuery=value+(cityLabel&&value.toLowerCase().indexOf(cityLabel.toLowerCase())<0?', '+cityLabel:'');
+    return {kind:'address',q:routeQuery.slice(0,250)};
   }
   function applyLocation(p, entry) {
-    if (!p || !entry) return;
-    if (entry.kind === 'coordinates') {
-      p.lat=entry.lat; p.lng=entry.lng; p.pin=true;
-      delete p.mapLink; delete p.geo;
-    } else {
-      p.lat=null; p.lng=null; p.pin=false;
-      p.geo='none'; // don't override an explicit address with an unrelated name lookup
-      if (entry.kind === 'address') { p.q=entry.q; delete p.mapLink; }
-      else if (entry.kind === 'mapslink') { p.mapLink=entry.mapLink; p.q=''; }
+    if(!p||!entry)return;
+    if(entry.kind==='coordinates') {
+      p.lat=entry.lat;p.lng=entry.lng;p.pin=true;
+      delete p.mapLink;delete p.geo;
+    } else if(entry.kind==='mapslink') {
+      p.mapLink=entry.mapLink;p.q=String(entry.q||'').slice(0,250);
+      if(entry.coords) {
+        p.lat=entry.coords.lat;p.lng=entry.coords.lng;p.pin=true;delete p.geo;
+      } else {
+        p.lat=null;p.lng=null;p.pin=false;p.geo='none';
+      }
+    } else if(entry.kind==='address') {
+      p.lat=null;p.lng=null;p.pin=false;p.geo='none';p.q=entry.q;delete p.mapLink;
+    }
+  }
+  function previewGoogleLink() {
+    var input=document.getElementById('place-link'),box=document.getElementById('map-link-preview');
+    var label=document.getElementById('map-link-status'),anchor=document.getElementById('map-link-open');
+    if(!input||!box||!label||!anchor)return;
+    var raw=input.value.trim(),maps=googleMapsDetails(raw),entry=raw?locationEntry(raw,ui.tab):null;
+    box.hidden=!raw;
+    anchor.hidden=!entry;
+    if(!raw)return;
+    if(maps){
+      anchor.href=maps.url;
+      label.textContent=maps.short?
+        'Google Maps short link saved. Enter the place name yourself or paste the full URL to extract its details.':
+        maps.coords?'Google Maps location coordinates found.':'Google Maps place link recognized; exact coordinates not included.';
+      var nameInput=document.getElementById('place-name');
+      if(maps.name&&nameInput&&!nameInput.value.trim()){
+        nameInput.value=maps.name;
+        ++searchSeq;results=[];active=-1;showSuggest();
+      }
+    }else if(entry&&entry.kind==='address'){
+      anchor.href='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(entry.q);
+      label.textContent='Address ready for Google Maps directions.';
+    }else if(entry&&entry.kind==='coordinates'){
+      anchor.href='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(entry.lat+','+entry.lng);
+      label.textContent='Coordinates ready for Google Maps.';
+    }else{
+      anchor.hidden=true;label.textContent='Use a street address or a full Google Maps URL.';
     }
   }
   /* ---------- Google Maps links ---------- */
@@ -1935,9 +1999,17 @@ if (typeof module !== 'undefined') module.exports = Core;
       (!ed.date && !ed.completedAt ? '<button type="button" class="edit-no-date-done" data-act="complete-stop" data-id="' + ed.id + '">Done · Mark this stop completed</button>' : '') +
       '<div class="edit-actions"><button type="button" data-act="cancel-edit">Cancel</button><button class="primary" type="submit">Save Changes</button></div></form></div></div>' : '';
     if (ui.adding) h += '<form class="card" id="place-form"><h3>Add a stop in ' + esc(c.name) + '</h3>' +
-      '<label class="field">Place name (optional when entering an address)<input id="place-name" maxlength="80" autocomplete="off" placeholder="GoCar Tours"></label>' +
-      '<label class="field">Street address or Google Maps link<input id="place-link" maxlength="500" autocomplete="street-address" placeholder="723 S Casino Center Blvd, Las Vegas, NV 89101"></label>' +
-      '<p class="sub">Enter the name, the address, or both. No search or suggestions needed. Addresses open in Google Maps; an exact map pin requires coordinates.</p>' +
+      '<div class="search"><label class="flabel" for="place-name">Search places or enter a name</label><div class="searchbox">' + SEARCH_ICON +
+      '<input id="place-name" maxlength="80" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="place-suggest" placeholder="GoCar Tours or 723 S Casino Center"></div>' +
+      '<ul class="suggest" id="place-suggest" role="listbox" aria-label="Search results" hidden></ul></div>' +
+      '<div class="sub" id="search-status" role="status" aria-live="polite">' + SEARCH_HINT + '</div>' +
+      '<div class="search-fallback"><button type="button" data-act="search-exact">Find places</button>' +
+      '<a id="search-google-link" target="_blank" rel="noopener noreferrer" href="' + searchMapsHref('',c.id) + '">Search Google Maps</a></div>' +
+      '<label class="field" for="place-link">Google Maps location link or street address (if search finds nothing)' +
+      '<input id="place-link" maxlength="1000" autocomplete="off" inputmode="url" placeholder="Paste full Google Maps URL or 723 S Casino Center Blvd"></label>' +
+      '<div class="map-link-preview" id="map-link-preview" role="status" aria-live="polite" hidden>' +
+      '<span id="map-link-status"></span> <a id="map-link-open" href="#" target="_blank" rel="noopener noreferrer" hidden>Open location in Google Maps</a></div>' +
+      '<p class="sub">A full Google Maps URL can fill the name and available location details automatically. Short sharing links open in Google Maps but may not contain extractable details.</p>' +
       (stayOf(c.id) ? '<label class="chip staychk"><input type="checkbox" id="place-stay"> This is where we are staying (' + esc(stayOf(c.id).note.charAt(0).toLowerCase() + stayOf(c.id).note.slice(1)) + ')</label>' : '') +
       '<div class="err" data-err hidden></div>' +
       '<div class="row"><button class="primary" type="submit">Add stop</button><button type="button" class="link" data-act="cancel-edit">Cancel</button></div></form>';
@@ -2751,6 +2823,8 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (form.id === 'place-form') {
       var name = val('place-name'), link = ui.editing ? '' : val('place-link');
       var entry = link ? locationEntry(link, ui.tab) : null;
+      var mapInfo = link ? googleMapsDetails(link) : null;
+      if (!name && mapInfo && mapInfo.name) name = mapInfo.name;
       if (link && !entry) return fail('Enter a valid street address, Google Maps URL, or coordinates.');
       // Treat a numbered address entered into the name field as an address too.
       if (!entry && !ui.editing && /^\d{1,6}\s+[a-z]/i.test(name)) {
@@ -2758,7 +2832,7 @@ if (typeof module !== 'undefined') module.exports = Core;
         if (addressFromName && addressFromName.kind === 'address') entry = addressFromName;
       }
       if (!name && entry && entry.kind === 'address') name = entry.q.split(',')[0].trim().slice(0,80);
-      if (!name) return fail('Enter a place name or a street address.');
+      if (!name) return fail('Enter the place name, or paste a full Google Maps link containing its name.');
       var pll = entry && entry.kind === 'coordinates' ? entry : null;
       var clash = cityPlaces(ui.tab).some(function (p) { return p.id !== ui.editing && p.name.toLowerCase() === name.toLowerCase(); });
       if (clash) return fail(name + ' is already on the list.');
