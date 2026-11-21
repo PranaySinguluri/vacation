@@ -47,16 +47,18 @@ function submit(name,address){
   const ev={target:form,preventDefault(){}};
   for (const fn of handlers.submit||[]) fn(ev);
 }
-test('Add stop form has no broken search box',()=>{
+test('Add stop form includes search and Maps link fallback',()=>{
   start();
-  const form=h.cityTab(h.ui.tab==='lv'?h.CITIES?.[2]||{id:'lv',name:'Las Vegas'}:{id:'lv',name:'Las Vegas'});
+  const form=h.cityTab({id:'lv',name:'Las Vegas'});
   assert.ok(form.includes('id="place-form"'));
   const inputForm=form.split('id="place-form"')[1].split('</form>')[0];
   assert.ok(inputForm.includes('id="place-name"'));
   assert.ok(inputForm.includes('id="place-link"'));
-  assert.ok(!inputForm.includes('Search places'));
-  assert.ok(!inputForm.includes('place-suggest'));
-  assert.ok(!inputForm.includes('search-exact'));
+  assert.ok(inputForm.includes('Search places'));
+  assert.ok(inputForm.includes('place-suggest'));
+  assert.ok(inputForm.includes('search-exact'));
+  assert.ok(inputForm.includes('map-link-preview'));
+  assert.ok(inputForm.includes('Open location in Google Maps'));
   assert.ok(inputForm.includes('Add stop'));
 });
 test('address only can be saved without a geocoder response',()=>{
@@ -102,7 +104,7 @@ test('duplicate named stop is rejected',()=>{
   assert.equal(h.data.places.length,count);
   assert.match(errorSlot.textContent,/already on the list/);
 });
-test('typing a name cannot trigger hidden search fetches',()=>{
+test('typing a name can prepare suggestions without interrupting manual add',()=>{
   start();
   const count=fetchCalls;
   for(const fn of handlers.input||[])fn({target:{id:'place-name',value:'GoCar Tours'}});
