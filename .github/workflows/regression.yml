@@ -21,3 +21,4 @@ jobs:
           node tests/place-search.test.js
           node tests/location-input.test.js
           node tests/address-autocomplete.test.js
+          node tests/direct-add-stop.test.js
