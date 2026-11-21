@@ -17,7 +17,7 @@ const googleLink={href:''};
 const googleWrap={hidden:true};
 const dom={'app':app,'place-name':nameInput,'place-suggest':suggestion,'search-status':status,'search-google-link':googleLink,'search-google-fallback':googleWrap};
 const document={getElementById:id=>dom[id]||null,querySelector:()=>null,querySelectorAll:()=>[],activeElement:null};
-const window={confirm:()=>true};window.top=window.self=window;
+const opened=[];const window={confirm:()=>true,open:(...args)=>{opened.push(args);return {};}};window.top=window.self=window;
 const storage={getItem:()=>null,setItem(){},removeItem(){}};
 const location={protocol:'file:',origin:'file://',pathname:'/index.html',hash:''};
 const calls=[];
@@ -34,7 +34,7 @@ const fetchMock=async function(url){
   }
   throw Error('Unexpected external API '+url);
 };
-const src=scripts[2].replace(/\}\)\(\);\s*$/, "return {runSearch,searchExactName,searchMapsHref,ui,getResults:()=>results};})();");
+const src=scripts[2].replace(/\}\)\(\);\s*$/, "return {runSearch,searchExactName,searchMapsHref,addGoogleFallback,ui,data,mapURL,getResults:()=>results};})();");
 assert.notEqual(src,scripts[2],'Search test hook inserted');
 const h=vm.runInNewContext(src,{document,window,localStorage:storage,sessionStorage:storage,location,
   navigator:{},fetch:fetchMock,Core,URL,Intl,TextEncoder,TextDecoder,Uint8Array,AbortController,
@@ -43,7 +43,7 @@ async function run(){
   h.ui.tab='lv';h.ui.adding=true;
   // A failed Photon request exposes a Google Maps search that includes the typed city.
   await h.runSearch('Go cars');
-  assert.match(status.textContent,/temporarily unavailable/);
+  assert.match(status.textContent,/Photon is unavailable/);
   assert.equal(suggestion.hidden,true);
   assert.equal(googleWrap.hidden,false);
   assert.match(googleLink.href,/Go%20cars/);
@@ -80,6 +80,33 @@ async function run(){
   assert.equal(calls.length,count);
   assert.equal(googleWrap.hidden,true);
   assert.match(status.textContent,/at least 3 letters/);
-  console.log('PASS Photon-first search, fallback visibility, retry, explicit Search and link query checks');
+  // One tap on the Google Maps icon adds a map-linked stop with no copy/paste.
+  h.ui.adding=true;
+  nameInput.value='Unlisted Laser Museum';
+  const prevCount=h.data.places.length,prevCalls=calls.length;
+  h.addGoogleFallback();
+  assert.equal(h.data.places.length,prevCount+1);
+  const added=h.data.places[h.data.places.length-1];
+  assert.equal(added.name,'Unlisted Laser Museum');
+  assert.equal(added.city,'lv');
+  assert.equal(added.lat,null);
+  assert.equal(added.pin,false);
+  assert.equal(added.geo,'none');
+  assert.equal(added.q,'Unlisted Laser Museum, Las Vegas');
+  assert.equal(h.ui.adding,false);
+  assert.equal(opened.length,1);
+  assert.equal(opened[0][0],h.mapURL(added));
+  assert.ok(opened[0][0].includes('/maps/search'));
+  assert.ok(opened[0][0].includes('Unlisted%20Laser%20Museum'));
+  assert.equal(calls.length,prevCalls,'no Google Places or geocoding network call required');
+  // Repeating the action should use the existing stop, not create a duplicate.
+  h.ui.adding=true;
+  nameInput.value='Unlisted Laser Museum';
+  h.addGoogleFallback();
+  assert.equal(h.data.places.length,prevCount+1);
+  assert.equal(opened.length,2);
+  assert.equal(new URL(h.searchMapsHref('723 S Casino Center Blvd, Las Vegas','lv')).searchParams.get('query'),
+    '723 S Casino Center Blvd, Las Vegas');
+  console.log('PASS Photon-first search, fallback visibility, one-tap Google Maps linked stop, retry and no duplicates');
 }
 run().catch(err=>{console.error(err);process.exitCode=1;});
