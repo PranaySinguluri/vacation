@@ -129,7 +129,10 @@ test('Add stop includes restored autocomplete and visible fallback input',()=>{
   const form=h.cityTab({id:'lv',name:'Las Vegas'});
   const fields=form.split('id="place-form"')[1].split('</form>')[0];
   assert.match(fields,/place-suggest/);
-  assert.match(fields,/Find places/);
+  assert.match(fields,/data-act="search-exact"[^>]*>Search<\/button>/);
+  assert.match(fields,/placeholder="Enter a place or address"/);
+  assert.ok(!fields.includes('placeholder="GoCar Tours'));
+  assert.ok(!fields.includes('Find places'));
   assert.match(fields,/id="place-link"/);
   assert.match(fields,/Open location in Google Maps/);
   assert.match(fields,/Add stop/);
