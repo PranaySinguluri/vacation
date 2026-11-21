@@ -14,13 +14,14 @@ const nameInput={id:'place-name',value:'Go cars',setAttribute(){},removeAttribut
 const suggestion={innerHTML:'',hidden:true};
 const status={textContent:''};
 const googleLink={href:''};
-const dom={'app':app,'place-name':nameInput,'place-suggest':suggestion,'search-status':status,'search-google-link':googleLink};
+const googleWrap={hidden:true};
+const dom={'app':app,'place-name':nameInput,'place-suggest':suggestion,'search-status':status,'search-google-link':googleLink,'search-google-fallback':googleWrap};
 const document={getElementById:id=>dom[id]||null,querySelector:()=>null,querySelectorAll:()=>[],activeElement:null};
 const window={confirm:()=>true};window.top=window.self=window;
 const storage={getItem:()=>null,setItem(){},removeItem(){}};
 const location={protocol:'file:',origin:'file://',pathname:'/index.html',hash:''};
 const calls=[];
-let photonFailures=1,manualFailures=0,photonEmpty=0;
+let photonFailures=1,photonEmpty=0;
 const fetchMock=async function(url){
   calls.push(url);
   if(url.includes('photon.komoot.io')){
@@ -31,10 +32,6 @@ const fetchMock=async function(url){
       {properties:{name:'Bad coordinates'},geometry:{coordinates:[999,999]}}
     ]})};
   }
-  if(url.includes('nominatim.openstreetmap.org')){
-    if(manualFailures-->0) throw Error('Manual lookup temporarily unavailable');
-    return {ok:true,json:async()=>[{name:'GoCar Tours',display_name:'GoCar Tours, Las Vegas, Nevada',lat:'36.15',lon:'-115.12'}]};
-  }
   throw Error('Unexpected external API '+url);
 };
 const src=scripts[2].replace(/\}\)\(\);\s*$/, "return {runSearch,searchExactName,searchMapsHref,ui,getResults:()=>results};})();");
@@ -44,36 +41,45 @@ const h=vm.runInNewContext(src,{document,window,localStorage:storage,sessionStor
   console,setTimeout:()=>1,clearTimeout:()=>{}});
 async function run(){
   h.ui.tab='lv';h.ui.adding=true;
-  // A single Photon error must not disable every future query.
+  // A failed Photon request exposes a Google Maps search that includes the typed city.
   await h.runSearch('Go cars');
   assert.match(status.textContent,/temporarily unavailable/);
   assert.equal(suggestion.hidden,true);
+  assert.equal(googleWrap.hidden,false);
+  assert.match(googleLink.href,/Go%20cars/);
+  assert.match(googleLink.href,/Las%20Vegas/);
+  // A retry still uses Photon; success hides the Google Maps fallback.
   await h.runSearch('Go cars');
   assert.equal(suggestion.hidden,false);
   assert.match(suggestion.innerHTML,/GoCar Tours/);
   assert.equal(h.getResults().length,1,'invalid coordinates excluded');
-  assert.equal(calls.filter(u=>u.includes('photon.komoot.io')).length,2,'second request really retried');
+  assert.equal(googleWrap.hidden,true);
+  assert.equal(calls.filter(u=>u.includes('photon.komoot.io')).length,2);
   assert.ok(!html.includes('searchDown = true'),'no sticky outage flag');
-  // Explicit lookup uses separate service; not requested on every keypress.
+  // The explicit Search button also uses Photon. No Nominatim required.
   nameInput.value='GoCar';
   photonEmpty=1;
-  await h.runSearch('GoCar');
-  assert.match(status.textContent,/No matches/);
+  await h.searchExactName();
+  assert.match(status.textContent,/Photon found no matches/);
+  assert.equal(googleWrap.hidden,false);
+  assert.match(googleLink.href,/GoCar/);
   await h.searchExactName();
   assert.match(suggestion.innerHTML,/GoCar Tours/);
-  assert.equal(calls.filter(u=>u.includes('nominatim.openstreetmap.org')).length,1);
-  assert.ok(calls.find(u=>u.includes('nominatim.openstreetmap.org')).includes('Las%20Vegas'));
-  // Google Maps link updates without an API call.
+  assert.equal(googleWrap.hidden,true);
+  assert.equal(calls.filter(u=>u.includes('photon.komoot.io')).length,4);
+  assert.equal(calls.filter(u=>u.includes('nominatim.openstreetmap.org')).length,0);
+  // Changing the search text hides stale fallback; link updates to new query.
   nameInput.value='Go cars';
-  for(const fn of handlers.input||[]) fn({target:nameInput});
-  assert.match(googleLink.href,/google.com\/maps\/search/);
+  for(const fn of handlers.input||[])fn({target:nameInput});
+  assert.equal(googleWrap.hidden,true);
   assert.match(googleLink.href,/Go%20cars/);
   assert.match(googleLink.href,/Las%20Vegas/);
-  // Clearing input should not produce network requests.
+  // Too-short queries don't trigger the network or show the fallback.
   const count=calls.length;
   await h.runSearch('Go');
   assert.equal(calls.length,count);
+  assert.equal(googleWrap.hidden,true);
   assert.match(status.textContent,/at least 3 letters/);
-  console.log('PASS 8 place-search regression checks (failure recovery, exact lookup, Google Maps fallback, coordinate validation, short query)');
+  console.log('PASS Photon-first search, fallback visibility, retry, explicit Search and link query checks');
 }
 run().catch(err=>{console.error(err);process.exitCode=1;});
