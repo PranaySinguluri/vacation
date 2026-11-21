@@ -800,7 +800,7 @@ if (typeof module !== 'undefined') module.exports = Core;
 (function () {
   var KEY = 'tripwallet.v3', LEGS_KEY = 'tripwallet.legs', ADMIN_KEY = 'tripwallet.admin', TAB_KEY = 'tripwallet.tab';
   /* SHA-256 of "tripwallet:" + the admin PIN. The PIN itself is not in the page. */
-  var SEARCH_HINT = 'Search by name or address. If no result appears, paste a Google Maps link below or add the stop manually.';
+  var SEARCH_HINT = 'Photon searches places and addresses first. If it finds nothing, use Google Maps and paste the link below.';
   var SEARCH_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
   /* Search results are ranked near the city whose tab is open. */
   var CENTERS = { sd: [32.7157, -117.1611], la: [34.0522, -118.2437], lv: [36.1699, -115.1398], az: [36.2, -112.0] };
@@ -1365,13 +1365,19 @@ if (typeof module !== 'undefined') module.exports = Core;
     inp.setAttribute('aria-expanded', 'true');
     if (active >= 0) inp.setAttribute('aria-activedescendant', 'sg-' + active); else inp.removeAttribute('aria-activedescendant');
   }
-  /* A failed Photon request must never disable search for the entire session.
-     Nominatim is used only for an explicit tap, not autocomplete (OSM usage policy). */
-  var searchCache = Object.create(null), lastExactLookup = 0, searchAbort = null;
+  /* Photon is the only in-app search provider; Google Maps is an external
+     fallback if Photon has no matches or a request fails. */
+  var searchCache = Object.create(null), searchAbort = null;
   function searchKey(q, city) { return city + ':' + q.trim().toLowerCase(); }
   function searchMapsHref(q, city) {
     return 'https://www.google.com/maps/search/?api=1&query=' +
       encodeURIComponent((q ? q + ', ' : '') + cityName(city));
+  }
+  function showGoogleFallback(show, q) {
+    var wrap = document.getElementById('search-google-fallback');
+    var link = document.getElementById('search-google-link');
+    if (link) link.href = searchMapsHref(q || '', ui.tab);
+    if (wrap) wrap.hidden = !show;
   }
   function useSearchResults(seq, q, city, found) {
     var input = document.getElementById('place-name');
@@ -1385,18 +1391,19 @@ if (typeof module !== 'undefined') module.exports = Core;
     searchCache[searchKey(q,city)] = results.slice();
     active = results.length ? 0 : -1;
     showSuggest();
-    setStatus(results.length ? 'Select a search result, or use your typed address.' :
-      typedAddress() ? 'No verified result. You can still select the typed address for Google Maps directions.' :
-      'No matches here. Try Find places, Google Maps, or Add by name.');
+    showGoogleFallback(!results.length, q);
+    setStatus(results.length ? 'Select a Photon result to add it.' :
+      typedAddress() ? 'Photon found no match. Select your typed address or search Google Maps below.' :
+      'Photon found no matches. Search Google Maps below, then paste its share link.');
   }
   function runSearch(q) {
     var seq = ++searchSeq, city = ui.tab;
     if (searchAbort) { searchAbort.abort(); searchAbort = null; }
     q = String(q || '').trim();
-    if (q.length < 3) { results = []; active = -1; showSuggest(); setStatus('Type at least 3 letters to search.'); return Promise.resolve(); }
+    if (q.length < 3) { results = []; active = -1; showSuggest(); showGoogleFallback(false,q); setStatus('Type at least 3 letters to search.'); return Promise.resolve(); }
     var cached = searchCache[searchKey(q,city)];
     if (cached && cached.length) { useSearchResults(seq,q,city,cached); return Promise.resolve(); }
-    if (typeof fetch !== 'function') { showSuggest(); setStatus(typedAddress()?'Use the typed address shown; online suggestions are unavailable.':'Online suggestions unavailable. Try Find places or Search Google Maps.'); return Promise.resolve(); }
+    if (typeof fetch !== 'function') { showSuggest(); showGoogleFallback(true,q); setStatus('Photon search is unavailable. Use Search Google Maps and paste the Maps link below.'); return Promise.resolve(); }
     var c = CENTERS[city] || CENTERS.sd, controller = typeof AbortController === 'function' ? new AbortController() : null;
     searchAbort = controller;
     setStatus('Searching nearby places…');
@@ -1416,39 +1423,15 @@ if (typeof module !== 'undefined') module.exports = Core;
       })
       .catch(function(){
         if (seq !== searchSeq || city !== ui.tab) return;
-        results=[]; active=-1; showSuggest();
-        setStatus(typedAddress() ? 'Use the typed address shown (not verified), or try Find places.' : 'Suggestions temporarily unavailable. Tap Find places for a one-time lookup, or use Google Maps. You can retry typing.');
+        results=[]; active=-1; showSuggest(); showGoogleFallback(true,q);
+        setStatus('Photon is temporarily unavailable. Search Google Maps below or retry.');
       }).then(function(){ if (timeout) clearTimeout(timeout); if (searchAbort===controller) searchAbort=null; });
   }
   function searchExactName() {
-    var input=document.getElementById('place-name'),q=input&&input.value.trim(),city=ui.tab;
-    if (!q || q.length < 3) { setStatus('Enter at least 3 letters first.'); return Promise.resolve(); }
-    var cached=searchCache[searchKey(q,city)],seq=++searchSeq;
-    if (cached && cached.length) { useSearchResults(seq,q,city,cached); return Promise.resolve(); }
-    if (typeof fetch !== 'function') { setStatus('Internet unavailable. Search Google Maps or Add by name.'); return Promise.resolve(); }
-    var now=Date.now();
-    if (now-lastExactLookup < 1200) { setStatus('Please wait a moment before another lookup.'); return Promise.resolve(); }
-    lastExactLookup=now;
-    if (searchAbort) { searchAbort.abort(); searchAbort=null; }
-    setStatus('Looking up the full place name…');
-    /* Public Nominatim is not an autocomplete service: only one explicit click
-       generates a request; include city and limit results. */
-    var url='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&countrycodes=us&q=' +
-      encodeURIComponent(q + ', ' + cityName(city));
-    return fetch(url, {cache:'force-cache'})
-      .then(function(r){ if(!r.ok) throw new Error('Lookup unavailable'); return r.json(); })
-      .then(function(js){
-        var list=(Array.isArray(js)?js:[]).map(function(p){
-          var display=String(p.display_name||''),name=String(p.name||display.split(',')[0]||'');
-          return {name:name,where:display,lat:+p.lat,lng:+p.lon};
-        });
-        useSearchResults(seq,q,city,list);
-      })
-      .catch(function(){
-        if(seq!==searchSeq || city!==ui.tab) return;
-        results=[];active=-1;showSuggest();
-        setStatus('Lookup unavailable right now. Search Google Maps or Add by name.');
-      });
+    var input=document.getElementById('place-name'),q=input&&input.value.trim();
+    clearTimeout(searchTimer);
+    if (!q || q.length < 3) { showGoogleFallback(false,q); setStatus('Enter at least 3 letters first.'); return Promise.resolve(); }
+    return runSearch(q);
   }
   function pickTypedAddress() {
     var addr = typedAddress();
@@ -1506,8 +1489,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     results=[];active=-1;
     var q = e.target.value.trim();
     showSuggest();
-    var mapsLink=document.getElementById('search-google-link');
-    if(mapsLink) mapsLink.href=searchMapsHref(q,ui.tab);
+    showGoogleFallback(false,q);
     if(q.length < 3){setStatus('Type at least 3 letters to search.');return;}
     if (typedAddress()) setStatus('Use the address shown, or choose a verified search result if available.');
     searchTimer = setTimeout(function () { runSearch(q); }, 650);
@@ -2007,10 +1989,11 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<div class="search"><label class="flabel" for="place-name">Search places or addresses</label>' +
       '<div class="search-action-row"><div class="searchbox">' + SEARCH_ICON +
       '<input id="place-name" maxlength="80" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="place-suggest" placeholder="Enter a place or address"></div>' +
-      '<button type="button" class="primary search-submit" data-act="search-exact" aria-label="Search places">Search</button></div>' +
+      '<button type="button" class="primary search-submit" data-act="search-exact" aria-label="Search Photon places">Search</button></div>' +
       '<ul class="suggest" id="place-suggest" role="listbox" aria-label="Search results" hidden></ul></div>' +
       '<div class="sub" id="search-status" role="status" aria-live="polite">' + SEARCH_HINT + '</div>' +
-      '<div class="search-fallback">' +
+      '<div class="search-fallback" id="search-google-fallback" hidden>' +
+      '<span class="sub">No Photon result? Find the place in Google Maps, copy its link, and paste it below.</span>' +
       '<a id="search-google-link" target="_blank" rel="noopener noreferrer" href="' + searchMapsHref('',c.id) + '">Search Google Maps</a></div>' +
       '<label class="field" for="place-link">Google Maps location link or street address (if search finds nothing)' +
       '<input id="place-link" maxlength="1000" autocomplete="off" inputmode="url" placeholder="Paste full Google Maps URL or 723 S Casino Center Blvd"></label>' +
