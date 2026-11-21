@@ -1912,7 +1912,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   function locLine(p) {
     if (hasLL(p)) return '';
     if (p.q || safeMapsLink(p.mapLink)) return '<div class="loc finding">' +
-      (p.q ? 'Address: ' + esc(p.q) : 'Google Maps link saved') +
+      (safeMapsLink(p.mapLink) ? 'Google Maps link saved' + (p.q ? ': ' + esc(p.q) : '') : 'Address: ' + esc(p.q)) +
       ' · No GPS pin yet. <a href="' + esc(mapURL(p)) + '" target="_blank" rel="noopener noreferrer">Open map</a> ' +
       '<button type="button" class="link" data-act="set-loc" data-id="' + p.id + '">Change</button></div>';
     if (p.kind === 'stay') return '<div class="loc finding">Add the address once it is booked. <button type="button" class="link" data-act="set-loc" data-id="' + p.id + '">Set location</button></div>';
