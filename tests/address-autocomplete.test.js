@@ -67,7 +67,7 @@ async function run(){
     await h.runSearch('723 S Casino Center Blvd, Las Vegas, NV 89101');
     assert.equal(suggestion.hidden,false);
     assert.match(suggestion.innerHTML,/data-act="pick-address"/);
-    assert.match(status.textContent,/Use the typed address/);
+    assert.match(status.textContent,/Photon is temporarily unavailable/);
   });
   await test('clicking typed address creates stop with correct Google Maps address',()=>{
     const count=h.data.places.length;
