@@ -622,6 +622,8 @@ html { overflow-x: hidden }
 .search-fallback button,.search-fallback a{font:inherit;font-size:13px;font-weight:650;min-height:40px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;padding:8px 11px;border:1px solid var(--line);color:var(--ink);background:var(--surface);text-decoration:none}
 .search-fallback a{color:var(--primary)}
 .search-credit{font-size:11px;margin:0 0 5px}
+.google-fallback-link{gap:8px}
+.google-fallback-link img{width:22px;height:22px;object-fit:contain;flex:none}
 
 
 .map-link-preview{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px;color:var(--muted);font-size:13px}
@@ -1370,14 +1372,48 @@ if (typeof module !== 'undefined') module.exports = Core;
   var searchCache = Object.create(null), searchAbort = null;
   function searchKey(q, city) { return city + ':' + q.trim().toLowerCase(); }
   function searchMapsHref(q, city) {
-    return 'https://www.google.com/maps/search/?api=1&query=' +
-      encodeURIComponent((q ? q + ', ' : '') + cityName(city));
+    var text=String(q||'').trim(), cityLabel=cityName(city);
+    var query=text ? text+(cityLabel&&text.toLowerCase().indexOf(cityLabel.toLowerCase())<0?', '+cityLabel:'') : cityLabel;
+    return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(query);
   }
   function showGoogleFallback(show, q) {
     var wrap = document.getElementById('search-google-fallback');
     var link = document.getElementById('search-google-link');
     if (link) link.href = searchMapsHref(q || '', ui.tab);
     if (wrap) wrap.hidden = !show;
+  }
+  /* One tap creates a linked itinerary stop and opens the Google Maps search.
+     Without the Google Places API, a search URL is not a verified business pin. */
+  function addGoogleFallback() {
+    var input=document.getElementById('place-name'),q=input&&input.value.trim(),city=ui.tab;
+    if(!ui.adding||!q||q.length<3){setStatus('Enter at least 3 letters before using Google Maps.');return;}
+    var mapsUrl=searchMapsHref(q,city);
+    var query=new URL(mapsUrl).searchParams.get('query')||q;
+    /* Open immediately while the click is still user-initiated, then save the stop. */
+    try { window.open(mapsUrl,'_blank','noopener,noreferrer'); } catch(e) {}
+    clearTimeout(searchTimer);++searchSeq;
+    if(searchAbort){searchAbort.abort();searchAbort=null;}
+    var name=q.slice(0,80), entry={kind:'mapslink',mapLink:mapsUrl,q:query};
+    var stayBox=document.getElementById('place-stay'),stay=stayBox&&stayBox.checked?stayOf(city):null;
+    if(stay){
+      fillStay(stay,{name:name,lat:null,lng:null,q:query,pin:false});
+      applyLocation(stay,entry);
+      ui.sel=stay.id;
+    }else{
+      var duplicate=cityPlaces(city).find(function(p){return p.name.toLowerCase()===name.toLowerCase();});
+      if(duplicate){
+        if(!hasLL(duplicate)&&!safeMapsLink(duplicate.mapLink))applyLocation(duplicate,entry);
+        ui.sel=duplicate.id;
+      }else{
+        var np={id:'u-'+uid(),city:city,name:name,lat:null,lng:null,q:'',note:'',date:'',time:'',pin:false};
+        applyLocation(np,entry);stamp(np);data.places.push(np);
+        logIt('added',np.name+' in '+cityName(city)+' via Google Maps search');
+        ui.sel=np.id;
+      }
+    }
+    results=[];active=-1;ui.adding=false;
+    ui.msg='Google Maps search link saved for '+name+'. The exact location has not been verified.';
+    save();render();
   }
   function useSearchResults(seq, q, city, found) {
     var input = document.getElementById('place-name');
@@ -1393,8 +1429,8 @@ if (typeof module !== 'undefined') module.exports = Core;
     showSuggest();
     showGoogleFallback(!results.length, q);
     setStatus(results.length ? 'Select a Photon result to add it.' :
-      typedAddress() ? 'Photon found no match. Select your typed address or search Google Maps below.' :
-      'Photon found no matches. Search Google Maps below, then paste its share link.');
+      typedAddress() ? 'Photon found no match. Select the typed address or tap Google Maps to add a linked stop.' :
+      'Photon found no matches. Tap Google Maps below to add a linked stop automatically.');
   }
   function runSearch(q) {
     var seq = ++searchSeq, city = ui.tab;
@@ -1424,7 +1460,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       .catch(function(){
         if (seq !== searchSeq || city !== ui.tab) return;
         results=[]; active=-1; showSuggest(); showGoogleFallback(true,q);
-        setStatus('Photon is temporarily unavailable. Search Google Maps below or retry.');
+        setStatus('Photon is unavailable. Tap Google Maps to add this place with a Maps search link.');
       }).then(function(){ if (timeout) clearTimeout(timeout); if (searchAbort===controller) searchAbort=null; });
   }
   function searchExactName() {
@@ -1993,8 +2029,9 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<ul class="suggest" id="place-suggest" role="listbox" aria-label="Search results" hidden></ul></div>' +
       '<div class="sub" id="search-status" role="status" aria-live="polite">' + SEARCH_HINT + '</div>' +
       '<div class="search-fallback" id="search-google-fallback" hidden>' +
-      '<span class="sub">No Photon result? Find the place in Google Maps, copy its link, and paste it below.</span>' +
-      '<a id="search-google-link" target="_blank" rel="noopener noreferrer" href="' + searchMapsHref('',c.id) + '">Search Google Maps</a></div>' +
+      '<span class="sub">No Photon match? Tap Google Maps to add a linked stop and open the map automatically.</span>' +
+      '<a id="search-google-link" class="google-fallback-link" data-act="google-fallback" target="_blank" rel="noopener noreferrer" href="' + searchMapsHref('',c.id) + '">' +
+      '<img src="https://www.google.com/images/branding/product/1x/maps_48dp.png" alt="" width="22" height="22" loading="lazy"> Google Maps · Add stop</a></div>' +
       '<label class="field" for="place-link">Google Maps location link or street address (if search finds nothing)' +
       '<input id="place-link" maxlength="1000" autocomplete="off" inputmode="url" placeholder="Paste full Google Maps URL or 723 S Casino Center Blvd"></label>' +
       '<div class="map-link-preview" id="map-link-preview" role="status" aria-live="polite" hidden>' +
@@ -2614,6 +2651,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     }
     if (!app.contains(b)) return;
     var a = b.getAttribute('data-act');
+    if (a === 'google-fallback') { ev.preventDefault(); addGoogleFallback(); return; }
     if (a === 'search-exact') { searchExactName(); return; }
     if (a === 'pick-address') { pickTypedAddress(); return; }
     if (a === 'pick') { pick(+b.dataset.i); return; }
