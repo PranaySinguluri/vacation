@@ -85,7 +85,7 @@ test('invalid map URL is not emitted when imported',()=>{
   assert.equal(cleaned.q,address);
 });
 test('forms explicitly support addresses and short Google Maps links',()=>{
-  assert.match(html,/Street address or Google Maps link/);
+  assert.match(html,/Google Maps location link or street address/);
   assert.match(html,/applyLocation\(target, entry\)/);
   assert.ok(!html.includes('No location found in that. Use the full link'));
 });
