@@ -2753,7 +2753,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       var entry = link ? locationEntry(link, ui.tab) : null;
       if (link && !entry) return fail('Enter a valid street address, Google Maps URL, or coordinates.');
       // Treat a numbered address entered into the name field as an address too.
-      if (!entry && !ui.editing && /^\\d{1,6}\\s+[a-z]/i.test(name)) {
+      if (!entry && !ui.editing && /^\d{1,6}\s+[a-z]/i.test(name)) {
         var addressFromName = locationEntry(name, ui.tab);
         if (addressFromName && addressFromName.kind === 'address') entry = addressFromName;
       }
