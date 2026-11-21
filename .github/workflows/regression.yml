@@ -22,3 +22,4 @@ jobs:
           node tests/location-input.test.js
           node tests/address-autocomplete.test.js
           node tests/direct-add-stop.test.js
+          node tests/google-maps-autofill.test.js
