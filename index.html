@@ -55,6 +55,13 @@ button.av.me.selected{outline:2px solid var(--primary-ink);outline-offset:-4px}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .flight-local-tag{display:inline-block;padding:2px 7px;border-radius:8px;background:var(--primary-soft);color:var(--primary);font-size:11px;white-space:nowrap;font-weight:600;margin-inline-start:5px}
 .flight-local-hint{margin:6px 0;color:var(--muted);font-size:12px}
+.flight-segments{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.flight-segments h5{margin:0 0 8px;font-size:13px}
+.flight-segment{border:1px solid var(--line);border-radius:9px;padding:10px;margin-top:8px}
+.flight-segment h6{margin:0 0 7px;font-size:13px}
+.flight-segment .fline{font-size:13px}
+.flight-segment-edit{margin:12px 0;padding:9px;border:1px solid var(--line);border-radius:9px}
+.flight-segment-edit h5{margin:0 0 8px}
 .flight-tracking{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
 .flight-tracking .btn{font-size:13px;min-height:40px;text-align:center;justify-content:center}
 .flight-tracking p{flex-basis:100%;margin:0;font-size:12px;color:var(--muted)}
@@ -1080,8 +1087,12 @@ if (typeof module !== 'undefined') module.exports = Core;
       arrivalTime:/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(x.arrivalTime||''))?x.arrivalTime:'',
       from:String(x.from||'').slice(0,90),to:String(x.to||'').slice(0,90),
       flight:String(x.flight||'').slice(0,30),airline:String(x.airline||'').slice(0,70),
-      duration:String(x.duration||'').slice(0,24),stops:String(x.stops||'').slice(0,25),
-      tz:String(x.tz||'').slice(0,45)};
+      duration:String(x.duration||'').slice(0,24),stops:String(x.stops||'').slice(0,75),
+      tz:String(x.tz||'').slice(0,45),
+      note:String(x.note||'').slice(0,160),
+      segments:Array.isArray(x.segments)?x.segments.slice(0,5).map(function(y){
+        var part=Object.assign({},y||{});delete part.segments;return flightLeg(part);
+      }):[]};
   }
   /* User-confirmed schedule; only flight logistics, never reservation codes.
      These defaults show for Pranay until a traveler saves a revised itinerary. */
@@ -1110,8 +1121,33 @@ if (typeof module !== 'undefined') module.exports = Core;
       airline:'Frontier Airlines',flight:'F9 3832',duration:'',stops:'',
       tz:'Times local to each airport'}
   };
+  /* Sahithi's Southwest itinerary is only partially visible in her Gmail
+     screenshot. Keep the connection as two distinct flights. The Phoenix
+     arrival minute and the other flight numbers are not shown; do not guess. */
+  var SAHITHI_FLIGHT_DEFAULT={
+    id:'S',
+    arrival:{date:'2026-12-23',time:'20:30',arrivalDate:'2026-12-24',arrivalTime:'',
+      from:'Columbus (CMH)',to:'Phoenix Sky Harbor (PHX)',
+      airline:'Southwest Airlines',flight:'',duration:'',stops:'1 connection via St. Louis (STL)',
+      note:'Exact arrival time in Phoenix is cut off in the screenshot.',
+      segments:[
+        {date:'2026-12-23',time:'20:30',arrivalDate:'2026-12-23',arrivalTime:'21:00',
+          from:'Columbus (CMH)',to:'St. Louis (STL)',
+          airline:'Southwest Airlines',flight:'WN 1282',duration:'1h 30m',stops:''},
+        {date:'2026-12-23',time:'21:45',arrivalDate:'2026-12-24',arrivalTime:'',
+          from:'St. Louis (STL)',to:'Phoenix Sky Harbor (PHX)',
+          airline:'Southwest Airlines',flight:'',duration:'',stops:'',
+          note:'Phoenix arrival time is truncated and this leg\'s flight number is not shown.'}
+      ]},
+    departure:{date:'2027-01-05',time:'17:10',arrivalDate:'2027-01-05',arrivalTime:'22:45',
+      from:'Phoenix Sky Harbor (PHX)',to:'Columbus (CMH)',
+      airline:'Southwest Airlines',flight:'',duration:'',stops:'',
+      note:'Return flight number and any intermediate stops are not visible.'}
+  };
   function flightFor(pid){
-    var defaults=pid==='P'?PRANAY_FLIGHT_DEFAULT:pid==='R'?RAMYA_FLIGHT_DEFAULT:{};
+    var defaults=pid==='P'?PRANAY_FLIGHT_DEFAULT:
+      pid==='R'?RAMYA_FLIGHT_DEFAULT:
+      pid==='S'?SAHITHI_FLIGHT_DEFAULT:{};
     var p=flights[pid]||defaults;
     return {id:pid,arrival:flightLeg(p.arrival),departure:flightLeg(p.departure)};
   }
@@ -1638,6 +1674,12 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   app.addEventListener('input', function (e) {
     if(ui.flightEditing&&ui.flightDraft&&e.target&&/^flt-(arrival|departure)-/.test(e.target.id||'')){
+      var seg=e.target.id.match(/^flt-(arrival|departure)-seg([0-4])-(.+)$/);
+      if(seg){
+        var draft=ui.flightDraft[seg[1]],arr=draft&&draft.segments,item=arr&&arr[+seg[2]];
+        if(item&&Object.prototype.hasOwnProperty.call(item,seg[3]))item[seg[3]]=e.target.value;
+        return;
+      }
       var bits=e.target.id.match(/^flt-(arrival|departure)-(.+)$/);
       if(bits&&Object.prototype.hasOwnProperty.call(ui.flightDraft[bits[1]],bits[2])){
         ui.flightDraft[bits[1]][bits[2]]=e.target.value;
@@ -2403,6 +2445,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       DEN:'America/Denver',SLC:'America/Denver',
       IAH:'America/Chicago',HOU:'America/Chicago',AUS:'America/Chicago',
       SAT:'America/Chicago',ORD:'America/Chicago',MDW:'America/Chicago',
+      CMH:'America/New_York',STL:'America/Chicago',
       JFK:'America/New_York',LGA:'America/New_York',EWR:'America/New_York',
       BOS:'America/New_York',ATL:'America/New_York',MIA:'America/New_York',
       MCO:'America/New_York',IAD:'America/New_York',DCA:'America/New_York'
@@ -2463,6 +2506,27 @@ if (typeof module !== 'undefined') module.exports = Core;
       '. Choose the flight date there. Live position, delays and gates may be unavailable until close to departure. Booking times above stay unchanged.</p>'+
       '</div>';
   }
+  function flightSegmentsHTML(leg){
+    var parts=Array.isArray(leg.segments)?leg.segments:[];
+    if(!parts.length)return '';
+    return '<div class="flight-segments"><h5>Flight connections ('+parts.length+' legs)</h5>'+
+      parts.map(function(seg,i){
+        var a=airportLocalLabel(seg.from,seg.date),b=airportLocalLabel(seg.to,seg.arrivalDate);
+        return '<div class="flight-segment"><h6>Leg '+(i+1)+': '+esc(seg.from||'?')+
+          ' → '+esc(seg.to||'?')+'</h6>'+
+          '<span class="fline"><b>Departure:</b> '+esc(flightDisplayDate(seg.date)||'Date not shown')+
+          (seg.time?', '+esc(fmtClock(seg.time)):' · Time not shown')+
+          ' <span class="flight-local-tag">'+esc(a.label)+'</span></span>'+
+          '<span class="fline"><b>Arrival:</b> '+esc(flightDisplayDate(seg.arrivalDate)||'Date not shown')+
+          (seg.arrivalTime?', '+esc(fmtClock(seg.arrivalTime)):' · Exact time not shown')+
+          ' <span class="flight-local-tag">'+esc(b.label)+'</span></span>'+
+          '<span class="fline"><b>Flight:</b> '+esc(seg.airline||'Airline not shown')+
+          (seg.flight?' · '+esc(seg.flight):' · Flight number not shown')+'</span>'+
+          (seg.duration?'<span class="fline"><b>Duration:</b> '+esc(seg.duration)+'</span>':'')+
+          (seg.note?'<p class="flight-local-hint">'+esc(seg.note)+'</p>':'')+
+          flightTrackingHTML(seg)+'</div>';
+      }).join('')+'</div>';
+  }
   function flightLegDisplay(title,leg){
     var depart=flightDisplayDate(leg.date),land=flightDisplayDate(leg.arrivalDate);
     var has=!!(depart||leg.time||land||leg.arrivalTime||leg.from||leg.to||leg.airline||leg.flight);
@@ -2475,14 +2539,15 @@ if (typeof module !== 'undefined') module.exports = Core;
         (leg.from?' · '+esc(leg.from):'')+
         ' <span class="flight-local-tag">'+esc(origin.label)+'</span></span>'+
       '<span class="fline"><b>Flight arrival:</b> '+esc(land||'Date not set')+
-        (leg.arrivalTime?', '+esc(fmtClock(leg.arrivalTime)):'')+
+        (leg.arrivalTime?', '+esc(fmtClock(leg.arrivalTime)):' · Exact time not shown')+
         (leg.to?' · '+esc(leg.to):'')+
         ' <span class="flight-local-tag">'+esc(destination.label)+'</span></span>'+
       (leg.airline||leg.flight?'<span class="fline"><b>Flight:</b> '+esc([leg.airline,leg.flight].filter(Boolean).join(' '))+'</span>':'')+
-      (leg.duration||leg.stops?'<span class="fline"><b>Duration:</b> '+
+      (leg.duration||leg.stops?'<span class="fline"><b>'+(leg.duration?'Duration:':'Connections:')+'</b> '+
         esc([leg.duration,leg.stops].filter(Boolean).join(' · '))+'</span>':'')+
+      (leg.note?'<p class="flight-local-hint">'+esc(leg.note)+'</p>':'')+
       '<p class="flight-local-hint">Times shown are local to each airport, as printed on the flight itinerary.</p>'+
-      flightTrackingHTML(leg):
+      (leg.segments&&leg.segments.length?flightSegmentsHTML(leg):flightTrackingHTML(leg)):
       '<p class="sub">Flight details have not been added for this person yet. No times are assumed.</p>')+'</div>';
   }
   function flightInputField(pid,kind,key,label,type,placeholder,wide){
@@ -2490,6 +2555,30 @@ if (typeof module !== 'undefined') module.exports = Core;
     return '<label'+(wide?' class="wide"':'')+' for="'+id+'">'+esc(label)+
       '<input type="'+(type||'text')+'" id="'+id+'" name="'+id+'" maxlength="90"'+
       (placeholder?' placeholder="'+esc(placeholder)+'"':'')+' value="'+esc(value)+'"></label>';
+  }
+  function flightSegmentEditInput(kind,i,seg,key,label,type){
+    var id='flt-'+kind+'-seg'+i+'-'+key;
+    return '<label for="'+id+'">'+esc(label)+
+      '<input id="'+id+'" type="'+(type||'text')+'" maxlength="90" value="'+esc(seg[key]||'')+'"></label>';
+  }
+  function flightSegmentEditBox(kind){
+    var legs=ui.flightDraft&&ui.flightDraft[kind]&&ui.flightDraft[kind].segments||[];
+    if(!legs.length)return '';
+    return '<div class="flight-segments"><h5>Connecting flights — edit each leg separately</h5>'+
+      legs.map(function(seg,i){
+        return '<div class="flight-segment-edit"><h5>Leg '+(i+1)+'</h5><div class="flight-fields">'+
+          flightSegmentEditInput(kind,i,seg,'date','Takeoff date','date')+
+          flightSegmentEditInput(kind,i,seg,'time','Takeoff time','time')+
+          flightSegmentEditInput(kind,i,seg,'arrivalDate','Landing date','date')+
+          flightSegmentEditInput(kind,i,seg,'arrivalTime','Landing time','time')+
+          flightSegmentEditInput(kind,i,seg,'from','From','text')+
+          flightSegmentEditInput(kind,i,seg,'to','To','text')+
+          flightSegmentEditInput(kind,i,seg,'airline','Airline','text')+
+          flightSegmentEditInput(kind,i,seg,'flight','Flight number','text')+
+          flightSegmentEditInput(kind,i,seg,'duration','Flight duration','text')+
+          flightSegmentEditInput(kind,i,seg,'note','Ticket note','text')+
+          '</div></div>';
+      }).join('')+'</div>';
   }
   function flightEditBox(pid,kind,title){
     return '<div class="flight-box"><h4>'+esc(title)+'</h4><div class="flight-fields">'+
@@ -2504,7 +2593,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       flightInputField(pid,kind,'duration','Duration','text','2h 43m',false)+
       flightInputField(pid,kind,'stops','Stops','text','Nonstop',false)+
       flightInputField(pid,kind,'tz','Time zones (if known)','text','Airport-local times',true)+
-      '</div></div>';
+      '</div>'+flightSegmentEditBox(kind)+'</div>';
   }
   function flightPanel(){
     var pid=ui.flightPerson;
@@ -3155,6 +3244,12 @@ if (typeof module !== 'undefined') module.exports = Core;
           var el=document.getElementById('flt-'+kind+'-'+field);
           if(el)ui.flightDraft[kind][field]=el.value;
         });
+        (ui.flightDraft[kind].segments||[]).forEach(function(seg,i){
+          ['date','time','arrivalDate','arrivalTime','from','to','airline','flight','duration','note'].forEach(function(field){
+            var el=document.getElementById('flt-'+kind+'-seg'+i+'-'+field);
+            if(el)seg[field]=el.value;
+          });
+        });
       });
       flightOCRRead(el.files[0]);return;
     }
@@ -3184,11 +3279,23 @@ if (typeof module !== 'undefined') module.exports = Core;
         ['date','time','arrivalDate','arrivalTime','from','to','airline','flight','duration','stops','tz'].forEach(function(field){
           next[kind][field]=val('flt-'+kind+'-'+field);
         });
+        var oldSegments=ui.flightDraft&&ui.flightDraft[kind]&&ui.flightDraft[kind].segments||[];
+        next[kind].segments=oldSegments.map(function(segment,i){
+          var copy=Object.assign({},segment);
+          ['date','time','arrivalDate','arrivalTime','from','to','airline','flight','duration','note'].forEach(function(field){
+            var input=document.getElementById('flt-'+kind+'-seg'+i+'-'+field);
+            if(input)copy[field]=input.value.trim();
+          });
+          return copy;
+        });
       });
       // Validate every entered date, not only its format, before saving.
       var bad=['arrival','departure'].some(function(k){
-        return ['date','arrivalDate'].some(function(field){
-          var date=next[k][field];return date&&!flightDisplayDate(date);
+        var legs=[next[k]].concat(next[k].segments||[]);
+        return legs.some(function(leg){
+          return ['date','arrivalDate'].some(function(field){
+            var date=leg[field];return date&&!flightDisplayDate(date);
+          });
         });
       });
       if(bad)return fail('One flight date is invalid. Check the calendar date and year.');

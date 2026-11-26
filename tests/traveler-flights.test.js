@@ -143,11 +143,97 @@ async function run(){
     assert.equal(pranay.departure.time,'21:19');
     assert.notEqual(pranay.arrival.date,ramya.arrival.date);
     assert.notEqual(pranay.departure.time,ramya.departure.time);
-    for(const id of ['A','D','H','M','S']){
+    for(const id of ['A','D','H','M']){
       const x=h.flightFor(id);
       assert.equal(x.arrival.date,'');
       assert.equal(x.departure.date,'');
     }
+  });
+  test('Sahithi outbound has two distinct connecting flights via St. Louis',()=>{
+    const f=h.flightFor('S'),out=f.arrival;
+    assert.equal(out.date,'2026-12-23');
+    assert.equal(out.time,'20:30');
+    assert.equal(out.arrivalDate,'2026-12-24');
+    assert.equal(out.arrivalTime,'','Phoenix landing minute is cut off in screenshot');
+    assert.equal(out.from,'Columbus (CMH)');
+    assert.equal(out.to,'Phoenix Sky Harbor (PHX)');
+    assert.equal(out.flight,'','No single flight number applies to the entire trip');
+    assert.equal(out.segments.length,2);
+    const first=out.segments[0],second=out.segments[1];
+    assert.equal(first.from,'Columbus (CMH)');
+    assert.equal(first.to,'St. Louis (STL)');
+    assert.equal(first.date,'2026-12-23');
+    assert.equal(first.time,'20:30');
+    assert.equal(first.arrivalDate,'2026-12-23');
+    assert.equal(first.arrivalTime,'21:00');
+    assert.equal(first.flight,'WN 1282');
+    assert.equal(first.duration,'1h 30m');
+    assert.equal(second.from,'St. Louis (STL)');
+    assert.equal(second.to,'Phoenix Sky Harbor (PHX)');
+    assert.equal(second.date,'2026-12-23');
+    assert.equal(second.time,'21:45');
+    assert.equal(second.arrivalDate,'2026-12-24');
+    assert.equal(second.arrivalTime,'');
+    assert.equal(second.flight,'');
+  });
+  test('Sahithi return is Jan 5 PHX to CMH with known times but unknown flight number',()=>{
+    const back=h.flightFor('S').departure;
+    assert.equal(back.date,'2027-01-05');
+    assert.equal(back.time,'17:10');
+    assert.equal(back.arrivalDate,'2027-01-05');
+    assert.equal(back.arrivalTime,'22:45');
+    assert.equal(back.from,'Phoenix Sky Harbor (PHX)');
+    assert.equal(back.to,'Columbus (CMH)');
+    assert.equal(back.airline,'Southwest Airlines');
+    assert.equal(back.flight,'');
+    assert.equal(back.stops,'','Do not invent nonstop service');
+  });
+  test('Sahithi panel shows separate connection and only the verified WN1282 tracking action',()=>{
+    h.ui.flightPerson='S';
+    const html=h.flightPanel();
+    assert.match(html,/Sahithi · Flights/);
+    assert.match(html,/Dec 23, 2026, 8:30 PM/);
+    assert.match(html,/Dec 23, 2026, 9 PM/);
+    assert.match(html,/Dec 23, 2026, 9:45 PM/);
+    assert.match(html,/Dec 24, 2026/);
+    assert.match(html,/Jan 5, 2027, 5:10 PM/);
+    assert.match(html,/Jan 5, 2027, 10:45 PM/);
+    assert.match(html,/1 connection via St. Louis/);
+    assert.match(html,/Flight connections \(2 legs\)/);
+    assert.match(html,/Track WN1282/);
+    assert.match(html,/data\/flights\/wn1282/);
+    assert.match(html,/Exact time not shown/);
+    assert.match(html,/Flight number not shown/);
+    assert.ok(!html.includes('12:00 AM'),'must not guess Phoenix arrival time');
+    assert.ok(!html.includes('B7QLKP'),'must not display confirmation number');
+    assert.ok(!html.includes('WN1283'),'must not guess second flight number');
+    h.ui.flightPerson=null;
+  });
+  test('Sahithi edit form exposes both connecting legs for corrections',()=>{
+    h.ui.flightPerson='S';
+    h.act('flight-edit',{});
+    const html=h.flightPanel();
+    assert.match(html,/Connecting flights — edit each leg separately/);
+    assert.ok(html.includes('id="flt-arrival-seg0-flight"'));
+    assert.ok(html.includes('id="flt-arrival-seg1-flight"'));
+    assert.ok(html.includes('id="flt-arrival-seg1-arrivalTime"'));
+    assert.ok(html.includes('id="flt-departure-time"'));
+    h.act('flight-cancel',{});
+    h.ui.flightPerson=null;
+  });
+  test('saving an edited flight itinerary retains both connection legs',()=>{
+    const out=h.flightFor('S').arrival,back=h.flightFor('S').departure;
+    h.saveFlightFor('S',{arrival:out,departure:back});
+    const saved=h.flightFor('S');
+    assert.equal(saved.arrival.segments.length,2);
+    assert.equal(saved.arrival.segments[0].flight,'WN 1282');
+    assert.equal(saved.arrival.segments[1].time,'21:45');
+    assert.equal(saved.arrival.arrivalTime,'');
+    assert.equal(saved.departure.arrivalTime,'22:45');
+    const stored=JSON.parse(local['tripwallet.flights.v1']);
+    assert.equal(stored.S.arrival.segments.length,2);
+    assert.equal(stored.P,undefined);
+    assert.equal(stored.R,undefined);
   });
   test('tapping Pranay opens details with correct overnight date and times',()=>{
     h.act('flight-person',{id:'P'});
