@@ -143,7 +143,7 @@ async function run(){
     assert.equal(pranay.departure.time,'21:19');
     assert.notEqual(pranay.arrival.date,ramya.arrival.date);
     assert.notEqual(pranay.departure.time,ramya.departure.time);
-    for(const id of ['H','M']){
+    for(const id of ['M']){
       const x=h.flightFor(id);
       assert.equal(x.arrival.date,'');
       assert.equal(x.departure.date,'');
@@ -281,6 +281,69 @@ async function run(){
     assert.equal(h.flightFor('A').arrival.time,'20:09');
     assert.equal(h.flightFor('R').arrival.time,'18:51');
     assert.equal(h.flightFor('S').arrival.segments[0].flight,'WN 1282');
+  });
+  test('Haneela price quote outbound crosses midnight on Dec 23–24',()=>{
+    const a=h.flightFor('H').arrival;
+    assert.equal(a.date,'2026-12-23');
+    assert.equal(a.time,'21:20');
+    assert.equal(a.arrivalDate,'2026-12-24');
+    assert.equal(a.arrivalTime,'00:15');
+    assert.equal(a.from,'Sacramento (SMF)');
+    assert.equal(a.to,'Phoenix Sky Harbor (PHX)');
+    assert.equal(a.flight,'WN 1415');
+    assert.equal(a.airline,'Southwest Airlines');
+    assert.equal(a.duration,'1h 55m');
+    assert.equal(a.stops,'Nonstop');
+    assert.match(a.note,/Price quote only/);
+    assert.match(a.note,/booking not confirmed/);
+  });
+  test('Haneela return is Jan 5 Phoenix to Sacramento on WN1470',()=>{
+    const a=h.flightFor('H').departure;
+    assert.equal(a.date,'2027-01-05');
+    assert.equal(a.time,'20:55');
+    assert.equal(a.arrivalDate,'2027-01-05');
+    assert.equal(a.arrivalTime,'21:55');
+    assert.equal(a.from,'Phoenix Sky Harbor (PHX)');
+    assert.equal(a.to,'Sacramento (SMF)');
+    assert.equal(a.flight,'WN 1470');
+    assert.equal(a.airline,'Southwest Airlines');
+    assert.equal(a.duration,'2h 00m');
+    assert.equal(a.stops,'Nonstop');
+    assert.match(a.note,/Price quote only/);
+  });
+  test('Haneela shows local PST/MST zones and both Southwest trackers',()=>{
+    h.ui.flightPerson='H';
+    const html=h.flightPanel();
+    assert.match(html,/Haneela · Flights/);
+    assert.match(html,/Dec 23, 2026, 9:20 PM/);
+    assert.match(html,/Dec 24, 2026, 12:15 AM/);
+    assert.match(html,/Jan 5, 2027, 8:55 PM/);
+    assert.match(html,/Jan 5, 2027, 9:55 PM/);
+    assert.match(html,/Sacramento local time \(PST\)/);
+    assert.match(html,/Phoenix Sky Harbor local time \(MST\)/);
+    assert.match(html,/Track WN1415/);
+    assert.match(html,/Track WN1470/);
+    assert.match(html,/data\/flights\/wn1415/);
+    assert.match(html,/data\/flights\/wn1470/);
+    assert.match(html,/booking not confirmed/);
+    assert.doesNotMatch(html,/Booking confirmed|Paid|Ticketed/);
+    assert.equal(h.flightFor('H').arrival.segments.length,0);
+    assert.equal(h.flightFor('H').departure.segments.length,0);
+    h.ui.flightPerson=null;
+  });
+  test('Haneela existing populated edits win over default quote, blank cards can use defaults',()=>{
+    assert.equal(h.flightFor('H').arrival.date,'2026-12-23');
+    h.saveFlightFor('H',{arrival:{date:'2026-12-22',time:'18:00'},departure:{date:'2027-01-04',time:'16:00'}});
+    assert.equal(h.flightFor('H').arrival.date,'2026-12-22');
+    assert.equal(h.flightFor('H').departure.time,'16:00');
+    assert.equal(h.flightFor('P').arrival.date,'2026-12-15');
+    assert.equal(h.flightFor('R').arrival.date,'2026-12-16');
+    assert.equal(h.flightFor('A').arrival.flight,'AS 623');
+    assert.equal(h.flightFor('D').arrival.segments[0].flight,'AA 3853');
+    assert.equal(h.flightFor('S').arrival.segments[0].flight,'WN 1282');
+    h.saveFlightFor('H',{arrival:{},departure:{}});
+    assert.equal(h.flightFor('H').arrival.date,'2026-12-23');
+    assert.equal(h.flightFor('H').departure.time,'20:55');
   });
   test('Sahithi outbound has two distinct connecting flights via St. Louis',()=>{
     const f=h.flightFor('S'),out=f.arrival;
@@ -453,11 +516,11 @@ async function run(){
   });
   test('saving another traveler in local mode does not modify Pranay',()=>{
     const initial=h.flightFor('P').departure.arrivalDate;
-    h.saveFlightFor('H',{arrival:{date:'2026-12-24',time:'10:15'},departure:{date:'2027-01-02',time:'14:30'}});
-    assert.equal(h.flightFor('H').arrival.date,'2026-12-24');
+    h.saveFlightFor('M',{arrival:{date:'2026-12-24',time:'10:15'},departure:{date:'2027-01-02',time:'14:30'}});
+    assert.equal(h.flightFor('M').arrival.date,'2026-12-24');
     assert.equal(h.flightFor('P').departure.arrivalDate,initial);
     const saved=JSON.parse(local['tripwallet.flights.v1']);
-    assert.equal(saved.H.arrival.date,'2026-12-24');
+    assert.equal(saved.M.arrival.date,'2026-12-24');
     assert.equal(saved.P,undefined);
   });
   test('flight OCR raw text and booking reference are not stored',()=>{
