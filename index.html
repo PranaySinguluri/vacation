@@ -2418,11 +2418,16 @@ if (typeof module !== 'undefined') module.exports = Core;
       ['british airways','BA'],['air india','AI'],['indigo','6E'],
       ['lufthansa','LH'],['klm','KL'],['air france','AF']
     ];
-    var match=/^([A-Z0-9]{2})([0-9]{1,5}[A-Z]?)$/.exec(raw);
-    if(!match && /^[0-9]{1,5}[A-Z]?$/.test(raw)){
+    var match=null;
+    // A bare numeric flight number needs the actual airline; "4655" is
+    // not an airline code "46" followed by flight "55".
+    if(/^[0-9]+$/.test(raw)){
+      if(raw.length>5)return null;
       var code='';
       for(var i=0;i<codes.length;i++)if(airline.indexOf(codes[i][0])>=0){code=codes[i][1];break;}
       if(code)match=[code+raw,code,raw];
+    }else{
+      match=/^([A-Z0-9]{2})([0-9]{1,5}[A-Z]?)$/.exec(raw);
     }
     if(!match) return null;
     var code=match[1],number=match[2],id=code+number;
