@@ -268,6 +268,55 @@ async function run(){
     assert.equal(second.duration,'1h 39m');
     assert.match(second.note,/Operated by Envoy Air as American Eagle/);
   });
+  test('Divya arrival and return are separate clearly labeled journeys, not a single round trip',()=>{
+    h.ui.flightPerson='D';
+    const markup=h.flightPanel();
+    const cards=[...markup.matchAll(/<section class="flight-box flight-card">[\s\S]*?<\/section>/g)].map(m=>m[0]);
+    assert.equal(cards.length,2,'Exactly one arrival and one return card');
+    const [arrival,returnTrip]=cards;
+    assert.match(arrival,/Arrival journey · Dec 24, 2026/);
+    assert.match(arrival,/Columbia Regional \(COU\) → San Diego \(SAN\)/);
+    assert.match(arrival,/1 connection via Dallas\/Fort Worth \(DFW\), 2h 10m layover/);
+    assert.match(arrival,/AA 3853/);
+    assert.match(arrival,/AA 2568/);
+    assert.doesNotMatch(arrival,/AA 3165|AA 3577|Phoenix Sky Harbor \(PHX\)/);
+    assert.match(returnTrip,/Return journey · Jan 4, 2027/);
+    assert.match(returnTrip,/Phoenix Sky Harbor \(PHX\) → Columbia Regional \(COU\)/);
+    assert.match(returnTrip,/1 connection via Chicago O&#39;Hare \(ORD\), 1h 59m layover/);
+    assert.match(returnTrip,/AA 3165/);
+    assert.match(returnTrip,/AA 3577/);
+    assert.doesNotMatch(returnTrip,/AA 3853|AA 2568|San Diego \(SAN\)/);
+    assert.match(markup,/Different cities:/);
+    assert.match(markup,/Arrives in San Diego \(SAN\); return departs from Phoenix Sky Harbor \(PHX\)/);
+    h.ui.flightPerson=null;
+  });
+  test('compact cards keep schedules and trackers with no repeated explanatory paragraphs',()=>{
+    h.ui.flightPerson='D';
+    const html=h.flightPanel();
+    assert.equal((html.match(/2 flight legs/g)||[]).length,2);
+    assert.equal((html.match(/flight-external-note/g)||[]).length,1);
+    for (const flight of ['AA3853','AA2568','AA3165','AA3577']){
+      assert.equal((html.match(new RegExp('> Track '+flight+' ↗','g'))||[]).length,1);
+    }
+    assert.doesNotMatch(html,/Opens external flight tracking for/);
+    assert.doesNotMatch(html,/Times shown are local to each airport, as printed/);
+    assert.doesNotMatch(html,/Flight departure:|Flight arrival:|Time zone:/);
+    assert.match(html,/Dec 24, 2026, 6:31 PM/);
+    assert.match(html,/Dec 24, 2026, 11:45 PM/);
+    assert.match(html,/Jan 4, 2027, 1:26 PM/);
+    assert.match(html,/Jan 4, 2027, 9:38 PM/);
+    assert.match(html,/may be unavailable until close to departure/);
+    h.ui.flightPerson=null;
+  });
+  test('matched-city and missing return flights do not show a misleading city change',()=>{
+    h.ui.flightPerson='P';
+    assert.doesNotMatch(h.flightPanel(),/Different cities:/);
+    h.ui.flightPerson='R';
+    assert.doesNotMatch(h.flightPanel(),/Different cities:/);
+    h.ui.flightPerson='D';
+    assert.match(h.flightPanel(),/Different cities:/);
+    h.ui.flightPerson=null;
+  });
   test('DivyaTheja UI displays both American Airlines flight tracking links and airport-local time zones',()=>{
     h.ui.flightPerson='D';
     const html=h.flightPanel();
@@ -466,7 +515,7 @@ async function run(){
     assert.match(html,/Jan 5, 2027, 5:10 PM/);
     assert.match(html,/Jan 5, 2027, 10:45 PM/);
     assert.match(html,/1 connection via St. Louis/);
-    assert.match(html,/Flight connections \(2 legs\)/);
+    assert.match(html,/2 flight legs/);
     assert.match(html,/Track WN1282/);
     assert.match(html,/data\/flights\/wn1282/);
     assert.match(html,/Exact time not shown/);
@@ -531,7 +580,7 @@ async function run(){
     assert.match(header,/class="av me" data-act="flight-person" data-id="P"/);
     assert.match(header,/class="av selected" data-act="flight-person" data-id="A"/);
     assert.match(h.flightPanel(),/Akshaya · Flights/);
-    assert.match(h.flightPanel(),/Alaska Airlines AS 623/);
+    assert.match(h.flightPanel(),/Alaska Airlines · AS 623/);
     assert.match(h.flightPanel(),/Dec 24, 2026, 8:09 PM/);
     assert.doesNotMatch(h.flightPanel(),/F9 4655/);
   });
