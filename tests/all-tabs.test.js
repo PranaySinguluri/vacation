@@ -18,7 +18,7 @@ const document = {getElementById:id=>id==='app'?app:null,querySelector:()=>null,
 const window = {confirm:()=>true};window.top=window.self=window;
 const location = {protocol:'file:',origin:'file://',pathname:'/index.html',hash:''};
 const noNetwork = ()=>new Promise(()=>{});
-const src = scripts[2].replace(/\}\)\(\);\s*$/, 'return {act,render,cityTab,photosTab,costsTab,spendingForm,activityHTML,data,ui,CITIES,PEOPLE,CLOUD,person,validExpense,validPayment,cleanExpense,cleanPayment,merge,exportData,cleanLink,setMe:function(id){me=id;}};})();');
+const src = scripts[2].replace(/\}\)\(\);\s*$/, 'return {act,render,cityTab,photosTab,costsTab,sharedExpensesTab,spendingForm,activityHTML,expenseAuditHTML,data,ui,CITIES,PEOPLE,CLOUD,person,validExpense,validPayment,cleanExpense,cleanPayment,merge,exportData,cleanLink,setMe:function(id){me=id;}};})();');
 assert.notEqual(src,scripts[2],'test hook inserted');
 const appContext = {document,window,localStorage:storage,sessionStorage:storage,location,navigator:{},fetch:noNetwork,Core,URL,Intl,TextEncoder,TextDecoder,Uint8Array,console,setTimeout:()=>0,clearTimeout:()=>{}};
 const h = vm.runInNewContext(src,appContext);
@@ -131,8 +131,15 @@ test('settle up records payment',()=>{
   assert.equal(h.data.payments.length,count+1);
   assert.equal(h.data.payments.at(-1).amount,100);
 });
+test('all-person expense ledger shows every paid-by name and no settlement UI',()=>{
+  h.ui.tab='costs';h.setMe(p);
+  const card=h.sharedExpensesTab();
+  assert.match(card,/Paid by traveler/);
+  for(const name of h.PEOPLE.map(x=>x.name))assert.ok(card.includes(name),'missing '+name);
+  assert.doesNotMatch(card,/Your balances|You owe|Settle up/);
+});
 test('photos tab navigation',()=>{h.CLOUD.on=false;h.act('tab',{id:'photos'});assert.match(app.innerHTML,/Photos/);});
-test('removed expenses tab redirects to Photos',()=>{h.act('tab',{id:'costs'});assert.equal(h.ui.tab,'photos');assert.match(app.innerHTML,/Photos/);assert.ok(!app.innerHTML.includes('data-id="costs"'));});
+test('shared Expenses tab is reachable for every traveler',()=>{h.act('tab',{id:'costs'});assert.equal(h.ui.tab,'costs');assert.match(app.innerHTML,/Trip expenses/);assert.ok(app.innerHTML.includes('data-id="costs"'));assert.match(app.innerHTML,/data-act="expense-add"/);});
 test('light and dark CSS rules present',()=>{
   assert.match(html,/@media\(prefers-color-scheme:dark\)/);
   assert.match(html,/\.expense-sheet \.sp-people label/);
