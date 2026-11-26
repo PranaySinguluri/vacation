@@ -694,6 +694,23 @@ html { overflow-x: hidden }
 .search-action-row .searchbox input{min-height:44px}
 .search-action-row .search-submit{flex:none;min-height:44px;padding:0 15px;border-radius:12px;white-space:nowrap}
 @media(max-width:380px){.search-action-row{gap:6px}.search-action-row .search-submit{padding:0 11px}}
+.shared-expenses{max-width:820px;margin:12px auto;padding:18px}
+.expense-heading{gap:12px;align-items:center;flex-wrap:wrap}
+.expense-heading h2{margin:0}
+.expense-heading .primary{min-height:42px}
+.expense-total{margin:14px 0 16px;padding:12px 14px;background:var(--primary-soft);border-radius:12px;display:flex;justify-content:space-between;gap:12px;align-items:center}
+.expense-total strong{font-size:22px;color:var(--ink)}
+.expense-people{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:7px;margin-bottom:16px}
+.expense-person{padding:9px 10px;border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;gap:3px;font-size:13px}
+.expense-person span{color:var(--muted)}
+.expense-entry{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:12px 0}
+.expense-entry .main{min-width:0;flex:1}
+.expense-entry-actions{margin-top:5px;gap:10px}
+.expense-amount{flex:none;font-size:14px}
+.expense-audit{margin-top:20px;padding-top:14px;border-top:1px solid var(--line)}
+.expense-audit h3{margin:0 0 7px}
+.expense-audit .list li{padding:9px 0}
+@media(max-width:500px){.shared-expenses{padding:12px}.expense-heading{align-items:stretch}.expense-heading .primary{width:100%}}
 </style>
 </head>
 <body>
@@ -2405,6 +2422,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   function spendingForm() {
     var editExpense = editingSharedExpense && data.expenses.find(function(e){return e.id===editingSharedExpense;});
     return '<form class="card" id="spending-form"><div class="row"><label class="field">Category<select id="sp-category">'+['Gas','Food','Transport','Activities','Other'].map(function(c){return '<option'+(editExpense && (editExpense.category||'Other')===c?' selected':'')+'>'+c+'</option>';}).join('')+'</select></label><label class="field">Amount (USD)<input id="sp-amount" value="'+(editExpense?(editExpense.amount/100).toFixed(2):'')+'" type="number" inputmode="decimal" min="0.01" step="0.01" required placeholder="0.00"></label></div>' +
+    '<label class="field">What was this for?<input id="sp-desc" maxlength="80" required placeholder="Dinner, gas, hotel..." value="'+esc(editExpense?(editExpense.desc||''):'')+'"></label>' +
     '<label class="field">Paid by<select id="sp-payer" required><option value="">Choose traveler</option>'+PEOPLE.map(function(p){return '<option value="'+esc(p.id)+'"'+(p.id===(editExpense?editExpense.paidBy:me)?' selected':'')+'>'+esc(p.name)+'</option>';}).join('')+'</select></label>' +
     '<label class="field">Date<input id="sp-date" type="date" required value="'+(editExpense?esc(editExpense.date):today())+'"></label>' +
     '<fieldset class="sp-split"><legend>Split between</legend><label class="sp-all"><input type="checkbox" id="sp-all"'+(!editExpense||editExpense.split.length===PEOPLE.length?' checked':'')+'> All 7 travelers</label><div class="sp-people">'+PEOPLE.map(function(p){return '<label><input type="checkbox" name="sp-split" value="'+esc(p.id)+'"'+(!editExpense||editExpense.split.indexOf(p.id)>=0?' checked':'')+'> '+esc(p.name)+'</label>';}).join('')+'</div><div id="sp-preview" class="sub">Split equally among selected travelers</div></fieldset>' +
@@ -2421,6 +2439,66 @@ if (typeof module !== 'undefined') module.exports = Core;
   var expenseCategoryFilter = 'All';
   var expenseFormOpen = false;
   var editingSharedExpense = null;
+  function expenseAuditEntries() {
+    return data.log.filter(function(l){
+      return l.kind==='expense' && ['added','edited','removed'].indexOf(l.act)>=0;
+    }).slice().sort(function(a,b){return String(b.at||'').localeCompare(String(a.at||''));});
+  }
+  function expenseAuditHTML(max) {
+    var entries=expenseAuditEntries().slice(0,max||100);
+    return '<div class="expense-audit" id="expense-activity"><div class="row between"><h3>Expense activity</h3><span class="count">'+
+      entries.length+'</span></div>'+
+      (entries.length?'<ul class="list">'+entries.map(function(l){
+        var when='';
+        try {when=new Date(l.at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});}catch(e){}
+        var verb=l.act==='added'?'added':l.act==='edited'?'edited':'deleted';
+        return '<li><div class="main"><b>'+esc(person(l.who))+' '+verb+' an expense</b>'+
+          '<div class="sub">'+esc(l.text||'')+'</div><div class="sub">'+esc(when)+'</div></div></li>';
+      }).join('')+'</ul>':'<p class="sub">No expense activity yet. Add an expense to begin tracking changes.</p>')+
+      '</div>';
+  }
+  function sharedExpensesTab() {
+    var expenses=(data.expenses||[]).filter(function(e){
+      return Number.isSafeInteger(e.amount)&&e.amount>0;
+    }).slice().sort(function(a,b){
+      return String(b.date||b.at||'').localeCompare(String(a.date||a.at||'')) ||
+        String(b.at||'').localeCompare(String(a.at||''));
+    });
+    var total=expenses.reduce(function(sum,e){return sum+e.amount;},0);
+    var perPerson=PEOPLE.map(function(p){
+      var paid=expenses.reduce(function(sum,e){return sum+(e.paidBy===p.id?e.amount:0);},0);
+      return '<div class="expense-person"><strong>'+esc(p.name)+'</strong>'+
+        '<span>'+esc(Core.fmt(paid))+' paid</span></div>';
+    }).join('');
+    var entries=expenses.map(function(e){
+      var payer=person(e.paidBy),by=person(e.by||e.paidBy);
+      var people=(e.split||[]).map(person).join(', ');
+      return '<li class="expense-entry"><div class="main"><b>'+esc(e.desc||e.category||'Expense')+'</b>'+
+        '<div class="sub">'+esc(e.category||'Other')+' · '+esc(e.date||'Date not entered')+'</div>'+
+        '<div class="sub">Paid by '+esc(payer)+' · Added by '+esc(by)+'</div>'+
+        '<div class="sub">Shared with '+esc(people||'Not specified')+'</div>'+
+        '<div class="row expense-entry-actions"><button type="button" class="link" data-act="expense-edit" data-id="'+
+          esc(e.id)+'">Edit</button><button type="button" class="link danger" data-act="expense-delete" data-id="'+
+          esc(e.id)+'">Delete</button></div></div><strong class="expense-amount">'+
+          esc(Core.fmt(e.amount))+'</strong></li>';
+    }).join('');
+    return '<section class="card shared-expenses" aria-label="Shared trip expenses">'+
+      '<div class="row between expense-heading"><div><h2>Trip expenses</h2>'+
+      '<p class="sub">Shared by all 7 travelers · USD</p></div>'+
+      '<button type="button" class="primary" data-act="expense-add">+ Add expense</button></div>'+
+      '<div class="expense-total"><span>Group spending recorded</span><strong>'+esc(Core.fmt(total))+'</strong></div>'+
+      '<h3>Paid by traveler</h3><div class="expense-people">'+perPerson+'</div>'+
+      '<h3>All expenses <span class="count">'+expenses.length+'</span></h3>'+
+      (entries?'<ul class="list">'+entries+'</ul>':'<p class="sub">No shared expenses yet. Anyone in the group can add the first one.</p>')+
+      expenseAuditHTML(80)+
+      (spending.length?'<p class="sub">Note: '+spending.length+' older device-only purchases are not included here.</p>':'')+
+      '</section>'+
+      (expenseFormOpen?'<div class="edit-overlay expense-overlay" role="presentation">'+
+        '<div class="edit-sheet expense-sheet" role="dialog" aria-modal="true" aria-label="Expense">'+
+        '<div class="edit-top"><span></span><h3>'+(editingSharedExpense?'Edit':'Add')+
+        ' expense</h3><button type="button" class="edit-close" data-act="expense-close" aria-label="Close">×</button></div>'+
+        '<div id="expense-entry-form">'+spendingForm()+'</div></div></div>':'');
+  }
   function costsTab() {
     var usd=data.expenses.filter(function(e){return e.currency==='USD'||!e.currency;});
     var money=function(n){return Core.fmt(n);};
@@ -2836,22 +2914,12 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<details><summary>View extracted screenshot text (not saved)</summary><pre class="flight-ocr-text">'+esc(o.text||'')+'</pre></details></div>';
   }
   function activityHTML() {
-    var log = data.log.slice().reverse();
-    var mem = Object.keys(CLOUD.members), inIds = {};
-    mem.forEach(function (k) { inIds[CLOUD.members[k].person] = CLOUD.members[k]; });
-    var who = '<div class="who"><div class="who-h">Signed in <span class="count">' + mem.length + ' of ' + PEOPLE.length + '</span></div><div class="who-list">' +
-      PEOPLE.map(function (pp) {
-        var m = inIds[pp.id];
-        return '<span class="who-chip' + (m ? ' on' : '') + '" title="' + (m ? 'Google name: ' + esc(m.name || 'unknown') : 'Not signed in yet') + '"><i></i>' + esc(pp.name) + '</span>';
-      }).join('') + '</div></div>';
-    var h = '<div class="logpop" id="activity-card" role="dialog" aria-label="Activity"><div class="row between"><h3>Activity <span class="count">' + log.length + '</span></h3><button class="link" data-act="toggle-log">Close</button></div>' + who +
-      (log.length ? '<div class="logscroll" id="activity-list" tabindex="0" aria-label="Activity, newest first"><ul class="list">' + log.map(logLine).join('') + '</ul></div>' : '<p class="empty">Nothing yet. Adding and removing stops and expenses shows up here with who did it.</p>');
-    h += '<details class="members"><summary>Google accounts used (' + mem.length + ')</summary><ul class="list">' + mem.map(function (k) {
-      var m = CLOUD.members[k];
-      return '<li><div class="main"><div class="ttl">' + esc(person(m.person)) + '</div><div class="sub">Google name: ' + esc(m.name || 'unknown') + '</div></div>' +
-        (k === CLOUD.user.uid ? '' : '<button class="link danger" data-act="reset-member" data-id="' + k + '">Reset</button>') + '</li>';
-    }).join('') + '</ul><p class="sub" style="margin:0">Reset frees a name picked by the wrong person.</p></details></div>';
-    return h;
+    return '<div class="logpop" id="activity-card" role="dialog" aria-label="Expense activity">'+
+      '<div class="row between"><h3>Expense activity · All travelers</h3>'+
+      '<button type="button" class="link" data-act="toggle-log">Close</button></div>'+
+      expenseAuditHTML(150)+
+      (ui.admin?'<p class="sub">Changes to stops and flights are not shown in this expense log.</p>':'')+
+      '</div>';
   }
   function gateHTML() {
     var st = CLOUD.state;
@@ -2888,11 +2956,11 @@ if (typeof module !== 'undefined') module.exports = Core;
         right += '<div class="acctmenu" role="menu"><div class="acct-head">' + face('face big') + '<div class="main"><div class="ttl">' + esc(u.displayName || 'You') + (ui.admin ? ' <span class="adminpill">Admin</span>' : '') + '</div>' +
           '<div class="sub">' + esc(u.email || '') + '</div>' + (me ? '<div class="sub">Traveling as ' + esc(person(me)) + '</div>' : '') + '</div></div>' +
           (CLOUD.state === 'ready' ? '<button type="button" role="menuitem" data-act="invite">Invite friends</button>' +
-            (ui.admin ? '<button type="button" role="menuitem" data-act="toggle-log" aria-controls="activity-card">Activity</button>' : '') : '') +
+            '<button type="button" role="menuitem" data-act="toggle-log" aria-controls="activity-card">Expense activity</button>' : '') +
           '<button type="button" role="menuitem" data-act="download-backup">Download trip backup</button>' +
           '<button type="button" role="menuitem" data-act="sign-out">Sign out</button></div>';
       }
-      if (CLOUD.state === 'ready' && ui.admin && ui.showLog) right += activityHTML();
+      if (CLOUD.state === 'ready' && ui.showLog) right += activityHTML();
     } else if (!CLOUD.on) {
       right = '<button type="button" class="herobtn" data-act="toggle-share">Share</button>';
     }
@@ -2953,11 +3021,11 @@ if (typeof module !== 'undefined') module.exports = Core;
     h += '<div class="tabs" role="tablist">' + CITIES.map(function (c) {
       return '<button class="tab" role="tab" data-act="tab" data-id="' + c.id + '" aria-selected="' + (ui.tab === c.id) + '">' + esc(c.name) + ' <span class="count">' + cityPlaces(c.id).length + '</span></button>';
     }).join('') +
-      '<button class="tab" role="tab" data-act="tab" data-id="photos" aria-selected="' + (ui.tab === 'photos') + '">Photos</button></div>';
+      '<button class="tab" role="tab" data-act="tab" data-id="photos" aria-selected="' + (ui.tab === 'photos') + '">Photos</button>'+
+      '<button class="tab" role="tab" data-act="tab" data-id="costs" aria-selected="' + (ui.tab === 'costs') + '">Expenses <span class="count">' + data.expenses.length + '</span></button></div>';
 
-    if (ui.tab === 'costs') ui.tab = 'photos';
     var c = cityById(ui.tab);
-    h += c ? cityTab(c) : photosTab();
+    h += c ? cityTab(c) : ui.tab==='costs' ? sharedExpensesTab() : photosTab();
     if (!CLOUD.on) h += '<div class="row backup-actions"><button type="button" data-act="download-backup">Download trip backup</button><label class="btn">Restore local backup<input id="restore-backup" type="file" accept=".json,application/json" hidden></label></div>';
     app.innerHTML = h;
     if (c) fetchLegs(cityPlaces(c.id));
@@ -3011,20 +3079,27 @@ if (typeof module !== 'undefined') module.exports = Core;
       row.value=value;ui.flightDraft[k][field]=value;return;
     }
     if (a === 'tab') {
-      ui.tab = d.id === 'costs' ? 'photos' : d.id; ui.undoOrder = null; ui.adding = false; ui.editing = null; ui.editingExp = null; ui.locFor = null; ui.sel = null;
+      ui.tab = d.id; ui.undoOrder = null; ui.adding = false; ui.editing = null; ui.editingExp = null; ui.locFor = null; ui.sel = null;
       try { localStorage.setItem(TAB_KEY, d.id); } catch (e) {}
     }
     else if (a === 'select') { ui.editing = d.id; ui.adding = false; ui.sel = d.id; }
     else if (a === 'expense-add' || a === 'expense-close' || a === 'expense-edit') {
+      if(a!=='expense-close'&&CLOUD.on&&(CLOUD.state!=='ready'||!isPerson(me))){ui.msg='Sign in as a traveler to record shared expenses.';render();return;}
+      if(a==='expense-edit'&&!data.expenses.some(function(e){return e.id===d.id;}))return;
       editingSharedExpense=a==='expense-edit'?d.id:null;
       expenseFormOpen=a!=='expense-close';
       render();return;
     }
     else if (a === 'expense-delete') {
-      if(!window.confirm('Remove this shared expense for everyone?'))return;
       var oldExpense=data.expenses.find(function(e){return e.id===d.id;});
+      if(!oldExpense||CLOUD.on&&(CLOUD.state!=='ready'||!isPerson(me)))return;
+      if(!window.confirm('Delete '+(oldExpense.desc||'this expense')+' for everyone? The change remains in the expense activity log.'))return;
       data.expenses=data.expenses.filter(function(e){return e.id!==d.id;});
-      logIt('removed',oldExpense?'shared expense '+(oldExpense.desc||oldExpense.category||'Expense')+' '+Core.fmt(oldExpense.amount):'an expense');var dl=data.log[data.log.length-1];dl.kind='expense';dl.involved=(oldExpense&&oldExpense.split||[]).concat(oldExpense?[oldExpense.paidBy]:[]);save();
+      logIt('removed',(oldExpense.desc||oldExpense.category||'Expense')+' · '+Core.fmt(oldExpense.amount)+' · paid by '+person(oldExpense.paidBy));
+      var dl=data.log[data.log.length-1];dl.kind='expense';dl.expenseId=d.id;
+      dl.involved=(oldExpense.split||[]).concat([oldExpense.paidBy]);
+      if(editingSharedExpense===d.id){editingSharedExpense=null;expenseFormOpen=false;}
+      save();
     }
     else if (a === 'expense-settle') {
       var amt=Number(d.amount);
@@ -3563,17 +3638,30 @@ if (typeof module !== 'undefined') module.exports = Core;
     }
 
     if (form.id === 'spending-form') {
-      var amt=Core.toMinor(val('sp-amount')),payer=val('sp-payer'),category=val('sp-category'),date=val('sp-date');
+      var amt=Core.toMinor(val('sp-amount')),payer=val('sp-payer'),category=val('sp-category'),date=val('sp-date'),description=val('sp-desc').slice(0,80);
       var split=Array.from(form.querySelectorAll('input[name="sp-split"]:checked')).map(function(c){return c.value;});
-      if(!amt||amt<=0||!isPerson(payer))return fail('Enter an amount and choose who paid.');
+      if(!amt||amt<=0||!Number.isSafeInteger(amt)||!isPerson(payer))return fail('Enter a valid amount and choose who paid.');
+      if(!description)return fail('Enter what this expense was for.');
+      if(CLOUD.on&&!isPerson(me))return fail('Sign in as a traveler to add shared expenses.');
       if(!date || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date))return fail('Choose a valid date.');
       if(!split.length)return fail('Select at least one traveler.');
       if(split.some(function(id){return !isPerson(id);})||new Set(split).size!==split.length)return fail('Invalid traveler selection.');
       if(CLOUD.on && CLOUD.state!=='ready')return fail('Shared expenses are not synced yet. Wait for sign-in and try again.');
-      var item={id:uid(),amount:amt,paidBy:payer,category:category,currency:'USD',date:date,split:split,merchant:'',desc:'',time:'',quantity:'',unit:'',unitPrice:''};
+      var item={id:uid(),amount:amt,paidBy:payer,category:category,currency:'USD',date:date,split:split,merchant:'',desc:description,time:'',quantity:'',unit:'',unitPrice:''};
       var existing=editingSharedExpense&&data.expenses.find(function(e){return e.id===editingSharedExpense;});
-      if(existing){var originalId=existing.id;var oldInvolved=(existing.split||[]).concat([existing.paidBy]);Object.assign(existing,item,{id:originalId,by:existing.by,at:existing.at,updatedBy:me,updatedAt:new Date().toISOString()});logIt('edited','shared expense '+category+' '+Core.fmt(amt));var el=data.log[data.log.length-1];el.kind='expense';el.involved=Array.from(new Set(oldInvolved.concat(split,[payer])));}
-      else{data.expenses.push(stamp(item));logIt('added','shared expense '+category+' '+Core.fmt(amt));var al=data.log[data.log.length-1];al.kind='expense';al.involved=Array.from(new Set(split.concat([payer])));}
+      if(editingSharedExpense&&!existing)return fail('That expense no longer exists. Refresh and try again.');
+      if(existing){
+        var originalId=existing.id,oldInvolved=(existing.split||[]).concat([existing.paidBy]);
+        Object.assign(existing,item,{id:originalId,by:existing.by,at:existing.at,updatedBy:me,updatedAt:new Date().toISOString()});
+        logIt('edited',description+' · '+Core.fmt(amt)+' · paid by '+person(payer));
+        var el=data.log[data.log.length-1];el.kind='expense';el.expenseId=originalId;
+        el.involved=Array.from(new Set(oldInvolved.concat(split,[payer])));
+      }else{
+        data.expenses.push(stamp(item));
+        logIt('added',description+' · '+Core.fmt(amt)+' · paid by '+person(payer));
+        var al=data.log[data.log.length-1];al.kind='expense';al.expenseId=item.id;
+        al.involved=Array.from(new Set(split.concat([payer])));
+      }
       expenseFormOpen=false;editingSharedExpense=null;save();render();return;
     }
     if (form.id === 'expense-form') {
