@@ -72,7 +72,7 @@ async function run(){
     assert.equal(inbound.airlineStatus,outbound.airlineStatus);
   });
   test('flight tracker actions are shown for both flights, with booking schedule preserved',()=>{
-    h.act('flight-person',{id:'P'});
+    h.ui.flightPerson='P';
     const html=h.flightPanel();
     assert.match(html,/Track F94655/);
     assert.match(html,/Track F93832/);
@@ -85,6 +85,7 @@ async function run(){
     assert.match(html,/8:31 PM/);
     assert.match(html,/12:40 AM/);
     assert.ok(!html.includes('KBBU7Y'));
+    h.ui.flightPerson=null;
   });
   test('flight number normalization works for other travelers and numeric-only Frontier flights',()=>{
     assert.equal(h.flightTrackingInfo({flight:'f9 4655',airline:'Frontier Airlines'}).id,'F94655');
