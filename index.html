@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
+<meta name="referrer" content="no-referrer">
 <title>Trip Wallet</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Pacifico&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap">
 <style>
@@ -878,8 +879,8 @@ if (typeof module !== 'undefined') module.exports = Core;
 
 <script>
 (function () {
-  var KEY = 'tripwallet.v3', LEGS_KEY = 'tripwallet.legs', ADMIN_KEY = 'tripwallet.admin', TAB_KEY = 'tripwallet.tab';
-  /* SHA-256 of "tripwallet:" + the admin PIN. The PIN itself is not in the page. */
+  var KEY = 'tripwallet.v3', LEGS_KEY = 'tripwallet.legs', TAB_KEY = 'tripwallet.tab';
+  /* Administration is authorized by the authenticated Firebase UID, never by a browser PIN. */
   var SEARCH_HINT = 'Photon searches places and addresses first. If it finds nothing, use Google Maps and paste the link below.';
   var SEARCH_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
   /* Search results are ranked near the city whose tab is open. */
@@ -920,19 +921,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     { id: 'stay-az', city: 'az', name: 'Stay for Dec 28 to 30', date: '2026-12-28', note: 'Not on the booking list yet' }
   ];
   var NEEDS_BOOKING = ['s-whale-watching', 's-antelope-canyon', 's-omnia-nightclub'];
-  /* A traveler's Gmail (before the @) must contain one of these: first or last name from the group's sheet.
-     The database rules check the same list, so this cannot be skipped by editing the page. */
-  var NAME_KEYS = {
-    A: ['akshaya', 'chiduruppa'], D: ['divya', 'theja', 'gangam'], H: ['haneela', 'vuyyuru'], M: ['megha', 'posinasetty', 'posinasetti'],
-    P: ['pranay', 'singuluri'], R: ['ramya', 'bikkina'], S: ['sahithi', 'thota']
-  };
-  function emailFits(email, pid) {
-    var local = String(email || '').toLowerCase().split('@')[0];
-    return (NAME_KEYS[pid] || []).some(function (k) { return local.indexOf(k) >= 0; });
-  }
   var GLOGO = '<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.9 6.1C12.4 13.7 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.4 5.7c4.3-4 6.9-9.9 6.9-17.1z"/><path fill="#FBBC05" d="M10.5 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C1 16.6 0 20.2 0 24s1 7.4 2.6 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.7c-2.1 1.4-4.8 2.3-8.5 2.3-6.3 0-11.6-4.2-13.5-10l-7.9 6.1C6.6 42.6 14.6 48 24 48z"/></svg>';
-  var SPLITWISE_URL = 'https://secure.splitwise.com/#/groups/105847378';
-  var ADMIN_HASH = 'df174295019980fadcb15ac944bdde3b3fc5aff2e92a0906afbc17a1a005044a';
   var PEOPLE = [['A', 'Akshaya'], ['D', 'DivyaTheja'], ['H', 'Haneela'], ['M', 'Megha'], ['P', 'Pranay'], ['R', 'Ramya'], ['S', 'Sahithi']]
     .map(function (p) { return { id: p[0], name: p[1] }; });
   var CITIES = [
@@ -1108,7 +1097,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   try { legCache = JSON.parse(localStorage.getItem(LEGS_KEY) || '{}') || {}; } catch (e) {}
 
   var ui = { tab: 'sd', menu: false, shot: null, albumEdit: null, undoOrder: null, linkOpen: null, linkEdit: null, showLog: false, adding: false, admin: false, adminOpen: false, share: false, sel: null, editing: null, editingExp: null, locFor: null, confirm: null, msg: '', importText: '', flightPerson: null, flightEditing: false, flightDraft: null, flightOCR: null, flightMsg: '' };
-  try { ui.admin = sessionStorage.getItem(ADMIN_KEY) === '1'; } catch (e) {}
+  ui.admin = false;
   /* Always open on San Diego; switching tabs still works during the session. */
 
   function save() {
@@ -1119,10 +1108,11 @@ if (typeof module !== 'undefined') module.exports = Core;
   /* Screenshot OCR is transient: only reviewed flight fields are persisted.
      Booking references, raw OCR, images, and passenger IDs are never saved. */
   var FLIGHTS_KEY='tripwallet.flights.v1', flights={};
-  try {
-    var previousFlights=JSON.parse(localStorage.getItem(FLIGHTS_KEY)||'{}');
-    if(previousFlights&&typeof previousFlights==='object'&&!Array.isArray(previousFlights)) flights=previousFlights;
-  }catch(e){}
+  // Clear legacy browser-cached itineraries on the public hosted application.
+  // Access to shared flight data now requires an approved Firebase session.
+  if(location.protocol!=='file:'){
+    try{localStorage.removeItem(FLIGHTS_KEY);}catch(e){}
+  }
   function flightLeg(x){
     x=x||{};
     return {date:/^20\d{2}-\d{2}-\d{2}$/.test(String(x.date||''))?x.date:'',
@@ -1138,179 +1128,45 @@ if (typeof module !== 'undefined') module.exports = Core;
         var part=Object.assign({},y||{});delete part.segments;return flightLeg(part);
       }):[]};
   }
-  /* User-confirmed schedule; only flight logistics, never reservation codes.
-     These defaults show for Pranay until a traveler saves a revised itinerary. */
-  var PRANAY_FLIGHT_DEFAULT={
-    id:'P',
-    arrival:{date:'2026-12-15',time:'18:48',arrivalDate:'2026-12-15',arrivalTime:'20:31',
-      from:'Dallas/Ft. Worth (DFW)',to:'Phoenix Sky Harbor (PHX)',
-      airline:'Frontier Airlines',flight:'F9 4655',duration:'2h 43m',stops:'Nonstop',
-      tz:'Times local to each airport'},
-    departure:{date:'2027-01-05',time:'21:19',arrivalDate:'2027-01-06',arrivalTime:'00:40',
-      from:'Phoenix Sky Harbor (PHX)',to:'Dallas/Ft. Worth (DFW)',
-      airline:'Frontier Airlines',flight:'F9 3832',duration:'2h 21m',stops:'Nonstop',
-      tz:'Times local to each airport'}
-  };
-  /* Ramya's itinerary is sourced from her Frontier booking screenshot.
-     These are the ticket's airport-local clock times, not converted times.
-     Don't copy Pranay's schedule even where flight numbers overlap. */
-  var RAMYA_FLIGHT_DEFAULT={
-    id:'R',
-    arrival:{date:'2026-12-16',time:'18:51',arrivalDate:'2026-12-16',arrivalTime:'20:34',
-      from:'Dallas/Ft. Worth (DFW)',to:'Phoenix Sky Harbor (PHX)',
-      airline:'Frontier Airlines',flight:'F9 4655',duration:'',stops:'',
-      tz:'Times local to each airport'},
-    departure:{date:'2027-01-05',time:'19:06',arrivalDate:'2027-01-05',arrivalTime:'22:29',
-      from:'Phoenix Sky Harbor (PHX)',to:'Dallas/Ft. Worth (DFW)',
-      airline:'Frontier Airlines',flight:'F9 3832',duration:'',stops:'',
-      tz:'Times local to each airport'}
-  };
-  /* Sahithi's Southwest itinerary is only partially visible in her Gmail
-     screenshot. Keep the connection as two distinct flights. The Phoenix
-     arrival minute and the other flight numbers are not shown; do not guess. */
-  var SAHITHI_FLIGHT_DEFAULT={
-    id:'S',
-    arrival:{date:'2026-12-23',time:'20:30',arrivalDate:'2026-12-24',arrivalTime:'',
-      from:'Columbus (CMH)',to:'Phoenix Sky Harbor (PHX)',
-      airline:'Southwest Airlines',flight:'',duration:'',stops:'1 connection via St. Louis (STL)',
-      note:'Exact arrival time in Phoenix is cut off in the screenshot.',
-      segments:[
-        {date:'2026-12-23',time:'20:30',arrivalDate:'2026-12-23',arrivalTime:'21:00',
-          from:'Columbus (CMH)',to:'St. Louis (STL)',
-          airline:'Southwest Airlines',flight:'WN 1282',duration:'1h 30m',stops:''},
-        {date:'2026-12-23',time:'21:45',arrivalDate:'2026-12-24',arrivalTime:'',
-          from:'St. Louis (STL)',to:'Phoenix Sky Harbor (PHX)',
-          airline:'Southwest Airlines',flight:'',duration:'',stops:'',
-          note:'Phoenix arrival time is truncated and this leg\'s flight number is not shown.'}
-      ]},
-    departure:{date:'2027-01-05',time:'17:10',arrivalDate:'2027-01-05',arrivalTime:'22:45',
-      from:'Phoenix Sky Harbor (PHX)',to:'Columbus (CMH)',
-      airline:'Southwest Airlines',flight:'',duration:'',stops:'',
-      note:'Return flight number and any intermediate stops are not visible.'}
-  };
-  /* Akshaya's updated Alaska confirmation screenshot: pink replacement times
-     take precedence over the struck-through original schedule. Keep the
-     incomplete return flight number blank; never store confirmation codes. */
-  var AKSHAYA_FLIGHT_DEFAULT={
-    id:'A',
-    arrival:{date:'2026-12-24',time:'20:09',arrivalDate:'2026-12-24',arrivalTime:'23:04',
-      from:'Seattle-Tacoma (SEA)',to:'San Diego (SAN)',
-      airline:'Alaska Airlines',flight:'AS 623',duration:'2h 55m',stops:'',
-      tz:'Times local to each airport',
-      note:'Updated schedule: departs 8:09 PM and arrives 11:04 PM; earlier 8:06 PM and 11:01 PM times were crossed out.'},
-    departure:{date:'2027-01-01',time:'07:00',arrivalDate:'2027-01-01',arrivalTime:'09:51',
-      from:'Las Vegas (LAS)',to:'Seattle-Tacoma (SEA)',
-      airline:'Alaska Airlines',flight:'',duration:'',stops:'',
-      tz:'Times local to each airport',
-      note:'Return flight number and any intermediate stops are not shown in the screenshot.'}
-  };
-  /* DivyaTheja's Dec 24 American Airlines screenshot: two connecting flights
-     via Dallas. Only inbound is shown; her return remains blank. The "on time"
-     badges were a snapshot, not ongoing flight status, and aren't persisted. */
-  var DIVYA_FLIGHT_DEFAULT={
-    id:'D',
-    arrival:{date:'2026-12-24',time:'18:31',arrivalDate:'2026-12-24',arrivalTime:'23:45',
-      from:'Columbia Regional (COU)',to:'San Diego (SAN)',
-      airline:'American Airlines',flight:'',duration:'7h 14m',
-      stops:'1 connection via Dallas/Fort Worth (DFW), 2h 10m layover',
-      tz:'Times local to each airport',
-      segments:[
-        {date:'2026-12-24',time:'18:31',arrivalDate:'2026-12-24',arrivalTime:'20:28',
-          from:'Columbia Regional (COU)',to:'Dallas/Fort Worth (DFW)',
-          airline:'American Airlines',flight:'AA 3853',duration:'1h 57m',
-          note:'Operated by Envoy Air as American Eagle'},
-        {date:'2026-12-24',time:'22:38',arrivalDate:'2026-12-24',arrivalTime:'23:45',
-          from:'Dallas/Fort Worth (DFW)',to:'San Diego (SAN)',
-          airline:'American Airlines',flight:'AA 2568',duration:'3h 07m'}
-      ]},
-    departure:{date:'2027-01-04',time:'13:26',arrivalDate:'2027-01-04',arrivalTime:'21:38',
-      from:'Phoenix Sky Harbor (PHX)',to:'Columbia Regional (COU)',
-      airline:'American Airlines',flight:'',duration:'7h 12m',
-      stops:'1 connection via Chicago O\'Hare (ORD), 1h 59m layover',
-      tz:'Times local to each airport',
-      segments:[
-        {date:'2027-01-04',time:'13:26',arrivalDate:'2027-01-04',arrivalTime:'18:00',
-          from:'Phoenix Sky Harbor (PHX)',to:'Chicago O\'Hare (ORD)',
-          airline:'American Airlines',flight:'AA 3165',duration:'3h 34m'},
-        {date:'2027-01-04',time:'19:59',arrivalDate:'2027-01-04',arrivalTime:'21:38',
-          from:'Chicago O\'Hare (ORD)',to:'Columbia Regional (COU)',
-          airline:'American Airlines',flight:'AA 3577',duration:'1h 39m',
-          note:'Operated by Envoy Air as American Eagle'}
-      ]}
-  };
-  /* Haneela's Southwest Trip & Price Details screenshot is from the PRICE
-     stage (before Passenger, Seats, Payment and Confirmation). These are
-     quoted flights, not evidence of a completed booking. */
-  var HANEELA_FLIGHT_DEFAULT={
-    id:'H',
-    arrival:{date:'2026-12-23',time:'21:20',arrivalDate:'2026-12-24',arrivalTime:'00:15',
-      from:'Sacramento (SMF)',to:'Phoenix Sky Harbor (PHX)',
-      airline:'Southwest Airlines',flight:'WN 1415',duration:'1h 55m',stops:'Nonstop',
-      tz:'Times local to each airport',
-      note:'Price quote only — booking not confirmed by the screenshot.'},
-    departure:{date:'2027-01-05',time:'20:55',arrivalDate:'2027-01-05',arrivalTime:'21:55',
-      from:'Phoenix Sky Harbor (PHX)',to:'Sacramento (SMF)',
-      airline:'Southwest Airlines',flight:'WN 1470',duration:'2h 00m',stops:'Nonstop',
-      tz:'Times local to each airport',
-      note:'Price quote only — booking not confirmed by the screenshot.'}
-  };
+  /* Flight schedules are private Firestore documents. Never ship real flight
+     dates, routes, times or booking references in public site source. */
   function flightFor(pid){
-    var defaults=pid==='P'?PRANAY_FLIGHT_DEFAULT:
-      pid==='R'?RAMYA_FLIGHT_DEFAULT:
-      pid==='S'?SAHITHI_FLIGHT_DEFAULT:
-      pid==='A'?AKSHAYA_FLIGHT_DEFAULT:
-      pid==='D'?DIVYA_FLIGHT_DEFAULT:
-      pid==='H'?HANEELA_FLIGHT_DEFAULT:{};
-    var p=flights[pid]||defaults;
-    // An older saved Divya record may contain her outbound flight but no
-    // return. Fill only the missing leg from the newer itinerary screenshot,
-    // without overwriting existing edits or the other travelers' records.
-    if((pid==='D'||pid==='H')&&flights[pid]&&defaults.arrival){
-      var saved=flights[pid],ins=saved.arrival||{},outs=saved.departure||{};
-      var filled=function(x){return !!(x.date||x.time||x.arrivalDate||x.arrivalTime||
-        x.from||x.to||x.flight||(Array.isArray(x.segments)&&x.segments.length));};
-      if(pid==='D') p={
-        arrival:filled(ins)?ins:defaults.arrival,
-        departure:filled(outs)?outs:defaults.departure
-      };
-      else if(!filled(ins)&&!filled(outs))p=defaults;
-    }
+    var p=flights[pid]||{};
     return {id:pid,arrival:flightLeg(p.arrival),departure:flightLeg(p.departure)};
   }
-  function flightCanEdit(pid){return !CLOUD.on||(CLOUD.state==='ready'&&(ui.admin||me===pid));}
+  function flightCanEdit(pid){return CLOUD.on&&CLOUD.state==='ready'&&
+    CLOUD.flightSync==='ready'&&(CLOUD.admin||me===pid);}
   function flightLocalSave(){
-    try{localStorage.setItem(FLIGHTS_KEY,JSON.stringify(flights));return true;}
-    catch(e){ui.flightMsg='Could not save flight details on this device.';return false;}
+    // Shared flight data is never written to localStorage.
+    return !CLOUD.on;
   }
   function saveFlightFor(pid,record){
     if(!isPerson(pid)||!flightCanEdit(pid))return;
     if(CLOUD.on&&CLOUD.flightSync==='loading'){
       ui.flightMsg='Flight details are loading. Please retry the save shortly.';render();return;
     }
-    var clean={id:pid,arrival:flightLeg(record.arrival),departure:flightLeg(record.departure),by:me||'',at:new Date().toISOString()};
-    flights[pid]=clean;flightLocalSave();
-    ui.flightEditing=false;ui.flightOCR=null;ui.flightDraft=null;ui.flightMsg='Flight details saved on this device.';
+    var clean={id:pid,arrival:flightLeg(record.arrival),departure:flightLeg(record.departure),
+      by:me||'',actorUid:CLOUD.user.uid,at:new Date().toISOString()};
+    ui.flightEditing=false;ui.flightOCR=null;ui.flightDraft=null;ui.flightMsg='Saving flight details…';
     if(CLOUD.on&&CLOUD.flightSync==='ready'){
       var session=CLOUD.user;
       CLOUD.fs.setDoc(CLOUD.fs.doc(CLOUD.db,'trips','main','flights',pid),{
-        arrival:clean.arrival,departure:clean.departure,by:clean.by,at:clean.at
+        arrival:clean.arrival,departure:clean.departure,by:clean.by,actorUid:clean.actorUid,at:clean.at
       }).then(function(){
         if(CLOUD.user!==session)return;
-        ui.flightMsg='Flight details saved to the shared trip.';
+        flights[pid]=clean;
+        ui.flightMsg='Flight itinerary securely saved.';
         if(ui.flightPerson===pid)softRender();
       }).catch(function(e){
         if(CLOUD.user!==session)return;
-        ui.flightMsg='Saved on this device only. Shared flight storage was blocked ('+
-          (e&&e.code||'network error')+').';
+        ui.flightMsg='Flight save failed ('+(e&&e.code||'network error')+'). Please retry.';
         if(ui.flightPerson===pid)softRender();
       });
-    }else if(CLOUD.on){
-      ui.flightMsg='Saved on this device only. Shared flight storage is unavailable.';
     }
     render();
   }
   /* ---------- Shared trip in Firebase (on the hosted site) ---------- */
-  var CLOUD = { on: false, state: 'off', fs: null, db: null, au: null, auth: null, user: null, admin: false, person: '', members: {}, loaded: {}, unsub: [], err: '', flightSync: 'local', flightError: '' };
+  var CLOUD = { on: false, state: 'off', fs: null, db: null, au: null, auth: null, user: null, admin: false, person: '', members: {}, requests: {}, loaded: {}, unsub: [], err: '', flightSync: 'local', flightError: '' };
   var COLS = ['places', 'expenses', 'payments', 'log'];
   var synced = { places: {}, expenses: {}, payments: {}, log: {} };
   function stable(o) {
@@ -1324,6 +1180,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   var cloudWriting = false, cloudPending = false;
   function pushCloud() {
     if (cloudWriting) { cloudPending = true; return; }
+    if(!CLOUD.user||!isPerson(me)||me!==CLOUD.person)return;
     var fs = CLOUD.fs, batch = fs.writeBatch(CLOUD.db), n = 0, order = {}, changes = [];
     data.places.forEach(function (p) { order[p.city] = (order[p.city] || 0) + 1; p.order = order[p.city]; });
     COLS.forEach(function (col) {
@@ -1349,7 +1206,8 @@ if (typeof module !== 'undefined') module.exports = Core;
         else synced[c.col][c.id] = c.value;
       });
     }).catch(function (err) {
-      ui.msg = 'Sync failed (' + (err && (err.code || err.message)) + '). Your change may need retrying.';
+      ui.msg = 'Sync failed (' + (err && (err.code || err.message)) +
+        '). Your changes were not confirmed. Refresh before editing again.';
       render();
     }).finally(function () {
       cloudWriting = false;
@@ -1363,13 +1221,23 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   function listen() {
     var fs = CLOUD.fs, db = CLOUD.db;
+    CLOUD.unsub.push(fs.onSnapshot(fs.collection(db,'trips','main','members'),function(snap){
+      CLOUD.members={};snap.docs.forEach(function(d){CLOUD.members[d.id]=d.data();});
+      softRender();
+    },function(){}));
+    if(CLOUD.admin){
+      CLOUD.unsub.push(fs.onSnapshot(fs.collection(db,'trips','main','requests'),function(snap){
+        CLOUD.requests={};snap.docs.forEach(function(d){CLOUD.requests[d.id]=d.data();});
+        softRender();
+      },function(e){ui.msg='Could not load access requests ('+(e&&e.code||'error')+').';softRender();}));
+    }
     CLOUD.flightSync='loading';CLOUD.flightError='';
     CLOUD.unsub.push(fs.onSnapshot(fs.collection(db,'trips','main','flights'),function(snap){
       var current={};snap.docs.forEach(function(d){
         if(isPerson(d.id))current[d.id]=Object.assign({id:d.id},d.data());
       });
-      flights=Object.assign({},flights,current);
-      flightLocalSave();CLOUD.flightSync='ready';CLOUD.flightError='';softRender();
+      flights=current;
+      CLOUD.flightSync='ready';CLOUD.flightError='';softRender();
     },function(e){
       CLOUD.flightSync='unavailable';CLOUD.flightError=(e&&e.code)||'unavailable';
       softRender();
@@ -1406,30 +1274,44 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   function onUser(user) {
     CLOUD.unsub.forEach(function (f) { try { f(); } catch (e) {} });
-    CLOUD.unsub = []; CLOUD.loaded = {}; CLOUD.user = user; CLOUD.person = ''; CLOUD.flightSync='loading'; me = '';
-    if (!user) { CLOUD.state = 'signedout'; CLOUD.admin = false; ui.admin = false; render(); return; }
-    var fs = CLOUD.fs, db = CLOUD.db, ak = 'tripwallet.isadmin.' + user.uid;
-    try { CLOUD.admin = localStorage.getItem(ak) === '1'; } catch (e) {}
-    ui.admin = CLOUD.admin;
-    CLOUD.state = 'loading'; render();
-    /* Only the admin's account may write this document; the database rules decide. */
-    fs.setDoc(fs.doc(db, 'trips', 'main', 'admin', 'check'), { at: new Date().toISOString() }).then(function () { return true; }, function () { return false; }).then(function (isAdmin) {
-      if (CLOUD.user !== user) return;
-      CLOUD.admin = isAdmin; ui.admin = isAdmin;
-      try { localStorage.setItem(ak, isAdmin ? '1' : '0'); } catch (e) {}
-      softRender();
-    });
-    CLOUD.unsub.push(fs.onSnapshot(fs.collection(db, 'trips', 'main', 'members'), function (snap) {
-      CLOUD.members = {};
-      snap.docs.forEach(function (d) { CLOUD.members[d.id] = d.data(); });
-      var mine = CLOUD.members[user.uid];
-      CLOUD.person = mine && isPerson(mine.person) ? mine.person : '';
-
-      me = CLOUD.person;
-      if (!CLOUD.person) { CLOUD.state = 'pickme'; render(); return; }
-      if (CLOUD.state !== 'ready') { CLOUD.state = 'ready'; listen(); }
-      softRender();
-    }, cloudErr));
+    CLOUD.unsub=[];CLOUD.loaded={};CLOUD.members={};CLOUD.requests={};
+    CLOUD.user=user;CLOUD.person='';CLOUD.admin=false;ui.admin=false;
+    CLOUD.flightSync='loading';flights={};me='';
+    try{localStorage.removeItem(FLIGHTS_KEY);sessionStorage.removeItem('tripwallet.admin');}catch(e){}
+    if(!user){
+      try{localStorage.removeItem(KEY);localStorage.removeItem(FLIGHTS_KEY);}catch(e){}
+      CLOUD.state='signedout';data=seedData();localData=seedData();ui.showLog=false;ui.flightPerson=null;
+      ui.flightEditing=false;ui.flightDraft=null;render();return;
+    }
+    var fs=CLOUD.fs,db=CLOUD.db;
+    CLOUD.state='loading';render();
+    // The owner UID is set once in Firebase Console. It is NOT a browser PIN.
+    fs.getDoc(fs.doc(db,'trips','main','config','security')).then(function(config){
+      if(CLOUD.user!==user)return;
+      if(!config.exists()||!config.data().ownerUid){
+        CLOUD.state='setup';render();return;
+      }
+      CLOUD.admin=config.data().ownerUid===user.uid;ui.admin=CLOUD.admin;
+      CLOUD.unsub.push(fs.onSnapshot(fs.doc(db,'trips','main','members',user.uid),function(snap){
+        if(CLOUD.user!==user)return;
+        var mine=snap.exists()?snap.data():null;
+        var approved=mine&&isPerson(mine.person);
+        CLOUD.person=approved?mine.person:'';me=CLOUD.person;
+        if(!approved){
+          if(CLOUD.state==='ready'){
+            // Keep listening to this user's membership so a later approval
+            // works without requiring sign-out or a hard reload.
+            var selfListener=CLOUD.unsub[0];
+            CLOUD.unsub.slice(1).forEach(function(f){try{f();}catch(e){}});
+            CLOUD.unsub=selfListener?[selfListener]:[];
+            CLOUD.loaded={};data=seedData();flights={};
+          }
+          CLOUD.state='pending';render();return;
+        }
+        if(CLOUD.state!=='ready'){CLOUD.state='ready';listen();}
+        softRender();
+      },cloudErr));
+    }).catch(function(e){if(CLOUD.user===user)cloudErr(e);});
   }
   function loadFirebase() {
     if (window.__tripwalletFirebase) return Promise.resolve(window.__tripwalletFirebase);
@@ -1441,7 +1323,9 @@ if (typeof module !== 'undefined') module.exports = Core;
     CLOUD.on = true; CLOUD.state = 'loading';
     loadFirebase().then(function (m) {
       var fapp = m.app.initializeApp(FIREBASE_CONFIG), db;
-      try { db = m.fs.initializeFirestore(fapp, { localCache: m.fs.persistentLocalCache({ tabManager: m.fs.persistentMultipleTabManager() }) }); }
+      // Sensitive shared trip information must not be persisted in IndexedDB
+      // after sign-out or user switching. Keep Firestore cache in memory only.
+      try { db = m.fs.initializeFirestore(fapp, { localCache: m.fs.memoryLocalCache() }); }
       catch (e) { db = m.fs.getFirestore(fapp); }
       CLOUD.fs = m.fs; CLOUD.db = db; CLOUD.au = m.auth; CLOUD.auth = m.auth.getAuth(fapp);
       m.auth.getRedirectResult(CLOUD.auth).catch(function () {});
@@ -2230,10 +2114,10 @@ if (typeof module !== 'undefined') module.exports = Core;
         '<button type="submit" class="primary">Save</button><button type="button" class="link" data-act="cancel-link">Cancel</button><div class="err" data-err hidden style="flex-basis:100%"></div></form>';
       return h;
     }
-    if (p.bookingLink || p.confNo) {
+    if (p.bookingLink) {
       h += ui.linkOpen === p.id
         ? '<button type="button" class="link small" data-act="hide-link" data-id="' + p.id + '">Hide booking details</button></div>' +
-          '<div class="linkbox">' + (p.confNo ? '<span class="conf">Confirmation <b>' + esc(p.confNo) + '</b></span>' : '') +
+          '<div class="linkbox">' +
           (p.bookingLink ? '<a href="' + esc(p.bookingLink) + '" target="_blank" rel="noopener">' + esc(hostOf(p.bookingLink)) + '</a><span class="linkfull">' + esc(p.bookingLink) + '</span>' : '') +
           '<button type="button" class="link small" data-act="edit-link" data-id="' + p.id + '">' + (p.bookingLink ? 'Change link' : '+ Add booking link') + '</button></div>'
         : '<button type="button" class="link small" data-act="show-link" data-id="' + p.id + '">Show booking details</button></div>';
@@ -2816,7 +2700,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       flightInputField(pid,kind,'from','From airport / city','text','DFW',false)+
       flightInputField(pid,kind,'to','To airport / city','text','PHX',false)+
       flightInputField(pid,kind,'airline','Airline','text','Airline',false)+
-      flightInputField(pid,kind,'flight','Flight number','text','F9 4655',false)+
+      flightInputField(pid,kind,'flight','Flight number','text','AA1234',false)+
       flightInputField(pid,kind,'duration','Duration','text','2h 43m',false)+
       flightInputField(pid,kind,'stops','Stops','text','Nonstop',false)+
       flightInputField(pid,kind,'tz','Time zones (if known)','text','Airport-local times',true)+
@@ -2944,16 +2828,17 @@ if (typeof module !== 'undefined') module.exports = Core;
         '<p class="sub" style="margin:0">Use your Google account. You only do this once; this browser remembers you after that, and the trip is the same on every phone and laptop you sign in on.</p>' +
         '<div><button class="primary big" data-act="sign-in">' + GLOGO + 'Sign in with Google</button></div></section>';
     }
-    if (st === 'pickme') {
-      var taken = {};
-      Object.keys(CLOUD.members).forEach(function (k) { if (k !== CLOUD.user.uid) taken[CLOUD.members[k].person] = CLOUD.members[k].name || 'someone'; });
-      return '<section class="card gate"><h2 class="gatehead">Which traveler are you?</h2>' +
-        '<p class="sub" style="margin:0">Signed in as ' + esc(CLOUD.user.email || CLOUD.user.displayName || 'you') + '. Pick your name once. Your Gmail needs to include your first or last name.</p>' +
-        '<div class="chips">' + PEOPLE.map(function (p) {
-          return taken[p.id] ? '<button class="btn chipbtn" disabled title="Picked by ' + esc(taken[p.id]) + '">' + esc(p.name) + ' (taken)</button>'
-            : '<button class="btn chipbtn' + (emailFits(CLOUD.user.email, p.id) ? ' fits' : '') + '" data-act="be" data-id="' + p.id + '">' + esc(p.name) + '</button>';
-        }).join('') + '</div><p class="sub" style="margin:0">Someone picked your name by mistake? Ask Pranay to reset it.</p>' +
-        '<div><button class="link" data-act="sign-out">Use a different Google account</button></div></section>';
+    if(st==='setup'){
+      return '<section class="card gate"><h2>Secure setup needed</h2>'+
+        '<p class="sub">The Firebase owner UID and rules have not been configured. Shared trip access is paused until the owner completes the security setup.</p>'+
+        '<button class="link" data-act="sign-out">Sign out</button></section>';
+    }
+    if(st==='pending'){
+      return '<section class="card gate"><h2>Access approval required</h2>'+
+        '<p class="sub">Your Google account needs approval by the trip owner. No flight or expense data is available until approval.</p>'+
+        '<p class="sub">Signed in as '+esc(CLOUD.user&&CLOUD.user.email||'Google account')+'</p>'+
+        '<button class="primary" data-act="request-access">Request access</button>'+
+        '<button class="link" data-act="sign-out">Use another account</button></section>';
     }
     if (st === 'error') return '<section class="card gate"><h2 class="gatehead">Something went wrong</h2><p class="sub" style="margin:0">' + esc(CLOUD.err) + '</p><div><button class="primary" data-act="retry">Try again</button></div></section>';
     return '<section class="card gate"><p class="sub" style="margin:0">Loading the trip…</p></section>';
@@ -2995,6 +2880,24 @@ if (typeof module !== 'undefined') module.exports = Core;
       app.innerHTML = h + gateHTML();
       return;
     }
+    if(CLOUD.on&&CLOUD.state==='ready'&&CLOUD.admin){
+      var pending=Object.keys(CLOUD.requests||{});
+      if(pending.length){
+        h+='<section class="card" aria-label="Pending traveler access"><h3>Approve traveler access</h3>'+
+          '<p class="sub">Check the actual Google account email before approving. This grants access to the shared trip.</p>'+
+          pending.map(function(uid){
+            var r=CLOUD.requests[uid]||{};
+            return '<div class="row" style="padding:10px 0;border-top:1px solid var(--line)">'+
+              '<div class="grow"><b>'+esc(r.name||'Unnamed request')+'</b>'+
+              '<p class="sub">'+esc(r.email||'No email')+'</p></div>'+
+              '<label class="sr-only" for="approve-'+esc(uid)+'">Traveler</label>'+
+              '<select id="approve-'+esc(uid)+'" aria-label="Assign traveler">'+
+                '<option value="">Choose traveler</option>'+
+                PEOPLE.map(function(p){return '<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>';}).join('')+
+              '</select><button type="button" data-act="approve-member" data-id="'+esc(uid)+'">Approve</button></div>';
+          }).join('')+'</section>';
+      }
+    }
     if(ui.flightPerson)h+=flightPanel();
     if (CLOUD.on && allLoaded()) {
       if (!data.places.length && !data.expenses.length) {
@@ -3013,11 +2916,6 @@ if (typeof module !== 'undefined') module.exports = Core;
             '<div class="row"><button class="primary" data-act="add-extras">Add to the shared trip</button><button class="link" data-act="skip-extras">Not now</button></div></section>';
         }
       }
-    }
-    if (!CLOUD.on && ui.adminOpen && !ui.admin) {
-      h += '<form class="card" id="admin-form"><h3>Admin sign-in</h3><p class="sub" style="margin:0">Admin tools for this browser.</p>' +
-        '<div class="row"><input id="admin-pin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN" aria-label="Admin PIN" style="width:140px">' +
-        '<button class="primary" type="submit">Unlock</button><button type="button" class="link" data-act="admin-close">Cancel</button></div><div class="err" data-err hidden></div></form>';
     }
     if (ui.msg) h += '<div class="note" role="status">' + esc(ui.msg) + '</div>';
     if (undoStop) h += '<div class="note row between" role="status"><span>Stop changed: ' + esc(undoStop.name) + '</span><button type="button" data-act="undo-stop">Undo</button></div>';
@@ -3060,7 +2958,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   var ADMIN_ONLY = ['reset-member', 'start-trip'];
   function act(a, d) {
-    if (ADMIN_ONLY.indexOf(a) >= 0 && !ui.admin) return;
+    if (ADMIN_ONLY.indexOf(a) >= 0 && (!CLOUD.on||!CLOUD.admin||CLOUD.state!=='ready')) return;
     if (a !== 'toggle-menu') ui.menu = false;
     if (a !== 'ask') ui.confirm = null;
     if (a !== 'import') ui.msg = '';
@@ -3114,6 +3012,8 @@ if (typeof module !== 'undefined') module.exports = Core;
       data.expenses=data.expenses.filter(function(e){return e.id!==d.id;});
       logIt('removed',(oldExpense.desc||oldExpense.category||'Expense')+' · '+Core.fmt(oldExpense.amount)+' · paid by '+person(oldExpense.paidBy));
       var dl=data.log[data.log.length-1];dl.kind='expense';dl.expenseId=d.id;
+      dl.rev=(oldExpense.rev||0)+1;dl.id='ex_'+d.id+'_'+dl.rev;
+      dl.actorUid=CLOUD.on&&CLOUD.user?CLOUD.user.uid:'';
       dl.before={desc:oldExpense.desc||'',amount:oldExpense.amount,paidBy:oldExpense.paidBy,split:(oldExpense.split||[]).slice()};
       dl.involved=(oldExpense.split||[]).concat([oldExpense.paidBy]);
       if(editingSharedExpense===d.id){editingSharedExpense=null;expenseFormOpen=false;}
@@ -3264,21 +3164,50 @@ if (typeof module !== 'undefined') module.exports = Core;
     else if (a === 'edit-link') { ui.linkEdit = d.id; }
     else if (a === 'cancel-link') ui.linkEdit = null;
     else if (a === 'sign-in') { signIn(); return; }
-    else if (a === 'sign-out') { ui.msg = ''; CLOUD.au.signOut(CLOUD.auth); return; }
+    else if (a === 'sign-out') {
+      ui.msg='';flights={};ui.flightPerson=null;
+      try{localStorage.removeItem(FLIGHTS_KEY);localStorage.removeItem(KEY);}catch(e){}
+      CLOUD.au.signOut(CLOUD.auth);return;
+    }
     else if (a === 'retry') { location.reload(); return; }
-    else if (a === 'be') {
-      if (!emailFits(CLOUD.user.email, d.id)) {
-        ui.msg = (CLOUD.user.email || 'This Google account') + ' does not look like ' + person(d.id) + '\'s Gmail, so it cannot join as ' + person(d.id) +
-          '. Pick your own name, or sign in with your own Gmail. If your Gmail does not include your name, ask Pranay to add it.';
-        render();
-        return;
-      }
-      ui.msg = '';
-      CLOUD.fs.setDoc(CLOUD.fs.doc(CLOUD.db, 'trips', 'main', 'members', CLOUD.user.uid), { person: d.id, name: String(CLOUD.user.displayName || '').slice(0, 60), at: new Date().toISOString() })
-        .catch(function (err) { ui.msg = 'Could not save your name (' + (err.code || err.message) + ').'; render(); });
+    else if(a==='request-access'){
+      if(CLOUD.state!=='pending'||!CLOUD.user)return;
+      var user=CLOUD.user;
+      CLOUD.fs.setDoc(CLOUD.fs.doc(CLOUD.db,'trips','main','requests',user.uid),{
+        email:String(user.email||'').slice(0,180),
+        name:String(user.displayName||'').slice(0,80),
+        requestedAt:new Date().toISOString()
+      }).then(function(){
+        if(CLOUD.user===user){ui.msg='Access requested. The owner must approve your account.';render();}
+      }).catch(function(e){
+        if(CLOUD.user===user){ui.msg='Access request failed ('+(e&&e.code||'error')+').';render();}
+      });
       return;
     }
-    else if (a === 'reset-member') { CLOUD.fs.deleteDoc(CLOUD.fs.doc(CLOUD.db, 'trips', 'main', 'members', d.id)).catch(function () {}); return; }
+    else if(a==='approve-member'){
+      if(!CLOUD.on||!CLOUD.admin||CLOUD.state!=='ready')return;
+      var requestUid=d.id,member=String(d.person||'');
+      if(!CLOUD.requests||!CLOUD.requests[requestUid]||!isPerson(member))return;
+      if(Object.values(CLOUD.members||{}).some(function(x){return x.person===member;})){
+        ui.msg='That traveler already has an approved account. Revoke the old assignment first.';render();return;
+      }
+      var req=CLOUD.requests[requestUid],batch=CLOUD.fs.writeBatch(CLOUD.db);
+      batch.set(CLOUD.fs.doc(CLOUD.db,'trips','main','members',requestUid),{
+        person:member,name:String(req.name||'').slice(0,80),
+        approvedBy:CLOUD.user.uid,approvedAt:new Date().toISOString()
+      });
+      batch.delete(CLOUD.fs.doc(CLOUD.db,'trips','main','requests',requestUid));
+      batch.commit().then(function(){ui.msg=person(member)+' access approved.';render();})
+        .catch(function(e){ui.msg='Approval failed ('+(e&&e.code||'error')+').';render();});
+      return;
+    }
+    else if(a==='reset-member'){
+      if(!CLOUD.on||!CLOUD.admin||CLOUD.state!=='ready')return;
+      if(d.id===CLOUD.user.uid)return;
+      CLOUD.fs.deleteDoc(CLOUD.fs.doc(CLOUD.db,'trips','main','members',d.id))
+        .catch(function(e){ui.msg='Could not revoke access ('+(e&&e.code||'error')+').';render();});
+      return;
+    }
     else if (a === 'toggle-log') ui.showLog = !ui.showLog;
     else if (a === 'invite') {
       var link = location.origin + location.pathname;
@@ -3287,21 +3216,25 @@ if (typeof module !== 'undefined') module.exports = Core;
     }
     else if (a === 'start-trip') {
       if (!ui.admin || data.places.length) return;
-      ['places', 'expenses', 'payments'].forEach(function (col) { data[col] = JSON.parse(JSON.stringify(localData[col] || [])); });
+      ['places'].forEach(function (col) { data[col] = JSON.parse(JSON.stringify(localData[col] || [])); });
+      data.expenses=[];data.payments=[];
+      ui.msg='Legacy expenses require individual verification and re-entry before secure sharing.';
       logIt('started', 'the shared trip');
       save();
     }
     else if (a === 'add-extras') {
       var ex = localExtras();
       data.places = data.places.concat(ex.places);
-      data.expenses = data.expenses.concat(ex.expenses);
-      data.payments = data.payments.concat(ex.payments);
+      // Legacy browser purchases and payments cannot be imported without
+      // accountable server-verified creators and matching audit revisions.
+      if(ex.expenses.length||ex.payments.length)
+        ui.msg='For security, re-enter old expenses manually under your approved account.';
       logIt('added', 'items saved in their browser before sign-in (' + (ex.places.length + ex.expenses.length + ex.payments.length) + ')');
       try { localStorage.setItem('tripwallet.extrasDone', '1'); } catch (e) {}
       save();
     }
     else if (a === 'skip-extras') { try { localStorage.setItem('tripwallet.extrasDone', '1'); } catch (e) {} }
-    else if (a === 'lock') { ui.admin = false; ui.editing = null; ui.editingExp = null; try { sessionStorage.removeItem(ADMIN_KEY); } catch (e) {} }
+    else if (a === 'lock') { ui.editing = null; ui.editingExp = null; }
     else if (a === 'import') {
       var box = document.getElementById('import-code');
       ui.importText = box ? box.value : '';
@@ -3364,6 +3297,10 @@ if (typeof module !== 'undefined') module.exports = Core;
       var fallback = function () { el.focus(); el.select(); b.textContent = 'Selected. Press copy'; };
       try { navigator.clipboard.writeText(el.value).then(done, fallback); } catch (e) { fallback(); }
       return;
+    }
+    if(a==='approve-member'){
+      var choice=document.getElementById('approve-'+b.dataset.id);
+      act(a,{id:b.dataset.id,person:choice&&choice.value||''});return;
     }
     act(a, b.dataset);
   });
@@ -3442,7 +3379,6 @@ if (typeof module !== 'undefined') module.exports = Core;
     var x = sh.x, bits = [], list = cityPlaces(c.id), pick = guessTarget(c.id, x);
     if (x.checkIn) bits.push('<span><b>Starts</b> ' + niceDate(x.checkIn) + (x.inTime ? ', ' + fmtClock(x.inTime) : '') + '</span>');
     if (x.checkOut) bits.push('<span><b>Ends</b> ' + niceDate(x.checkOut) + (x.outTime ? ', ' + fmtClock(x.outTime) : '') + '</span>');
-    if (x.conf) bits.push('<span><b>Confirmation</b> ' + esc(x.conf) + '</span>');
     var waiting = list.filter(function (p) { return p.needsBooking && !p.booked; }), others = list.filter(function (p) { return !(p.needsBooking && !p.booked); });
     var opt = function (p) { return '<option value="' + p.id + '"' + (p.id === pick ? ' selected' : '') + '>' + esc(p.name) + '</option>'; };
     return '<form class="card shotcard" id="shot-form"><h3>Booking from the screenshot</h3><div class="bdates">' + bits.join('') + '</div>' +
@@ -3530,22 +3466,9 @@ if (typeof module !== 'undefined') module.exports = Core;
       saveFlightFor(pid,next);return;
     }
 
-    if (form.id === 'admin-form') {
-      var pin = val('admin-pin');
-      if (!pin) return fail('Enter the PIN.');
-      if (!window.crypto || !crypto.subtle) return fail('This browser cannot check the PIN here. Open the page over https.');
-      sha(pin).then(function (h) {
-        if (h !== ADMIN_HASH) return fail('That PIN is not right.');
-        ui.admin = true; ui.adminOpen = false;
-        try { sessionStorage.setItem(ADMIN_KEY, '1'); } catch (e) {}
-        render();
-      }, function () { fail('This browser cannot check the PIN here.'); });
-      return;
-    }
-
     if (form.id === 'shot-form' && ui.shot && ui.shot.x) {
       var x = ui.shot.x, which = val('shot-target') || 'new', nm = val('shot-name');
-      var bk = { checkIn: x.checkIn, checkInTime: x.inTime, checkOut: x.checkOut, checkOutTime: x.outTime, confNo: x.conf, needsBooking: true, booked: true };
+      var bk = { checkIn: x.checkIn, checkInTime: x.inTime, checkOut: x.checkOut, checkOutTime: x.outTime, needsBooking: true, booked: true };
       if (x.checkIn) { bk.date = x.checkIn; bk.time = x.inTime || ''; }
       var tgt = which !== 'new' ? placeById(which) : null;
       if (tgt) {
@@ -3664,34 +3587,43 @@ if (typeof module !== 'undefined') module.exports = Core;
       if(amt===null||!isPerson(payer))return fail('Enter a valid amount (at most 2 decimal places) and choose who paid.');
       if(!description)return fail('Enter what this expense was for.');
       if(EXPENSE_CATEGORIES.indexOf(category)<0)return fail('Select a valid expense category.');
-      if(CLOUD.on&&!isPerson(me))return fail('Sign in as a traveler to add shared expenses.');
+      if(CLOUD.on&&(!CLOUD.user||!isPerson(me)||me!==CLOUD.person))
+        return fail('Only an approved traveler can edit shared expenses.');
       if(!validExpenseDate(date))return fail('Choose a valid calendar date.');
       if(!split.length)return fail('Select at least one traveler.');
       if(split.some(function(id){return !isPerson(id);})||new Set(split).size!==split.length)return fail('Invalid traveler selection.');
       if(CLOUD.on && CLOUD.state!=='ready')return fail('Shared expenses are not synced yet. Wait for sign-in and try again.');
-      var item={id:uid(),amount:amt,paidBy:payer,category:category,currency:'USD',date:date,split:split,merchant:'',desc:description,time:'',quantity:'',unit:'',unitPrice:''};
+      var item={id:uid(),amount:amt,paidBy:payer,category:category,currency:'USD',date:date,split:split,merchant:'',desc:description,time:'',quantity:'',unit:'',unitPrice:'',rev:1,actorUid:CLOUD.on?CLOUD.user.uid:''};
       var existing=editingSharedExpense&&data.expenses.find(function(e){return e.id===editingSharedExpense;});
       if(editingSharedExpense&&!existing)return fail('That expense no longer exists. Refresh and try again.');
       if(form.dataset)form.dataset.expenseSaved='1';
       if(existing){
         var originalId=existing.id,oldInvolved=(existing.split||[]).concat([existing.paidBy]);
         var before={desc:existing.desc||'',amount:existing.amount,paidBy:existing.paidBy,split:(existing.split||[]).slice()};
-        Object.assign(existing,item,{id:originalId,by:existing.by,at:existing.at,updatedBy:me,updatedAt:new Date().toISOString()});
+        Object.assign(existing,item,{id:originalId,by:existing.by,at:existing.at,
+          ownerUid:existing.ownerUid||'',rev:(existing.rev||0)+1,
+          updatedBy:me,updatedAt:new Date().toISOString()});
         logIt('edited',description+' · '+Core.fmt(before.amount)+' → '+Core.fmt(amt)+
           ' · '+person(before.paidBy)+' → '+person(payer));
         var el=data.log[data.log.length-1];el.kind='expense';el.expenseId=originalId;
+        el.id='ex_'+originalId+'_'+existing.rev;el.rev=existing.rev;
+        el.actorUid=CLOUD.on?CLOUD.user.uid:'';
         el.before=before;el.after={desc:description,amount:amt,paidBy:payer,split:split.slice()};
         el.involved=Array.from(new Set(oldInvolved.concat(split,[payer])));
       }else{
+        item.ownerUid=CLOUD.on?CLOUD.user.uid:'';
         data.expenses.push(stamp(item));
         logIt('added',description+' · '+Core.fmt(amt)+' · paid by '+person(payer));
         var al=data.log[data.log.length-1];al.kind='expense';al.expenseId=item.id;
+        al.id='ex_'+item.id+'_1';al.rev=1;al.actorUid=CLOUD.on?CLOUD.user.uid:'';
         al.after={desc:description,amount:amt,paidBy:payer,split:split.slice()};
         al.involved=Array.from(new Set(split.concat([payer])));
       }
       expenseFormOpen=false;editingSharedExpense=null;save();render();return;
     }
     if (form.id === 'expense-form') {
+      // Historical local-only editor is not a valid authenticated mutation path.
+      if(CLOUD.on)return fail('Use Expenses → Add expense for tracked shared expenses.');
       var desc = val('exp-desc'), amount = Core.toMinor(val('exp-amount'));
       var split = Array.prototype.map.call(document.querySelectorAll('input[name="exp-split"]:checked'), function (c) { return c.value; });
       if (!desc) return fail('Say what the expense was.');

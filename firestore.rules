@@ -1,0 +1,173 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function config() { return /databases/$(database)/documents/trips/main/config/security; }
+    function memberPath(uid) { return /databases/$(database)/documents/trips/main/members/$(uid); }
+    function expensePath(id) { return /databases/$(database)/documents/trips/main/expenses/$(id); }
+    function logPath(id) { return /databases/$(database)/documents/trips/main/log/$(id); }
+
+    // Provision exactly one ownerUid from Firebase Console or the Admin SDK.
+    // Never allow browser accounts to create or change the owner UID.
+    function isOwner() {
+      return signedIn() && exists(config()) &&
+        get(config()).data.ownerUid == request.auth.uid;
+    }
+    function isMember() {
+      return signedIn() && exists(memberPath(request.auth.uid)) &&
+        get(memberPath(request.auth.uid)).data.person in ['A','D','H','M','P','R','S'];
+    }
+    function myPerson() {
+      return get(memberPath(request.auth.uid)).data.person;
+    }
+    function memberOrOwner() { return isMember() || isOwner(); }
+    function validTraveler(p) { return p in ['A','D','H','M','P','R','S']; }
+
+    function expenseFields(e) {
+      return e.keys().hasOnly(['desc','amount','paidBy','split','category','currency',
+        'date','merchant','time','quantity','unit','unitPrice','by','at','ownerUid',
+        'actorUid','rev','updatedBy','updatedAt']) &&
+        e.keys().hasAll(['desc','amount','paidBy','split','category','currency',
+        'date','by','at','actorUid','rev']) &&
+        e.desc is string && e.desc.size() > 0 && e.desc.size() <= 80 &&
+        e.amount is int && e.amount > 0 && e.amount <= 100000000 &&
+        validTraveler(e.paidBy) &&
+        e.split is list && e.split.size() >= 1 && e.split.size() <= 7 &&
+        e.split.toSet().size() == e.split.size() &&
+        e.split.hasOnly(['A','D','H','M','P','R','S']) &&
+        e.category in ['Gas','Food','Transport','Activities','Other'] &&
+        e.currency == 'USD' &&
+        e.date is string && e.date.matches('^20[0-9]{2}-[0-9]{2}-[0-9]{2}$') &&
+        e.at is string && validTraveler(e.by) &&
+        e.rev is int && e.rev >= 1 && e.rev <= 100000 &&
+        e.actorUid == request.auth.uid;
+    }
+    function auditPath(id,rev) {
+      return logPath('ex_' + id + '_' + string(rev));
+    }
+    // A single atomic batch must create the matching immutable audit document.
+    function auditAfter(id, rev, action, beforeAmount, afterAmount) {
+      let path = auditPath(id,rev);
+      return existsAfter(path) &&
+        getAfter(path).data.kind == 'expense' &&
+        getAfter(path).data.expenseId == id &&
+        getAfter(path).data.rev == rev &&
+        getAfter(path).data.act == action &&
+        getAfter(path).data.actorUid == request.auth.uid &&
+        getAfter(path).data.who == myPerson() &&
+        (action == 'added' || getAfter(path).data.before.amount == beforeAmount) &&
+        (action == 'removed' || getAfter(path).data.after.amount == afterAmount);
+    }
+
+    match /trips/main/config/security {
+      allow get: if signedIn();
+      allow list, create, update, delete: if false;
+    }
+    match /trips/main/members/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || isOwner());
+      allow list: if isMember();
+      allow create, update: if isOwner() &&
+        request.resource.data.person in ['A','D','H','M','P','R','S'] &&
+        request.resource.data.approvedBy == request.auth.uid;
+      allow delete: if isOwner() && request.auth.uid != uid;
+    }
+    match /trips/main/requests/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || isOwner());
+      allow list: if isOwner();
+      allow create: if signedIn() && request.auth.uid == uid && !isMember() &&
+        request.auth.token.email_verified == true &&
+        request.resource.data.keys().hasOnly(['name','email','requestedAt']) &&
+        request.resource.data.keys().hasAll(['name','email','requestedAt']) &&
+        request.resource.data.email == request.auth.token.email &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() <= 80 &&
+        request.resource.data.requestedAt is string;
+      allow update: if false;
+      allow delete: if isOwner();
+    }
+    match /trips/main/flights/{personId} {
+      allow read: if isMember();
+      allow create, update: if isMember() && (isOwner() || myPerson() == personId) &&
+        validTraveler(personId) &&
+        request.resource.data.keys().hasOnly(['arrival','departure','by','actorUid','at']) &&
+        request.resource.data.keys().hasAll(['arrival','departure','by','actorUid','at']) &&
+        request.resource.data.arrival is map &&
+        request.resource.data.departure is map &&
+        request.resource.data.by == myPerson() &&
+        request.resource.data.actorUid == request.auth.uid &&
+        request.resource.data.at is string;
+      allow delete: if isOwner();
+    }
+    match /trips/main/expenses/{expenseId} {
+      allow read: if isMember();
+      allow create: if isMember() && expenseFields(request.resource.data) &&
+        request.resource.data.by == myPerson() &&
+        request.resource.data.get('ownerUid','') == request.auth.uid &&
+        request.resource.data.rev == 1 &&
+        auditAfter(expenseId,1,'added',0,request.resource.data.amount);
+      allow update: if isMember() &&
+        expenseFields(request.resource.data) &&
+        request.resource.data.by == resource.data.by &&
+        request.resource.data.at == resource.data.at &&
+        request.resource.data.get('ownerUid','') == resource.data.get('ownerUid','') &&
+        request.resource.data.rev == resource.data.get('rev',0)+1 &&
+        request.resource.data.get('updatedBy','') == myPerson() &&
+        auditAfter(expenseId,request.resource.data.rev,'edited',
+          resource.data.amount,request.resource.data.amount);
+      allow delete: if isMember() &&
+        auditAfter(expenseId,resource.data.get('rev',0)+1,'removed',resource.data.amount,0);
+    }
+    match /trips/main/log/{logId} {
+      allow read: if isMember();
+      allow create: if isMember() &&
+        request.resource.data.who == myPerson() &&
+        (
+          (request.resource.data.get('kind','') != 'expense' &&
+            request.resource.data.act is string &&
+            request.resource.data.text is string)
+          ||
+          (request.resource.data.kind == 'expense' &&
+            request.resource.data.actorUid == request.auth.uid &&
+            request.resource.data.expenseId is string &&
+            request.resource.data.rev is int &&
+            logId == 'ex_' + request.resource.data.expenseId + '_' + string(request.resource.data.rev) &&
+            request.resource.data.act in ['added','edited','removed'] &&
+            (
+              (request.resource.data.act in ['added','edited'] &&
+                existsAfter(expensePath(request.resource.data.expenseId)) &&
+                getAfter(expensePath(request.resource.data.expenseId)).data.rev ==
+                  request.resource.data.rev &&
+                getAfter(expensePath(request.resource.data.expenseId)).data.actorUid ==
+                  request.auth.uid &&
+                getAfter(expensePath(request.resource.data.expenseId)).data.amount ==
+                  request.resource.data.after.amount)
+              ||
+              (request.resource.data.act == 'removed' &&
+                exists(expensePath(request.resource.data.expenseId)) &&
+                !existsAfter(expensePath(request.resource.data.expenseId)) &&
+                get(expensePath(request.resource.data.expenseId)).data.amount ==
+                  request.resource.data.before.amount)
+            )
+          )
+        );
+      // History is append-only. Deletion/rewriting requires privileged Admin SDK.
+      allow update, delete: if false;
+    }
+    match /trips/main/places/{id} {
+      allow read, create, update, delete: if isMember();
+    }
+    match /trips/main/payments/{id} {
+      allow read, create, update, delete: if isMember();
+    }
+    match /trips/main/albums/{id} {
+      allow read, create, update, delete: if isMember();
+    }
+    match /trips/main/deleted/{id} {
+      allow read, create, update: if isMember();
+      allow delete: if false;
+    }
+    match /trips/main/{any=**} {
+      allow read, write: if false;
+    }
+  }
+}

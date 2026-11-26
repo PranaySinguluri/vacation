@@ -1,0 +1,13 @@
+{
+  "name": "vacation-security-tests",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test:rules": "firebase emulators:exec --only firestore --project demo-vacation-security \"node tests/firestore-security.cjs\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.0",
+    "firebase": "^12.0.0",
+    "firebase-tools": "^14.0.0"
+  }
+}
