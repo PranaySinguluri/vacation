@@ -1066,12 +1066,28 @@ if (typeof module !== 'undefined') module.exports = Core;
     x=x||{};
     return {date:/^20\d{2}-\d{2}-\d{2}$/.test(String(x.date||''))?x.date:'',
       time:/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(x.time||''))?x.time:'',
+      arrivalDate:/^20\d{2}-\d{2}-\d{2}$/.test(String(x.arrivalDate||''))?x.arrivalDate:'',
+      arrivalTime:/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(x.arrivalTime||''))?x.arrivalTime:'',
       from:String(x.from||'').slice(0,90),to:String(x.to||'').slice(0,90),
       flight:String(x.flight||'').slice(0,30),airline:String(x.airline||'').slice(0,70),
+      duration:String(x.duration||'').slice(0,24),stops:String(x.stops||'').slice(0,25),
       tz:String(x.tz||'').slice(0,45)};
   }
+  /* User-confirmed schedule; only flight logistics, never reservation codes.
+     These defaults show for Pranay until a traveler saves a revised itinerary. */
+  var PRANAY_FLIGHT_DEFAULT={
+    id:'P',
+    arrival:{date:'2026-12-15',time:'18:48',arrivalDate:'2026-12-15',arrivalTime:'20:31',
+      from:'Dallas/Ft. Worth (DFW)',to:'Phoenix Sky Harbor (PHX)',
+      airline:'Frontier Airlines',flight:'F9 4655',duration:'2h 43m',stops:'Nonstop',
+      tz:'Times local to each airport'},
+    departure:{date:'2027-01-05',time:'21:19',arrivalDate:'2027-01-06',arrivalTime:'00:40',
+      from:'Phoenix Sky Harbor (PHX)',to:'Dallas/Ft. Worth (DFW)',
+      airline:'Frontier Airlines',flight:'F9 3832',duration:'2h 21m',stops:'Nonstop',
+      tz:'Times local to each airport'}
+  };
   function flightFor(pid){
-    var p=flights[pid]||{};
+    var p=flights[pid]||(pid==='P'?PRANAY_FLIGHT_DEFAULT:{});
     return {id:pid,arrival:flightLeg(p.arrival),departure:flightLeg(p.departure)};
   }
   function flightCanEdit(pid){return !CLOUD.on||(CLOUD.state==='ready'&&(ui.admin||me===pid));}
@@ -2345,14 +2361,19 @@ if (typeof module !== 'undefined') module.exports = Core;
     return d.getUTCFullYear()===+m[1]&&d.getUTCMonth()===+m[2]-1&&d.getUTCDate()===+m[3]?
       d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'}):'';
   }
-  function flightLegDisplay(title, leg){
-    var date=flightDisplayDate(leg.date);
-    var has=!!(date||leg.time||leg.from||leg.to||leg.airline||leg.flight||leg.tz);
+  function flightLegDisplay(title,leg){
+    var depart=flightDisplayDate(leg.date),land=flightDisplayDate(leg.arrivalDate);
+    var has=!!(depart||leg.time||land||leg.arrivalTime||leg.from||leg.to||leg.airline||leg.flight);
     return '<div class="flight-box"><h4>'+esc(title)+'</h4>'+
       (has?
-      '<span class="fline"><b>Local date/time:</b> '+esc(date||'Not set')+(leg.time?', '+esc(fmtClock(leg.time)):'')+'</span>'+
       (leg.from||leg.to?'<span class="fline"><b>Route:</b> '+esc(leg.from||'?')+' → '+esc(leg.to||'?')+'</span>':'')+
+      '<span class="fline"><b>Departure:</b> '+esc(depart||'Date not set')+
+        (leg.time?', '+esc(fmtClock(leg.time)):'')+(leg.from?' · '+esc(leg.from):'')+'</span>'+
+      '<span class="fline"><b>Arrival:</b> '+esc(land||'Date not set')+
+        (leg.arrivalTime?', '+esc(fmtClock(leg.arrivalTime)):'')+(leg.to?' · '+esc(leg.to):'')+'</span>'+
       (leg.airline||leg.flight?'<span class="fline"><b>Flight:</b> '+esc([leg.airline,leg.flight].filter(Boolean).join(' '))+'</span>':'')+
+      (leg.duration||leg.stops?'<span class="fline"><b>Duration:</b> '+
+        esc([leg.duration,leg.stops].filter(Boolean).join(' · '))+'</span>':'')+
       (leg.tz?'<span class="fline"><b>Time zone:</b> '+esc(leg.tz)+'</span>':''):
       '<p class="sub">No flight details added yet.</p>')+'</div>';
   }
@@ -2364,13 +2385,17 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   function flightEditBox(pid,kind,title){
     return '<div class="flight-box"><h4>'+esc(title)+'</h4><div class="flight-fields">'+
-      flightInputField(pid,kind,'date','Date shown on ticket','date','',false)+
-      flightInputField(pid,kind,'time','Local time shown on ticket','time','',false)+
+      flightInputField(pid,kind,'date','Flight departure date','date','',false)+
+      flightInputField(pid,kind,'time','Flight departure time','time','',false)+
+      flightInputField(pid,kind,'arrivalDate','Flight arrival date','date','',false)+
+      flightInputField(pid,kind,'arrivalTime','Flight arrival time','time','',false)+
       flightInputField(pid,kind,'from','From airport / city','text','DFW',false)+
-      flightInputField(pid,kind,'to','To airport / city','text','SAN',false)+
+      flightInputField(pid,kind,'to','To airport / city','text','PHX',false)+
       flightInputField(pid,kind,'airline','Airline','text','Airline',false)+
-      flightInputField(pid,kind,'flight','Flight number','text','AA1234',false)+
-      flightInputField(pid,kind,'tz','Time zone on ticket (if known)','text','Airport local time',true)+
+      flightInputField(pid,kind,'flight','Flight number','text','F9 4655',false)+
+      flightInputField(pid,kind,'duration','Duration','text','2h 43m',false)+
+      flightInputField(pid,kind,'stops','Stops','text','Nonstop',false)+
+      flightInputField(pid,kind,'tz','Time zones (if known)','text','Airport-local times',true)+
       '</div></div>';
   }
   function flightPanel(){
@@ -2392,7 +2417,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       h+='<form id="flight-form" data-person="'+pid+'">'+
         '<div class="flight-edit-grid">'+flightEditBox(pid,'arrival','Arriving for trip')+
         flightEditBox(pid,'departure','Departing from trip')+'</div>'+
-        '<p class="sub">Enter airport-local times exactly as printed. Overnight flights can arrive on a different date. Review every date and time before saving.</p>'+
+        '<p class="sub">Enter both departure and landing dates and times exactly as printed. Each time is local to the airport shown; overnight returns can land the next day. Review screenshot results before saving.</p>'+
         '<label class="btn flight-scan">Upload flight itinerary screenshot<input type="file" id="flight-shot" accept="image/*" hidden></label>'+
         flightOCRPanel()+
         '<div class="err" data-err hidden></div><div class="row">'+
