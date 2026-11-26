@@ -1029,7 +1029,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   var legCache = {};
   try { legCache = JSON.parse(localStorage.getItem(LEGS_KEY) || '{}') || {}; } catch (e) {}
 
-  var ui = { tab: 'sd', menu: false, shot: null, albumEdit: null, undoOrder: null, linkOpen: null, linkEdit: null, showLog: false, adding: false, admin: false, adminOpen: false, share: false, sel: null, editing: null, editingExp: null, locFor: null, confirm: null, msg: '', importText: '' };
+  var ui = { tab: 'sd', menu: false, shot: null, albumEdit: null, undoOrder: null, linkOpen: null, linkEdit: null, showLog: false, adding: false, admin: false, adminOpen: false, share: false, sel: null, editing: null, editingExp: null, locFor: null, confirm: null, msg: '', importText: '', flightPerson: null, flightEditing: false, flightDraft: null, flightOCR: null, flightMsg: '' };
   try { ui.admin = sessionStorage.getItem(ADMIN_KEY) === '1'; } catch (e) {}
   /* Always open on San Diego; switching tabs still works during the session. */
 
@@ -1038,8 +1038,59 @@ if (typeof module !== 'undefined') module.exports = Core;
     try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {}
   }
 
+  /* Screenshot OCR is transient: only reviewed flight fields are persisted.
+     Booking references, raw OCR, images, and passenger IDs are never saved. */
+  var FLIGHTS_KEY='tripwallet.flights.v1', flights={};
+  try {
+    var previousFlights=JSON.parse(localStorage.getItem(FLIGHTS_KEY)||'{}');
+    if(previousFlights&&typeof previousFlights==='object'&&!Array.isArray(previousFlights)) flights=previousFlights;
+  }catch(e){}
+  function flightLeg(x){
+    x=x||{};
+    return {date:/^20\d{2}-\d{2}-\d{2}$/.test(String(x.date||''))?x.date:'',
+      time:/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(x.time||''))?x.time:'',
+      from:String(x.from||'').slice(0,90),to:String(x.to||'').slice(0,90),
+      flight:String(x.flight||'').slice(0,30),airline:String(x.airline||'').slice(0,70),
+      tz:String(x.tz||'').slice(0,45)};
+  }
+  function flightFor(pid){
+    var p=flights[pid]||{};
+    return {id:pid,arrival:flightLeg(p.arrival),departure:flightLeg(p.departure)};
+  }
+  function flightCanEdit(pid){return !CLOUD.on||(CLOUD.state==='ready'&&(ui.admin||me===pid));}
+  function flightLocalSave(){
+    try{localStorage.setItem(FLIGHTS_KEY,JSON.stringify(flights));return true;}
+    catch(e){ui.flightMsg='Could not save flight details on this device.';return false;}
+  }
+  function saveFlightFor(pid,record){
+    if(!isPerson(pid)||!flightCanEdit(pid))return;
+    if(CLOUD.on&&CLOUD.flightSync==='loading'){
+      ui.flightMsg='Flight details are loading. Please retry the save shortly.';render();return;
+    }
+    var clean={id:pid,arrival:flightLeg(record.arrival),departure:flightLeg(record.departure),by:me||'',at:new Date().toISOString()};
+    flights[pid]=clean;flightLocalSave();
+    ui.flightEditing=false;ui.flightOCR=null;ui.flightDraft=null;ui.flightMsg='Flight details saved on this device.';
+    if(CLOUD.on&&CLOUD.flightSync==='ready'){
+      var session=CLOUD.user;
+      CLOUD.fs.setDoc(CLOUD.fs.doc(CLOUD.db,'trips','main','flights',pid),{
+        arrival:clean.arrival,departure:clean.departure,by:clean.by,at:clean.at
+      }).then(function(){
+        if(CLOUD.user!==session)return;
+        ui.flightMsg='Flight details saved to the shared trip.';
+        if(ui.flightPerson===pid)softRender();
+      }).catch(function(e){
+        if(CLOUD.user!==session)return;
+        ui.flightMsg='Saved on this device only. Shared flight storage was blocked ('+
+          (e&&e.code||'network error')+').';
+        if(ui.flightPerson===pid)softRender();
+      });
+    }else if(CLOUD.on){
+      ui.flightMsg='Saved on this device only. Shared flight storage is unavailable.';
+    }
+    render();
+  }
   /* ---------- Shared trip in Firebase (on the hosted site) ---------- */
-  var CLOUD = { on: false, state: 'off', fs: null, db: null, au: null, auth: null, user: null, admin: false, person: '', members: {}, loaded: {}, deleted: {}, unsub: [], err: '' };
+  var CLOUD = { on: false, state: 'off', fs: null, db: null, au: null, auth: null, user: null, admin: false, person: '', members: {}, loaded: {}, unsub: [], err: '', flightSync: 'local', flightError: '' };
   var COLS = ['places', 'expenses', 'payments', 'log'];
   var synced = { places: {}, expenses: {}, payments: {}, log: {} };
   function stable(o) {
@@ -1092,6 +1143,17 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   function listen() {
     var fs = CLOUD.fs, db = CLOUD.db;
+    CLOUD.flightSync='loading';CLOUD.flightError='';
+    CLOUD.unsub.push(fs.onSnapshot(fs.collection(db,'trips','main','flights'),function(snap){
+      var current={};snap.docs.forEach(function(d){
+        if(isPerson(d.id))current[d.id]=Object.assign({id:d.id},d.data());
+      });
+      flights=Object.assign({},flights,current);
+      flightLocalSave();CLOUD.flightSync='ready';CLOUD.flightError='';softRender();
+    },function(e){
+      CLOUD.flightSync='unavailable';CLOUD.flightError=(e&&e.code)||'unavailable';
+      softRender();
+    }));
     ['places', 'expenses', 'payments'].forEach(function (col) {
       CLOUD.unsub.push(fs.onSnapshot(fs.collection(db, 'trips', 'main', col), function (snap) {
         var arr = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
@@ -1124,7 +1186,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   function onUser(user) {
     CLOUD.unsub.forEach(function (f) { try { f(); } catch (e) {} });
-    CLOUD.unsub = []; CLOUD.loaded = {}; CLOUD.user = user; CLOUD.person = ''; me = '';
+    CLOUD.unsub = []; CLOUD.loaded = {}; CLOUD.user = user; CLOUD.person = ''; CLOUD.flightSync='loading'; me = '';
     if (!user) { CLOUD.state = 'signedout'; CLOUD.admin = false; ui.admin = false; render(); return; }
     var fs = CLOUD.fs, db = CLOUD.db, ak = 'tripwallet.isadmin.' + user.uid;
     try { CLOUD.admin = localStorage.getItem(ak) === '1'; } catch (e) {}
@@ -1201,7 +1263,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   function exportData() { return { v: 3, places: data.places, expenses: data.expenses, payments: data.payments, deleted: data.deleted }; }
   var undoStop = null;
   function downloadBackup() {
-    var backup = { format: 'tripwallet-backup', exportedAt: new Date().toISOString(), data: exportData(), spending: spending };
+    var backup = { format: 'tripwallet-backup', exportedAt: new Date().toISOString(), data: exportData(), spending: spending, flights: flights };
     var blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     var url = URL.createObjectURL(blob), a = document.createElement('a');
     a.href = url; a.download = 'vacation-backup-' + today() + '.json';
@@ -2677,6 +2739,13 @@ if (typeof module !== 'undefined') module.exports = Core;
         if (!window.confirm('Replace the local itinerary and spending with this backup? Download your current backup first.')) return;
         data = JSON.parse(JSON.stringify(d)); data.log = data.log || [];
         spending = Array.isArray(b.spending) ? b.spending : spending;
+        if(b.flights&&typeof b.flights==='object'&&!Array.isArray(b.flights)){
+          flights={};
+          PEOPLE.forEach(function(p){if(b.flights[p.id])flights[p.id]={
+            id:p.id,arrival:flightLeg(b.flights[p.id].arrival),departure:flightLeg(b.flights[p.id].departure)
+          };});
+          flightLocalSave();
+        }
         if (!saveSpending()) throw new Error('storage');
         save(); ui.msg = 'Local backup restored.'; render();
       }).catch(function () { ui.msg = 'Could not restore this backup. Check the file and available storage.'; render(); });
