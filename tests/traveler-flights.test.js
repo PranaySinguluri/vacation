@@ -82,7 +82,7 @@ async function run(){
   assert.match(result,/MST/);
   assert.match(result,/Track AA123/);
   assert.match(result,/Track AA456/);
-  assert.match(result,/Different cities:/);
+  assert.doesNotMatch(result,/Different cities:/,'matching arrival and return city needs no warning');
  });
  test('separate arrival and return legs preserve their own connections',()=>{
   const connected={arrival:{date:'2026-12-26',time:'06:00',arrivalDate:'2026-12-26',arrivalTime:'16:00',
@@ -96,6 +96,7 @@ async function run(){
   h.setFlights({D:connected});h.ui.flightPerson='D';
   const html=h.flightPanel();
   assert.match(html,/2 flight legs/);
+  assert.match(html,/Different cities:/,'different arrival and return cities need a clear note');
   assert.match(html,/Track UA777/);
   assert.match(html,/Track UA888/);
   assert.match(html,/Track AA456/);
