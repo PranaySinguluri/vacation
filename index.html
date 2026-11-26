@@ -1279,7 +1279,8 @@ if (typeof module !== 'undefined') module.exports = Core;
     CLOUD.flightSync='loading';flights={};me='';
     try{localStorage.removeItem(FLIGHTS_KEY);sessionStorage.removeItem('tripwallet.admin');}catch(e){}
     if(!user){
-      CLOUD.state='signedout';data=seedData();ui.showLog=false;ui.flightPerson=null;
+      try{localStorage.removeItem(KEY);localStorage.removeItem(FLIGHTS_KEY);}catch(e){}
+      CLOUD.state='signedout';data=seedData();localData=seedData();ui.showLog=false;ui.flightPerson=null;
       ui.flightEditing=false;ui.flightDraft=null;render();return;
     }
     var fs=CLOUD.fs,db=CLOUD.db;
@@ -1318,7 +1319,9 @@ if (typeof module !== 'undefined') module.exports = Core;
     CLOUD.on = true; CLOUD.state = 'loading';
     loadFirebase().then(function (m) {
       var fapp = m.app.initializeApp(FIREBASE_CONFIG), db;
-      try { db = m.fs.initializeFirestore(fapp, { localCache: m.fs.persistentLocalCache({ tabManager: m.fs.persistentMultipleTabManager() }) }); }
+      // Sensitive shared trip information must not be persisted in IndexedDB
+      // after sign-out or user switching. Keep Firestore cache in memory only.
+      try { db = m.fs.initializeFirestore(fapp, { localCache: m.fs.memoryLocalCache() }); }
       catch (e) { db = m.fs.getFirestore(fapp); }
       CLOUD.fs = m.fs; CLOUD.db = db; CLOUD.au = m.auth; CLOUD.auth = m.auth.getAuth(fapp);
       m.auth.getRedirectResult(CLOUD.auth).catch(function () {});
