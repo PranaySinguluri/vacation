@@ -193,7 +193,7 @@ async function run(){
     const html=h.flightPanel();
     assert.match(html,/Sahithi · Flights/);
     assert.match(html,/Dec 23, 2026, 8:30 PM/);
-    assert.match(html,/Dec 23, 2026, 9:00 PM/);
+    assert.match(html,/Dec 23, 2026, 9 PM/);
     assert.match(html,/Dec 23, 2026, 9:45 PM/);
     assert.match(html,/Dec 24, 2026/);
     assert.match(html,/Jan 5, 2027, 5:10 PM/);
