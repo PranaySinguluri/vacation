@@ -28,7 +28,7 @@ let chosen=['A','D','H','M','P','R','S'];
 function submit(vals={}){
  for(const [id,v]of Object.entries(vals))inputs[id]={value:v};
  error.textContent='';error.hidden=true;
- const form={id:'spending-form',querySelector:sel=>sel==='[data-err]'?error:null,
+ const form={id:'spending-form',classList:{contains:()=>false},dataset:{},querySelector:sel=>sel==='[data-err]'?error:null,
  querySelectorAll:sel=>sel==='input[name="sp-split"]:checked'?chosen.map(value=>({value})):[]};
  for(const fn of handlers.submit||[])fn({target:form,preventDefault(){}});
  return error.textContent;
