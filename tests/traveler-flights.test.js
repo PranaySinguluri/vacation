@@ -235,14 +235,38 @@ async function run(){
     assert.equal(second.flight,'AA 2568');
     assert.equal(second.duration,'3h 07m');
   });
-  test('DivyaTheja return is unprovided, not guessed',()=>{
+  test('DivyaTheja return is Jan 4 PHX-ORD-COU via AA3165 and AA3577',()=>{
     const d=h.flightFor('D').departure;
-    assert.equal(d.date,'');
-    assert.equal(d.time,'');
-    assert.equal(d.arrivalDate,'');
-    assert.equal(d.arrivalTime,'');
+    assert.equal(d.date,'2027-01-04');
+    assert.equal(d.time,'13:26');
+    assert.equal(d.arrivalDate,'2027-01-04');
+    assert.equal(d.arrivalTime,'21:38');
+    assert.equal(d.from,'Phoenix Sky Harbor (PHX)');
+    assert.equal(d.to,'Columbia Regional (COU)');
+    assert.equal(d.airline,'American Airlines');
     assert.equal(d.flight,'');
-    assert.equal(d.segments.length,0);
+    assert.equal(d.duration,'7h 12m');
+    assert.equal(d.stops,"1 connection via Chicago O'Hare (ORD), 1h 59m layover");
+    assert.equal(d.segments.length,2);
+    const first=d.segments[0],second=d.segments[1];
+    assert.equal(first.date,'2027-01-04');
+    assert.equal(first.time,'13:26');
+    assert.equal(first.arrivalDate,'2027-01-04');
+    assert.equal(first.arrivalTime,'18:00');
+    assert.equal(first.from,'Phoenix Sky Harbor (PHX)');
+    assert.equal(first.to,"Chicago O'Hare (ORD)");
+    assert.equal(first.airline,'American Airlines');
+    assert.equal(first.flight,'AA 3165');
+    assert.equal(first.duration,'3h 34m');
+    assert.equal(second.date,'2027-01-04');
+    assert.equal(second.time,'19:59');
+    assert.equal(second.arrivalDate,'2027-01-04');
+    assert.equal(second.arrivalTime,'21:38');
+    assert.equal(second.from,"Chicago O'Hare (ORD)");
+    assert.equal(second.to,'Columbia Regional (COU)');
+    assert.equal(second.flight,'AA 3577');
+    assert.equal(second.duration,'1h 39m');
+    assert.match(second.note,/Operated by Envoy Air as American Eagle/);
   });
   test('DivyaTheja UI displays both American Airlines flight tracking links and airport-local time zones',()=>{
     h.ui.flightPerson='D';
@@ -264,7 +288,19 @@ async function run(){
     assert.match(html,/data\/flights\/aa3853/);
     assert.match(html,/data\/flights\/aa2568/);
     assert.match(html,/Operated by Envoy Air as American Eagle/);
-    assert.match(html,/Flight details have not been added for this person yet/);
+    assert.match(html,/Jan 4, 2027, 1:26 PM/);
+    assert.match(html,/Jan 4, 2027, 6 PM/);
+    assert.match(html,/Jan 4, 2027, 7:59 PM/);
+    assert.match(html,/Jan 4, 2027, 9:38 PM/);
+    assert.match(html,/1h 59m layover/);
+    assert.match(html,/7h 12m/);
+    assert.match(html,/Phoenix Sky Harbor local time \(MST\)/);
+    assert.match(html,/Chicago O&#39;Hare local time \(CST\)/);
+    assert.match(html,/Columbia Regional local time \(CST\)/);
+    assert.match(html,/Track AA3165/);
+    assert.match(html,/Track AA3577/);
+    assert.match(html,/data\/flights\/aa3165/);
+    assert.match(html,/data\/flights\/aa3577/);
     assert.doesNotMatch(html,/B7QLKP|HIMKHD|KBBU7Y/);
     h.ui.flightPerson=null;
   });
@@ -275,12 +311,47 @@ async function run(){
     assert.match(html,/Connecting flights — edit each leg separately/);
     assert.match(html,/id="flt-arrival-seg0-flight"/);
     assert.match(html,/id="flt-arrival-seg1-flight"/);
+    assert.match(html,/id="flt-departure-seg0-flight"/);
+    assert.match(html,/id="flt-departure-seg1-flight"/);
     h.act('flight-cancel',{});
     h.ui.flightPerson=null;
     assert.equal(h.flightFor('P').arrival.time,'18:48');
     assert.equal(h.flightFor('A').arrival.time,'20:09');
     assert.equal(h.flightFor('R').arrival.time,'18:51');
     assert.equal(h.flightFor('S').arrival.segments[0].flight,'WN 1282');
+  });
+  test('Divya existing saved arrival without a return receives the new return only',()=>{
+    // Simulate a prior app version saving her inbound leg while return was empty.
+    const oldArrival=h.flightFor('D').arrival;
+    h.saveFlightFor('D',{arrival:oldArrival,departure:{}});
+    const merged=h.flightFor('D');
+    assert.equal(merged.arrival.segments[0].flight,'AA 3853');
+    assert.equal(merged.arrival.segments[1].flight,'AA 2568');
+    assert.equal(merged.departure.date,'2027-01-04');
+    assert.equal(merged.departure.segments[0].flight,'AA 3165');
+    assert.equal(merged.departure.segments[1].flight,'AA 3577');
+  });
+  test('Divya existing populated return edits are preserved',()=>{
+    const custom={date:'2027-01-03',time:'11:15',from:'Phoenix Sky Harbor (PHX)',
+      to:'Columbia Regional (COU)',flight:'AA 9999',airline:'American Airlines'};
+    h.saveFlightFor('D',{arrival:h.flightFor('D').arrival,departure:custom});
+    const edited=h.flightFor('D');
+    assert.equal(edited.departure.date,'2027-01-03');
+    assert.equal(edited.departure.flight,'AA 9999');
+    assert.equal(edited.arrival.segments[0].flight,'AA 3853');
+    // Restore this test's state for subsequent tests (same process).
+    h.saveFlightFor('D',{arrival:h.flightFor('D').arrival,departure:{
+      date:'2027-01-04',time:'13:26',arrivalDate:'2027-01-04',arrivalTime:'21:38',
+      from:'Phoenix Sky Harbor (PHX)',to:'Columbia Regional (COU)',
+      airline:'American Airlines',flight:'',duration:'7h 12m',
+      stops:"1 connection via Chicago O'Hare (ORD), 1h 59m layover",
+      segments:[{date:'2027-01-04',time:'13:26',arrivalDate:'2027-01-04',arrivalTime:'18:00',
+        from:'Phoenix Sky Harbor (PHX)',to:"Chicago O'Hare (ORD)",
+        airline:'American Airlines',flight:'AA 3165',duration:'3h 34m'},
+        {date:'2027-01-04',time:'19:59',arrivalDate:'2027-01-04',arrivalTime:'21:38',
+        from:"Chicago O'Hare (ORD)",to:'Columbia Regional (COU)',
+        airline:'American Airlines',flight:'AA 3577',duration:'1h 39m',
+        note:'Operated by Envoy Air as American Eagle'}]}});
   });
   test('Haneela price quote outbound crosses midnight on Dec 23–24',()=>{
     const a=h.flightFor('H').arrival;
