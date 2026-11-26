@@ -47,6 +47,23 @@ button:disabled { opacity: .35; cursor: default }
 .travelers { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px }
 .av { font-size: 12px; font-weight: 600; background: var(--primary-soft); color: var(--primary); border-radius: 999px; padding: 2px 9px }
 .av.me { background: var(--primary); color: var(--primary-ink); box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--primary) }
+button.av{font:inherit;font-size:12px;font-weight:600;border:1px solid transparent;cursor:pointer;min-height:32px;padding:6px 11px}
+button.av:focus-visible{outline:3px solid var(--primary);outline-offset:3px}
+button.av.selected{border-color:var(--primary);background:var(--surface);color:var(--primary)}
+.flight-panel{margin:12px auto;max-width:820px}
+.flight-grid,.flight-edit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0}
+.flight-box{padding:12px;border:1px solid var(--line);border-radius:12px;min-width:0}
+.flight-box h4{margin:0 0 8px}
+.flight-box .fline{display:block;margin:4px 0;overflow-wrap:anywhere}
+.flight-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.flight-fields label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);min-width:0}
+.flight-fields input{width:100%;min-width:0}
+.flight-fields .wide{grid-column:span 2}
+.flight-scan{font-size:12px;margin-top:12px}
+.flight-choices{display:flex;flex-wrap:wrap;gap:6px;margin:7px 0}
+.flight-choices button{font-size:12px;padding:6px 9px;min-height:36px}
+.flight-ocr-text{max-height:170px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}
+@media(max-width:600px){.flight-grid,.flight-edit-grid{grid-template-columns:1fr}}
 .hovertools { opacity: 0; transition: opacity .15s }
 .stop:hover .hovertools, .stop:focus-within .hovertools, .list li:hover .hovertools, .list li:focus-within .hovertools { opacity: 1 }
 @media (hover: none) { .hovertools { opacity: 1 } }
@@ -2321,6 +2338,88 @@ if (typeof module !== 'undefined') module.exports = Core;
     return ph ? '<img class="pic" src="' + esc(ph) + '" alt="" width="' + size + '" height="' + size + '" referrerpolicy="no-referrer" loading="lazy">'
       : '<span class="pic none" style="width:' + size + 'px;height:' + size + 'px;font-size:' + Math.round(size * 0.45) + 'px" aria-hidden="true">' + esc(n.charAt(0)) + '</span>';
   }
+  function flightDisplayDate(s){
+    var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||'');
+    if(!m)return '';
+    var d=new Date(Date.UTC(+m[1],+m[2]-1,+m[3]));
+    return d.getUTCFullYear()===+m[1]&&d.getUTCMonth()===+m[2]-1&&d.getUTCDate()===+m[3]?
+      d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'}):'';
+  }
+  function flightLegDisplay(title, leg){
+    var date=flightDisplayDate(leg.date);
+    var has=!!(date||leg.time||leg.from||leg.to||leg.airline||leg.flight||leg.tz);
+    return '<div class="flight-box"><h4>'+esc(title)+'</h4>'+
+      (has?
+      '<span class="fline"><b>Local date/time:</b> '+esc(date||'Not set')+(leg.time?', '+esc(fmtClock(leg.time)):'')+'</span>'+
+      (leg.from||leg.to?'<span class="fline"><b>Route:</b> '+esc(leg.from||'?')+' → '+esc(leg.to||'?')+'</span>':'')+
+      (leg.airline||leg.flight?'<span class="fline"><b>Flight:</b> '+esc([leg.airline,leg.flight].filter(Boolean).join(' '))+'</span>':'')+
+      (leg.tz?'<span class="fline"><b>Time zone:</b> '+esc(leg.tz)+'</span>':''):
+      '<p class="sub">No flight details added yet.</p>')+'</div>';
+  }
+  function flightInputField(pid,kind,key,label,type,placeholder,wide){
+    var value=flightLeg(ui.flightDraft[kind])[key]||'',id='flt-'+kind+'-'+key;
+    return '<label'+(wide?' class="wide"':'')+' for="'+id+'">'+esc(label)+
+      '<input type="'+(type||'text')+'" id="'+id+'" name="'+id+'" maxlength="90"'+
+      (placeholder?' placeholder="'+esc(placeholder)+'"':'')+' value="'+esc(value)+'"></label>';
+  }
+  function flightEditBox(pid,kind,title){
+    return '<div class="flight-box"><h4>'+esc(title)+'</h4><div class="flight-fields">'+
+      flightInputField(pid,kind,'date','Date shown on ticket','date','',false)+
+      flightInputField(pid,kind,'time','Local time shown on ticket','time','',false)+
+      flightInputField(pid,kind,'from','From airport / city','text','DFW',false)+
+      flightInputField(pid,kind,'to','To airport / city','text','SAN',false)+
+      flightInputField(pid,kind,'airline','Airline','text','Airline',false)+
+      flightInputField(pid,kind,'flight','Flight number','text','AA1234',false)+
+      flightInputField(pid,kind,'tz','Time zone on ticket (if known)','text','Airport local time',true)+
+      '</div></div>';
+  }
+  function flightPanel(){
+    var pid=ui.flightPerson;
+    if(!pid||!isPerson(pid))return '';
+    var mine=flightCanEdit(pid),f=flightFor(pid),name=person(pid);
+    var h='<section class="card flight-panel" id="flight-panel" aria-label="'+esc(name)+' flight itinerary">'+
+      '<div class="row between"><div><h3 style="margin:0">'+esc(name)+' · Flights</h3>'+
+      '<p class="sub" style="margin:4px 0 0">Arrival to the trip and departure from the trip</p></div>'+
+      '<button type="button" class="link" data-act="flight-close">Close</button></div>';
+    if(ui.flightMsg)h+='<div class="sub" role="status">'+esc(ui.flightMsg)+'</div>';
+    if(CLOUD.on&&CLOUD.flightSync==='unavailable')h+='<p class="sub">Shared flight schedules are unavailable here; saved changes remain on this device only.</p>';
+    if(!ui.flightEditing||!mine){
+      h+='<div class="flight-grid">'+flightLegDisplay('Arriving for trip',f.arrival)+
+        flightLegDisplay('Departing from trip',f.departure)+'</div>';
+      if(mine)h+='<button type="button" class="primary" data-act="flight-edit">Add / edit flights</button>';
+    }else{
+      if(!ui.flightDraft)ui.flightDraft={arrival:flightLeg(f.arrival),departure:flightLeg(f.departure)};
+      h+='<form id="flight-form" data-person="'+pid+'">'+
+        '<div class="flight-edit-grid">'+flightEditBox(pid,'arrival','Arriving for trip')+
+        flightEditBox(pid,'departure','Departing from trip')+'</div>'+
+        '<p class="sub">Enter airport-local times exactly as printed. Overnight flights can arrive on a different date. Review every date and time before saving.</p>'+
+        '<label class="btn flight-scan">Upload flight itinerary screenshot<input type="file" id="flight-shot" accept="image/*" hidden></label>'+
+        flightOCRPanel()+
+        '<div class="err" data-err hidden></div><div class="row">'+
+        '<button type="submit" class="primary">Save flight itinerary</button>'+
+        '<button type="button" class="link" data-act="flight-cancel">Cancel</button></div></form>';
+    }
+    return h+'</section>';
+  }
+  function flightOCRPanel(){
+    var o=ui.flightOCR;
+    if(!o)return '';
+    if(o.state==='reading')return '<p class="sub" role="status">Reading the flight screenshot on your device…</p>';
+    if(o.state==='error')return '<p class="sub" role="alert">'+esc(o.message||'Could not read the screenshot. Enter details manually.')+'</p>';
+    var arr=Array.isArray(o.dates)?o.dates:[],times=Array.isArray(o.times)?o.times:[];
+    var choose=function(values,field){
+      return values.map(function(v){
+        return '<span class="flight-choices">'+
+          '<button type="button" data-act="flight-ocr-use" data-kind="arrival" data-field="'+field+'" data-value="'+esc(v)+'">Arrival: '+esc(v)+'</button>'+
+          '<button type="button" data-act="flight-ocr-use" data-kind="departure" data-field="'+field+'" data-value="'+esc(v)+'">Departure: '+esc(v)+'</button></span>';
+      }).join('');
+    };
+    return '<div class="flight-box flight-scan"><h4>Screenshot text — review before saving</h4>'+
+      '<p class="sub">Select a date or time only if it belongs to the correct flight. OCR can mix connecting flights and time zones.</p>'+
+      (arr.length?'<b>Dates recognized</b>'+choose(arr,'date'):'<p class="sub">No complete dates recognized. Enter the date manually.</p>')+
+      (times.length?'<b>Times recognized</b>'+choose(times,'time'):'<p class="sub">No times recognized. Enter the time manually.</p>')+
+      '<details><summary>View extracted screenshot text (not saved)</summary><pre class="flight-ocr-text">'+esc(o.text||'')+'</pre></details></div>';
+  }
   function activityHTML() {
     var log = data.log.slice().reverse();
     var mem = Object.keys(CLOUD.members), inIds = {};
@@ -2387,13 +2486,16 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<div class="hdr-actions">' + right + '</div></div>' +
       '<div class="travelers">' + PEOPLE.map(function (p) {
         var mine = CLOUD.on && me && p.id === me;
-        return '<span class="av' + (mine ? ' me' : '') + '"' + (mine ? ' aria-current="true" title="Signed in as you"' : '') + '>' + esc(p.name) + '</span>';
+        return '<button type="button" class="av' + (mine ? ' me' : '') + (ui.flightPerson === p.id ? ' selected' : '') +
+          '" data-act="flight-person" data-id="' + p.id + '" aria-expanded="' + (ui.flightPerson === p.id) +
+          '" title="View ' + esc(p.name) + '\'s flight arrival and departure">' + esc(p.name) + '</button>';
       }).join('') + '</div></div></header>';
     if (CLOUD.on && CLOUD.state !== 'ready') {
       if (ui.msg) h += '<div class="note warnnote" role="alert">' + esc(ui.msg) + '</div>';
       app.innerHTML = h + gateHTML();
       return;
     }
+    if(ui.flightPerson)h+=flightPanel();
     if (CLOUD.on && allLoaded()) {
       if (!data.places.length && !data.expenses.length) {
         h += ui.admin
