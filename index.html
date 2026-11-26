@@ -1612,6 +1612,13 @@ if (typeof module !== 'undefined') module.exports = Core;
     save(); render();
   }
   app.addEventListener('input', function (e) {
+    if(ui.flightEditing&&ui.flightDraft&&e.target&&/^flt-(arrival|departure)-/.test(e.target.id||'')){
+      var bits=e.target.id.match(/^flt-(arrival|departure)-(.+)$/);
+      if(bits&&Object.prototype.hasOwnProperty.call(ui.flightDraft[bits[1]],bits[2])){
+        ui.flightDraft[bits[1]][bits[2]]=e.target.value;
+      }
+      return;
+    }
     if (e.target.id === 'place-link' && ui.adding) { previewGoogleLink(); return; }
     if (e.target.id !== 'place-name' || !ui.adding || !document.getElementById('place-suggest')) return;
     clearTimeout(searchTimer);
