@@ -115,7 +115,9 @@ test('Divya deleting an expense records history for everyone and hides it from a
  assert.equal(deleted.who,'D');assert.equal(deleted.expenseId,id);
  assert.match(deleted.text,/Parking/);
  assert.match(h.activityHTML(),/DivyaTheja deleted an expense/);
- assert.doesNotMatch(h.sharedExpensesTab(),/Parking/);
+ const ledger=h.sharedExpensesTab().split('id="expense-activity"')[0];
+ assert.doesNotMatch(ledger,/Parking/);
+ assert.match(h.expenseAuditHTML(),/Parking/);
 });
 test('expense-only activity log hides itinerary change events and lists all authors',()=>{
  h.setMe('H');h.data.log.push({id:'not-exp',who:'H',act:'removed',text:'Deleted a motel',at:'2026-12-26T18:00:00Z'});
