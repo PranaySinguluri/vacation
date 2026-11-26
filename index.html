@@ -1179,7 +1179,20 @@ if (typeof module !== 'undefined') module.exports = Core;
           from:'Dallas/Fort Worth (DFW)',to:'San Diego (SAN)',
           airline:'American Airlines',flight:'AA 2568',duration:'3h 07m'}
       ]},
-    departure:{}
+    departure:{date:'2027-01-04',time:'13:26',arrivalDate:'2027-01-04',arrivalTime:'21:38',
+      from:'Phoenix Sky Harbor (PHX)',to:'Columbia Regional (COU)',
+      airline:'American Airlines',flight:'',duration:'7h 12m',
+      stops:'1 connection via Chicago O\'Hare (ORD), 1h 59m layover',
+      tz:'Times local to each airport',
+      segments:[
+        {date:'2027-01-04',time:'13:26',arrivalDate:'2027-01-04',arrivalTime:'18:00',
+          from:'Phoenix Sky Harbor (PHX)',to:'Chicago O\'Hare (ORD)',
+          airline:'American Airlines',flight:'AA 3165',duration:'3h 34m'},
+        {date:'2027-01-04',time:'19:59',arrivalDate:'2027-01-04',arrivalTime:'21:38',
+          from:'Chicago O\'Hare (ORD)',to:'Columbia Regional (COU)',
+          airline:'American Airlines',flight:'AA 3577',duration:'1h 39m',
+          note:'Operated by Envoy Air as American Eagle'}
+      ]}
   };
   /* Haneela's Southwest Trip & Price Details screenshot is from the PRICE
      stage (before Passenger, Seats, Payment and Confirmation). These are
@@ -1205,13 +1218,18 @@ if (typeof module !== 'undefined') module.exports = Core;
       pid==='D'?DIVYA_FLIGHT_DEFAULT:
       pid==='H'?HANEELA_FLIGHT_DEFAULT:{};
     var p=flights[pid]||defaults;
-    // A previously saved empty card should not suppress a newly supplied
-    // itinerary; populated traveler edits always win over default flights.
+    // An older saved Divya record may contain her outbound flight but no
+    // return. Fill only the missing leg from the newer itinerary screenshot,
+    // without overwriting existing edits or the other travelers' records.
     if((pid==='D'||pid==='H')&&flights[pid]&&defaults.arrival){
       var saved=flights[pid],ins=saved.arrival||{},outs=saved.departure||{};
       var filled=function(x){return !!(x.date||x.time||x.arrivalDate||x.arrivalTime||
         x.from||x.to||x.flight||(Array.isArray(x.segments)&&x.segments.length));};
-      if(!filled(ins)&&!filled(outs))p=defaults;
+      if(pid==='D') p={
+        arrival:filled(ins)?ins:defaults.arrival,
+        departure:filled(outs)?outs:defaults.departure
+      };
+      else if(!filled(ins)&&!filled(outs))p=defaults;
     }
     return {id:pid,arrival:flightLeg(p.arrival),departure:flightLeg(p.departure)};
   }
