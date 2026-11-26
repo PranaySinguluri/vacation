@@ -2665,7 +2665,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     var pieces=Array.isArray(leg.segments)?leg.segments:[];
     var date=flightDisplayDate(leg.date);
     var route=leg.from&&leg.to?esc(leg.from)+' → '+esc(leg.to):'Route not provided';
-    var meta=[leg.duration?leg.duration+' total':'',leg.stops||''].filter(Boolean).join(' · ');
+    var meta=[pieces.length&&leg.duration?leg.duration+' total':'',leg.stops||''].filter(Boolean).join(' · ');
     return '<section class="flight-box flight-card"><div class="flight-card-heading">'+
       '<h4>'+esc(title)+(date?' · '+esc(date):'')+'</h4>'+
       (has?'<div class="flight-journey-route">'+route+'</div>'+
