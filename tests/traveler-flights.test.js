@@ -544,7 +544,9 @@ async function run(){
     assert.match(h.flightPanel(),/DivyaTheja · Flights/);
     assert.match(h.flightPanel(),/Track AA3853/);
     assert.match(h.flightPanel(),/Track AA2568/);
-    assert.doesNotMatch(h.flightPanel(),/Phoenix Sky Harbor/);
+    assert.match(h.flightPanel(),/Phoenix Sky Harbor/);
+    assert.match(h.flightPanel(),/Track AA3165/);
+    assert.match(h.flightPanel(),/Track AA3577/);
     h.act('flight-person',{id:'P'});
     assert.equal(h.ui.flightPerson,'P');
     assert.match(app.innerHTML,/class="av me selected" data-act="flight-person" data-id="P"/);
