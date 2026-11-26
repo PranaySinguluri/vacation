@@ -43,7 +43,7 @@ service cloud.firestore {
         e.actorUid == request.auth.uid;
     }
     function auditPath(id,rev) {
-      return logPath('ex_' + id + '_' + rev);
+      return logPath('ex_' + id + '_' + string(rev));
     }
     // A single atomic batch must create the matching immutable audit document.
     function auditAfter(id, rev, action, beforeAmount, afterAmount) {
@@ -130,7 +130,7 @@ service cloud.firestore {
             request.resource.data.actorUid == request.auth.uid &&
             request.resource.data.expenseId is string &&
             request.resource.data.rev is int &&
-            logId == 'ex_' + request.resource.data.expenseId + '_' + request.resource.data.rev &&
+            logId == 'ex_' + request.resource.data.expenseId + '_' + string(request.resource.data.rev) &&
             request.resource.data.act in ['added','edited','removed'] &&
             (
               (request.resource.data.act in ['added','edited'] &&
