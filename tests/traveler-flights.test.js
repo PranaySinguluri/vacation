@@ -143,7 +143,7 @@ async function run(){
     assert.equal(pranay.departure.time,'21:19');
     assert.notEqual(pranay.arrival.date,ramya.arrival.date);
     assert.notEqual(pranay.departure.time,ramya.departure.time);
-    for(const id of ['D','H','M']){
+    for(const id of ['H','M']){
       const x=h.flightFor(id);
       assert.equal(x.arrival.date,'');
       assert.equal(x.departure.date,'');
@@ -202,6 +202,85 @@ async function run(){
     assert.equal(h.flightFor('A').arrival.time,'20:09');
     assert.equal(h.flightTrackingInfo(h.flightFor('A').arrival).id,'AS623');
     assert.equal(h.flightTrackingInfo(h.flightFor('A').departure),null);
+  });
+  test('DivyaTheja arrival matches Dec 24 COU-DFW-SAN screenshot',()=>{
+    const v=h.flightFor('D'),a=v.arrival;
+    assert.equal(a.date,'2026-12-24');
+    assert.equal(a.time,'18:31');
+    assert.equal(a.arrivalDate,'2026-12-24');
+    assert.equal(a.arrivalTime,'23:45');
+    assert.equal(a.from,'Columbia Regional (COU)');
+    assert.equal(a.to,'San Diego (SAN)');
+    assert.equal(a.airline,'American Airlines');
+    assert.equal(a.flight,'','one flight number cannot describe both segments');
+    assert.equal(a.duration,'7h 14m');
+    assert.match(a.stops,/1 connection via Dallas\/Fort Worth \(DFW\), 2h 10m layover/);
+    assert.equal(a.segments.length,2);
+    const first=a.segments[0],second=a.segments[1];
+    assert.equal(first.date,'2026-12-24');
+    assert.equal(first.time,'18:31');
+    assert.equal(first.arrivalDate,'2026-12-24');
+    assert.equal(first.arrivalTime,'20:28');
+    assert.equal(first.from,'Columbia Regional (COU)');
+    assert.equal(first.to,'Dallas/Fort Worth (DFW)');
+    assert.equal(first.flight,'AA 3853');
+    assert.equal(first.duration,'1h 57m');
+    assert.match(first.note,/Envoy Air as American Eagle/);
+    assert.equal(second.date,'2026-12-24');
+    assert.equal(second.time,'22:38');
+    assert.equal(second.arrivalDate,'2026-12-24');
+    assert.equal(second.arrivalTime,'23:45');
+    assert.equal(second.from,'Dallas/Fort Worth (DFW)');
+    assert.equal(second.to,'San Diego (SAN)');
+    assert.equal(second.flight,'AA 2568');
+    assert.equal(second.duration,'3h 07m');
+  });
+  test('DivyaTheja return is unprovided, not guessed',()=>{
+    const d=h.flightFor('D').departure;
+    assert.equal(d.date,'');
+    assert.equal(d.time,'');
+    assert.equal(d.arrivalDate,'');
+    assert.equal(d.arrivalTime,'');
+    assert.equal(d.flight,'');
+    assert.equal(d.segments.length,0);
+  });
+  test('DivyaTheja UI displays both American Airlines flight tracking links and airport-local time zones',()=>{
+    h.ui.flightPerson='D';
+    const html=h.flightPanel();
+    assert.match(html,/DivyaTheja · Flights/);
+    assert.match(html,/Dec 24, 2026, 6:31 PM/);
+    assert.match(html,/Dec 24, 2026, 8:28 PM/);
+    assert.match(html,/Dec 24, 2026, 10:38 PM/);
+    assert.match(html,/Dec 24, 2026, 11:45 PM/);
+    assert.match(html,/2h 10m layover/);
+    assert.match(html,/1h 57m/);
+    assert.match(html,/3h 07m/);
+    assert.match(html,/7h 14m/);
+    assert.match(html,/Columbia Regional local time \(CST\)/);
+    assert.match(html,/Dallas local time \(CST\)/);
+    assert.match(html,/San Diego local time \(PST\)/);
+    assert.match(html,/Track AA3853/);
+    assert.match(html,/Track AA2568/);
+    assert.match(html,/data\/flights\/aa3853/);
+    assert.match(html,/data\/flights\/aa2568/);
+    assert.match(html,/Operated by Envoy Air as American Eagle/);
+    assert.match(html,/Flight details have not been added for this person yet/);
+    assert.doesNotMatch(html,/B7QLKP|HIMKHD|KBBU7Y/);
+    h.ui.flightPerson=null;
+  });
+  test('Divya connection remains editable and existing travelers are unchanged',()=>{
+    h.ui.flightPerson='D';
+    h.act('flight-edit',{});
+    const html=h.flightPanel();
+    assert.match(html,/Connecting flights — edit each leg separately/);
+    assert.match(html,/id="flt-arrival-seg0-flight"/);
+    assert.match(html,/id="flt-arrival-seg1-flight"/);
+    h.act('flight-cancel',{});
+    h.ui.flightPerson=null;
+    assert.equal(h.flightFor('P').arrival.time,'18:48');
+    assert.equal(h.flightFor('A').arrival.time,'20:09');
+    assert.equal(h.flightFor('R').arrival.time,'18:51');
+    assert.equal(h.flightFor('S').arrival.segments[0].flight,'WN 1282');
   });
   test('Sahithi outbound has two distinct connecting flights via St. Louis',()=>{
     const f=h.flightFor('S'),out=f.arrival;
@@ -329,6 +408,8 @@ async function run(){
     assert.match(header,/class="av me" data-act="flight-person" data-id="P"/);
     assert.match(header,/class="av selected" data-act="flight-person" data-id="D"/);
     assert.match(h.flightPanel(),/DivyaTheja · Flights/);
+    assert.match(h.flightPanel(),/Track AA3853/);
+    assert.match(h.flightPanel(),/Track AA2568/);
     assert.doesNotMatch(h.flightPanel(),/Phoenix Sky Harbor/);
     h.act('flight-person',{id:'P'});
     assert.equal(h.ui.flightPerson,'P');
@@ -372,11 +453,11 @@ async function run(){
   });
   test('saving another traveler in local mode does not modify Pranay',()=>{
     const initial=h.flightFor('P').departure.arrivalDate;
-    h.saveFlightFor('D',{arrival:{date:'2026-12-24',time:'10:15'},departure:{date:'2027-01-02',time:'14:30'}});
-    assert.equal(h.flightFor('D').arrival.date,'2026-12-24');
+    h.saveFlightFor('H',{arrival:{date:'2026-12-24',time:'10:15'},departure:{date:'2027-01-02',time:'14:30'}});
+    assert.equal(h.flightFor('H').arrival.date,'2026-12-24');
     assert.equal(h.flightFor('P').departure.arrivalDate,initial);
     const saved=JSON.parse(local['tripwallet.flights.v1']);
-    assert.equal(saved.D.arrival.date,'2026-12-24');
+    assert.equal(saved.H.arrival.date,'2026-12-24');
     assert.equal(saved.P,undefined);
   });
   test('flight OCR raw text and booking reference are not stored',()=>{
