@@ -22,7 +22,7 @@ const storage={
 const window={confirm:()=>true};window.top=window.self=window;
 const location={protocol:'file:',origin:'file://',pathname:'/index.html',hash:''};
 const src=scripts[2].replace(/\}\)\(\);\s*$/,
-  'return {ui,flightFor,flightLeg,flightPanel,flightOCRCandidates,flightOCRRead,saveFlightFor,flightCanEdit,act,CLOUD};})();');
+  'return {ui,flightFor,flightLeg,flightPanel,flightOCRCandidates,flightOCRRead,saveFlightFor,flightCanEdit,airportLocalLabel,act,CLOUD};})();');
 assert.notEqual(src,scripts[2],'Flight test hook inserted');
 const h=vm.runInNewContext(src,{document,window,localStorage:storage,sessionStorage:storage,location,
   navigator:{},fetch:()=>new Promise(()=>{}),Core,URL,Intl,TextEncoder,TextDecoder,Uint8Array,AbortController,
@@ -83,8 +83,43 @@ async function run(){
   });
   test('all travelers are clickable and itinerary opens from header',()=>{
     for(const name of ['Pranay','Akshaya','DivyaTheja','Haneela','Megha','Ramya','Sahithi'])
-      assert.match(app.innerHTML,new RegExp('>'+name+'<'));
+      assert.match(app.innerHTML,new RegExp('>'+name+'(?:\\s|<)'));
+    assert.match(app.innerHTML,/data-id="P"[^>]*title="Your profile/);
+    assert.match(app.innerHTML,/class="av me selected"/);
     assert.match(app.innerHTML,/data-act="flight-person"/);
+  });
+  test('Pranay stays highlighted while Akshaya is selected',()=>{
+    h.act('flight-person',{id:'A'});
+    assert.equal(h.ui.flightPerson,'A');
+    const header=app.innerHTML.split('</header>')[0];
+    assert.match(header,/class="av me" data-act="flight-person" data-id="P"/);
+    assert.match(header,/class="av selected" data-act="flight-person" data-id="A"/);
+    assert.match(h.flightPanel(),/Akshaya · Flights/);
+    assert.match(h.flightPanel(),/No flight details/);
+    assert.doesNotMatch(h.flightPanel(),/F9 4655/);
+  });
+  test('Divya selection displays only Divya and does not change self-highlight',()=>{
+    h.act('flight-person',{id:'D'});
+    assert.equal(h.ui.flightPerson,'D');
+    const header=app.innerHTML.split('</header>')[0];
+    assert.match(header,/class="av me" data-act="flight-person" data-id="P"/);
+    assert.match(header,/class="av selected" data-act="flight-person" data-id="D"/);
+    assert.match(h.flightPanel(),/DivyaTheja · Flights/);
+    assert.doesNotMatch(h.flightPanel(),/Phoenix Sky Harbor/);
+    h.act('flight-person',{id:'P'});
+    assert.equal(h.ui.flightPerson,'P');
+    assert.match(app.innerHTML,/class="av me selected" data-act="flight-person" data-id="P"/);
+  });
+  test('airport-local time zone labels match December and January airports',()=>{
+    assert.equal(h.airportLocalLabel('Dallas/Ft. Worth (DFW)','2026-12-15').abbrev,'CST');
+    assert.equal(h.airportLocalLabel('Phoenix Sky Harbor (PHX)','2026-12-15').abbrev,'MST');
+    assert.equal(h.airportLocalLabel('Los Angeles (LAX)','2026-12-26').abbrev,'PST');
+    assert.equal(h.airportLocalLabel('Unknown Airport','2026-12-26').abbrev,'');
+    const flight=h.flightPanel();
+    assert.match(flight,/Dallas local time \(CST\)/);
+    assert.match(flight,/Phoenix Sky Harbor local time \(MST\)/);
+    assert.match(flight,/Jan 6, 2027/);
+    assert.match(flight,/12:40 AM/);
   });
   test('flight edit has both takeoff and landing dates and times',()=>{
     h.act('flight-edit',{});
