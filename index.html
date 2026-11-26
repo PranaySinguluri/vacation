@@ -1181,16 +1181,33 @@ if (typeof module !== 'undefined') module.exports = Core;
       ]},
     departure:{}
   };
+  /* Haneela's Southwest Trip & Price Details screenshot is from the PRICE
+     stage (before Passenger, Seats, Payment and Confirmation). These are
+     quoted flights, not evidence of a completed booking. */
+  var HANEELA_FLIGHT_DEFAULT={
+    id:'H',
+    arrival:{date:'2026-12-23',time:'21:20',arrivalDate:'2026-12-24',arrivalTime:'00:15',
+      from:'Sacramento (SMF)',to:'Phoenix Sky Harbor (PHX)',
+      airline:'Southwest Airlines',flight:'WN 1415',duration:'1h 55m',stops:'Nonstop',
+      tz:'Times local to each airport',
+      note:'Price quote only — booking not confirmed by the screenshot.'},
+    departure:{date:'2027-01-05',time:'20:55',arrivalDate:'2027-01-05',arrivalTime:'21:55',
+      from:'Phoenix Sky Harbor (PHX)',to:'Sacramento (SMF)',
+      airline:'Southwest Airlines',flight:'WN 1470',duration:'2h 00m',stops:'Nonstop',
+      tz:'Times local to each airport',
+      note:'Price quote only — booking not confirmed by the screenshot.'}
+  };
   function flightFor(pid){
     var defaults=pid==='P'?PRANAY_FLIGHT_DEFAULT:
       pid==='R'?RAMYA_FLIGHT_DEFAULT:
       pid==='S'?SAHITHI_FLIGHT_DEFAULT:
       pid==='A'?AKSHAYA_FLIGHT_DEFAULT:
-      pid==='D'?DIVYA_FLIGHT_DEFAULT:{};
+      pid==='D'?DIVYA_FLIGHT_DEFAULT:
+      pid==='H'?HANEELA_FLIGHT_DEFAULT:{};
     var p=flights[pid]||defaults;
-    // A previously saved empty card should not suppress a new confirmed
-    // itinerary. Respect existing populated traveler edits instead.
-    if(pid==='D'&&flights[pid]&&defaults.arrival){
+    // A previously saved empty card should not suppress a newly supplied
+    // itinerary; populated traveler edits always win over default flights.
+    if((pid==='D'||pid==='H')&&flights[pid]&&defaults.arrival){
       var saved=flights[pid],ins=saved.arrival||{},outs=saved.departure||{};
       var filled=function(x){return !!(x.date||x.time||x.arrivalDate||x.arrivalTime||
         x.from||x.to||x.flight||(Array.isArray(x.segments)&&x.segments.length));};
@@ -2488,7 +2505,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       PHX:'America/Phoenix',DFW:'America/Chicago',DAL:'America/Chicago',
       LAX:'America/Los_Angeles',SAN:'America/Los_Angeles',LAS:'America/Los_Angeles',
       SNA:'America/Los_Angeles',ONT:'America/Los_Angeles',BUR:'America/Los_Angeles',
-      SEA:'America/Los_Angeles',PDX:'America/Los_Angeles',
+      SEA:'America/Los_Angeles',PDX:'America/Los_Angeles',SMF:'America/Los_Angeles',
       DEN:'America/Denver',SLC:'America/Denver',
       IAH:'America/Chicago',HOU:'America/Chicago',AUS:'America/Chicago',
       SAT:'America/Chicago',ORD:'America/Chicago',MDW:'America/Chicago',
