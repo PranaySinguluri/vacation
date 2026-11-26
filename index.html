@@ -1160,12 +1160,42 @@ if (typeof module !== 'undefined') module.exports = Core;
       tz:'Times local to each airport',
       note:'Return flight number and any intermediate stops are not shown in the screenshot.'}
   };
+  /* DivyaTheja's Dec 24 American Airlines screenshot: two connecting flights
+     via Dallas. Only inbound is shown; her return remains blank. The "on time"
+     badges were a snapshot, not ongoing flight status, and aren't persisted. */
+  var DIVYA_FLIGHT_DEFAULT={
+    id:'D',
+    arrival:{date:'2026-12-24',time:'18:31',arrivalDate:'2026-12-24',arrivalTime:'23:45',
+      from:'Columbia Regional (COU)',to:'San Diego (SAN)',
+      airline:'American Airlines',flight:'',duration:'7h 14m',
+      stops:'1 connection via Dallas/Fort Worth (DFW), 2h 10m layover',
+      tz:'Times local to each airport',
+      segments:[
+        {date:'2026-12-24',time:'18:31',arrivalDate:'2026-12-24',arrivalTime:'20:28',
+          from:'Columbia Regional (COU)',to:'Dallas/Fort Worth (DFW)',
+          airline:'American Airlines',flight:'AA 3853',duration:'1h 57m',
+          note:'Operated by Envoy Air as American Eagle'},
+        {date:'2026-12-24',time:'22:38',arrivalDate:'2026-12-24',arrivalTime:'23:45',
+          from:'Dallas/Fort Worth (DFW)',to:'San Diego (SAN)',
+          airline:'American Airlines',flight:'AA 2568',duration:'3h 07m'}
+      ]},
+    departure:{}
+  };
   function flightFor(pid){
     var defaults=pid==='P'?PRANAY_FLIGHT_DEFAULT:
       pid==='R'?RAMYA_FLIGHT_DEFAULT:
       pid==='S'?SAHITHI_FLIGHT_DEFAULT:
-      pid==='A'?AKSHAYA_FLIGHT_DEFAULT:{};
+      pid==='A'?AKSHAYA_FLIGHT_DEFAULT:
+      pid==='D'?DIVYA_FLIGHT_DEFAULT:{};
     var p=flights[pid]||defaults;
+    // A previously saved empty card should not suppress a new confirmed
+    // itinerary. Respect existing populated traveler edits instead.
+    if(pid==='D'&&flights[pid]&&defaults.arrival){
+      var saved=flights[pid],ins=saved.arrival||{},outs=saved.departure||{};
+      var filled=function(x){return !!(x.date||x.time||x.arrivalDate||x.arrivalTime||
+        x.from||x.to||x.flight||(Array.isArray(x.segments)&&x.segments.length));};
+      if(!filled(ins)&&!filled(outs))p=defaults;
+    }
     return {id:pid,arrival:flightLeg(p.arrival),departure:flightLeg(p.departure)};
   }
   function flightCanEdit(pid){return !CLOUD.on||(CLOUD.state==='ready'&&(ui.admin||me===pid));}
@@ -2462,7 +2492,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       DEN:'America/Denver',SLC:'America/Denver',
       IAH:'America/Chicago',HOU:'America/Chicago',AUS:'America/Chicago',
       SAT:'America/Chicago',ORD:'America/Chicago',MDW:'America/Chicago',
-      CMH:'America/New_York',STL:'America/Chicago',
+      CMH:'America/New_York',STL:'America/Chicago',COU:'America/Chicago',
       JFK:'America/New_York',LGA:'America/New_York',EWR:'America/New_York',
       BOS:'America/New_York',ATL:'America/New_York',MIA:'America/New_York',
       MCO:'America/New_York',IAD:'America/New_York',DCA:'America/New_York'
