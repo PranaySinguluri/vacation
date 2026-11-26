@@ -354,3 +354,72 @@ test('unauthorized loading, missing-member and signed-out states cannot modify c
 });
 
 console.log('PASS '+passed+' shared expense additions, edits, deletions and all-person activity log checks');
+
+test('navigating away closes an editor; detached form cannot create a hidden charge',()=>{
+ fresh();
+ h.act('expense-add',{});
+ h.act('tab',{id:'photos'});
+ assert.match(submit({'sp-desc':'Invisible expense'}),/form is closed/);
+ assert.equal(h.data.expenses.length,0);
+ h.act('tab',{id:'costs'});
+});
+async function mockFirestoreBatchScenarios(){
+ fresh();
+ const allBatches=[];
+ h.CLOUD.on=true;h.CLOUD.state='ready';h.CLOUD.user={uid:'test-user',displayName:'Pranay'};
+ h.CLOUD.person='P';h.CLOUD.db={};h.CLOUD.loaded={places:true,expenses:true,payments:true,deleted:true};
+ let rejectNext=false;
+ h.CLOUD.fs={
+  doc:(db,...segments)=>segments.join('/'),
+  writeBatch:()=>{
+   const ops=[];
+   return {
+    set:(ref,value)=>ops.push({op:'set',ref,value}),
+    delete:ref=>ops.push({op:'delete',ref}),
+    commit:()=>{
+     allBatches.push(ops);
+     if(rejectNext){rejectNext=false;return Promise.reject(Object.assign(new Error('Permission denied'),{code:'permission-denied'}));}
+     return Promise.resolve();
+    }
+   };
+  }
+ };
+ // These are mocked transaction boundaries, not Firestore Security Rule tests.
+ h.setMe('P');h.act('expense-add',{});
+ chosen=ids.slice();
+ assert.equal(submit({'sp-desc':'Shared lunch','sp-amount':'14.25','sp-payer':'P'}),'');
+ const exp=h.data.expenses.at(-1),first=allBatches.at(-1);
+ assert.ok(first.some(x=>x.op==='set'&&x.ref==='trips/main/expenses/'+exp.id));
+ assert.ok(first.some(x=>x.op==='set'&&x.ref.startsWith('trips/main/log/')));
+ assert.equal(first.find(x=>x.ref==='trips/main/expenses/'+exp.id).value.by,'P');
+ await new Promise(resolve=>setTimeout(resolve,0));
+ h.setMe('A');h.CLOUD.person='A';h.act('expense-edit',{id:exp.id});
+ chosen=['A','P'];
+ assert.equal(submit({'sp-desc':'Dinner edited','sp-amount':'19.25','sp-payer':'A'}),'');
+ const edited=allBatches.at(-1);
+ const editExpense=edited.find(x=>x.op==='set'&&x.ref==='trips/main/expenses/'+exp.id);
+ assert.equal(editExpense.value.by,'P');
+ assert.equal(editExpense.value.updatedBy,'A');
+ assert.equal(editExpense.value.amount,1925);
+ const editLog=edited.find(x=>x.op==='set'&&x.ref.startsWith('trips/main/log/')&&x.value.act==='edited');
+ assert.equal(editLog.value.who,'A');
+ assert.equal(editLog.value.before.amount,1425);
+ await new Promise(resolve=>setTimeout(resolve,0));
+ h.setMe('D');h.CLOUD.person='D';h.act('expense-delete',{id:exp.id});
+ const deleted=allBatches.at(-1);
+ assert.ok(deleted.some(x=>x.op==='delete'&&x.ref==='trips/main/expenses/'+exp.id));
+ assert.ok(deleted.some(x=>x.op==='set'&&x.ref==='trips/main/deleted/'+exp.id));
+ const deleteLog=deleted.find(x=>x.op==='set'&&x.ref.startsWith('trips/main/log/')&&x.value.act==='removed');
+ assert.equal(deleteLog.value.who,'D');
+ assert.equal(deleteLog.value.before.amount,1925);
+ await new Promise(resolve=>setTimeout(resolve,0));
+ h.setMe('R');h.CLOUD.person='R';h.act('expense-add',{});
+ rejectNext=true;
+ assert.equal(submit({'sp-desc':'Rejected by backend','sp-amount':'22.00','sp-payer':'R'}),'');
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.match(h.ui.msg,/Sync failed \(permission-denied\)/);
+ h.CLOUD.on=false;h.CLOUD.state='off';h.CLOUD.user=null;
+ console.log('PASS mocked Firestore batch add/edit/delete atomic requests and permission-denied UI');
+}
+mockFirestoreBatchScenarios().catch(error=>{console.error(error);process.exitCode=1});
+
