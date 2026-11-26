@@ -1144,10 +1144,27 @@ if (typeof module !== 'undefined') module.exports = Core;
       airline:'Southwest Airlines',flight:'',duration:'',stops:'',
       note:'Return flight number and any intermediate stops are not visible.'}
   };
+  /* Akshaya's updated Alaska confirmation screenshot: pink replacement times
+     take precedence over the struck-through original schedule. Keep the
+     incomplete return flight number blank; never store confirmation codes. */
+  var AKSHAYA_FLIGHT_DEFAULT={
+    id:'A',
+    arrival:{date:'2026-12-24',time:'20:09',arrivalDate:'2026-12-24',arrivalTime:'23:04',
+      from:'Seattle-Tacoma (SEA)',to:'San Diego (SAN)',
+      airline:'Alaska Airlines',flight:'AS 623',duration:'2h 55m',stops:'',
+      tz:'Times local to each airport',
+      note:'Updated schedule: departs 8:09 PM and arrives 11:04 PM; earlier 8:06 PM and 11:01 PM times were crossed out.'},
+    departure:{date:'2027-01-01',time:'07:00',arrivalDate:'2027-01-01',arrivalTime:'09:51',
+      from:'Las Vegas (LAS)',to:'Seattle-Tacoma (SEA)',
+      airline:'Alaska Airlines',flight:'',duration:'',stops:'',
+      tz:'Times local to each airport',
+      note:'Return flight number and any intermediate stops are not shown in the screenshot.'}
+  };
   function flightFor(pid){
     var defaults=pid==='P'?PRANAY_FLIGHT_DEFAULT:
       pid==='R'?RAMYA_FLIGHT_DEFAULT:
-      pid==='S'?SAHITHI_FLIGHT_DEFAULT:{};
+      pid==='S'?SAHITHI_FLIGHT_DEFAULT:
+      pid==='A'?AKSHAYA_FLIGHT_DEFAULT:{};
     var p=flights[pid]||defaults;
     return {id:pid,arrival:flightLeg(p.arrival),departure:flightLeg(p.departure)};
   }

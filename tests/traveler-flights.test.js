@@ -143,11 +143,65 @@ async function run(){
     assert.equal(pranay.departure.time,'21:19');
     assert.notEqual(pranay.arrival.date,ramya.arrival.date);
     assert.notEqual(pranay.departure.time,ramya.departure.time);
-    for(const id of ['A','D','H','M']){
+    for(const id of ['D','H','M']){
       const x=h.flightFor(id);
       assert.equal(x.arrival.date,'');
       assert.equal(x.departure.date,'');
     }
+  });
+  test('Akshaya Alaska revised arrival schedule is Dec 24 SEA-SAN',()=>{
+    const a=h.flightFor('A').arrival;
+    assert.equal(a.date,'2026-12-24');
+    assert.equal(a.time,'20:09');
+    assert.equal(a.arrivalDate,'2026-12-24');
+    assert.equal(a.arrivalTime,'23:04');
+    assert.equal(a.from,'Seattle-Tacoma (SEA)');
+    assert.equal(a.to,'San Diego (SAN)');
+    assert.equal(a.airline,'Alaska Airlines');
+    assert.equal(a.flight,'AS 623');
+    assert.equal(a.duration,'2h 55m');
+    assert.equal(a.stops,'');
+    assert.match(a.note,/earlier 8:06 PM and 11:01 PM/);
+  });
+  test('Akshaya Las Vegas to Seattle return is Jan 1 with missing flight number',()=>{
+    const d=h.flightFor('A').departure;
+    assert.equal(d.date,'2027-01-01');
+    assert.equal(d.time,'07:00');
+    assert.equal(d.arrivalDate,'2027-01-01');
+    assert.equal(d.arrivalTime,'09:51');
+    assert.equal(d.from,'Las Vegas (LAS)');
+    assert.equal(d.to,'Seattle-Tacoma (SEA)');
+    assert.equal(d.airline,'Alaska Airlines');
+    assert.equal(d.flight,'');
+    assert.equal(d.duration,'');
+    assert.equal(d.stops,'');
+    assert.match(d.note,/not shown in the screenshot/);
+  });
+  test('Akshaya flight cards show updated times, PST and only verified AS623 tracker',()=>{
+    h.ui.flightPerson='A';
+    const html=h.flightPanel();
+    assert.match(html,/Akshaya · Flights/);
+    assert.match(html,/Dec 24, 2026, 8:09 PM/);
+    assert.match(html,/Dec 24, 2026, 11:04 PM/);
+    assert.match(html,/Jan 1, 2027, 7 AM/);
+    assert.match(html,/Jan 1, 2027, 9:51 AM/);
+    assert.match(html,/Seattle-Tacoma local time \(PST\)/);
+    assert.match(html,/San Diego local time \(PST\)/);
+    assert.match(html,/Las Vegas local time \(PST\)/);
+    assert.match(html,/Track AS623/);
+    assert.match(html,/data\/flights\/as623/);
+    assert.equal((html.match(/Track AS623/g)||[]).length,1);
+    assert.doesNotMatch(html,/Track AS\d{4}/);
+    assert.doesNotMatch(html,/KBBU7Y|HIMKHD/);
+    h.ui.flightPerson=null;
+  });
+  test('Akshaya itinerary does not alter Pranay, Ramya or Sahithi',()=>{
+    assert.equal(h.flightFor('P').arrival.time,'18:48');
+    assert.equal(h.flightFor('R').arrival.date,'2026-12-16');
+    assert.equal(h.flightFor('S').arrival.segments[0].flight,'WN 1282');
+    assert.equal(h.flightFor('A').arrival.time,'20:09');
+    assert.equal(h.flightTrackingInfo(h.flightFor('A').arrival).id,'AS623');
+    assert.equal(h.flightTrackingInfo(h.flightFor('A').departure),null);
   });
   test('Sahithi outbound has two distinct connecting flights via St. Louis',()=>{
     const f=h.flightFor('S'),out=f.arrival;
@@ -264,7 +318,8 @@ async function run(){
     assert.match(header,/class="av me" data-act="flight-person" data-id="P"/);
     assert.match(header,/class="av selected" data-act="flight-person" data-id="A"/);
     assert.match(h.flightPanel(),/Akshaya · Flights/);
-    assert.match(h.flightPanel(),/Flight details have not been added for this person yet/);
+    assert.match(h.flightPanel(),/Alaska Airlines AS 623/);
+    assert.match(h.flightPanel(),/Dec 24, 2026, 8:09 PM/);
     assert.doesNotMatch(h.flightPanel(),/F9 4655/);
   });
   test('Divya selection displays only Divya and does not change self-highlight',()=>{
@@ -317,11 +372,11 @@ async function run(){
   });
   test('saving another traveler in local mode does not modify Pranay',()=>{
     const initial=h.flightFor('P').departure.arrivalDate;
-    h.saveFlightFor('A',{arrival:{date:'2026-12-24',time:'10:15'},departure:{date:'2027-01-02',time:'14:30'}});
-    assert.equal(h.flightFor('A').arrival.date,'2026-12-24');
+    h.saveFlightFor('D',{arrival:{date:'2026-12-24',time:'10:15'},departure:{date:'2027-01-02',time:'14:30'}});
+    assert.equal(h.flightFor('D').arrival.date,'2026-12-24');
     assert.equal(h.flightFor('P').departure.arrivalDate,initial);
     const saved=JSON.parse(local['tripwallet.flights.v1']);
-    assert.equal(saved.A.arrival.date,'2026-12-24');
+    assert.equal(saved.D.arrival.date,'2026-12-24');
     assert.equal(saved.P,undefined);
   });
   test('flight OCR raw text and booking reference are not stored',()=>{
