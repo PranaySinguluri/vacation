@@ -3655,8 +3655,8 @@ if (typeof module !== 'undefined') module.exports = Core;
     }
 
     if (form.id === 'spending-form') {
-      if(!expenseFormOpen)return fail('Expense form is closed. Open it again before saving.');
       if(form.dataset&&form.dataset.expenseSaved==='1')return;
+      if(!expenseFormOpen)return fail('Expense form is closed. Open it again before saving.');
       var amt=validExpenseAmount(val('sp-amount')),payer=val('sp-payer'),category=val('sp-category'),
         date=val('sp-date'),description=val('sp-desc').slice(0,80);
       var split=Array.from(form.querySelectorAll('input[name="sp-split"]:checked')).map(function(c){return c.value;});
