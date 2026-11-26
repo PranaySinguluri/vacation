@@ -95,7 +95,7 @@ async function run(){
     assert.match(header,/class="av me" data-act="flight-person" data-id="P"/);
     assert.match(header,/class="av selected" data-act="flight-person" data-id="A"/);
     assert.match(h.flightPanel(),/Akshaya · Flights/);
-    assert.match(h.flightPanel(),/No flight details/);
+    assert.match(h.flightPanel(),/Flight details have not been added for this person yet/);
     assert.doesNotMatch(h.flightPanel(),/F9 4655/);
   });
   test('Divya selection displays only Divya and does not change self-highlight',()=>{
