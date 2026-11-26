@@ -878,8 +878,8 @@ if (typeof module !== 'undefined') module.exports = Core;
 
 <script>
 (function () {
-  var KEY = 'tripwallet.v3', LEGS_KEY = 'tripwallet.legs', ADMIN_KEY = 'tripwallet.admin', TAB_KEY = 'tripwallet.tab';
-  /* SHA-256 of "tripwallet:" + the admin PIN. The PIN itself is not in the page. */
+  var KEY = 'tripwallet.v3', LEGS_KEY = 'tripwallet.legs', TAB_KEY = 'tripwallet.tab';
+  /* Administration is authorized by the authenticated Firebase UID, never by a browser PIN. */
   var SEARCH_HINT = 'Photon searches places and addresses first. If it finds nothing, use Google Maps and paste the link below.';
   var SEARCH_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
   /* Search results are ranked near the city whose tab is open. */
@@ -920,19 +920,8 @@ if (typeof module !== 'undefined') module.exports = Core;
     { id: 'stay-az', city: 'az', name: 'Stay for Dec 28 to 30', date: '2026-12-28', note: 'Not on the booking list yet' }
   ];
   var NEEDS_BOOKING = ['s-whale-watching', 's-antelope-canyon', 's-omnia-nightclub'];
-  /* A traveler's Gmail (before the @) must contain one of these: first or last name from the group's sheet.
-     The database rules check the same list, so this cannot be skipped by editing the page. */
-  var NAME_KEYS = {
-    A: ['akshaya', 'chiduruppa'], D: ['divya', 'theja', 'gangam'], H: ['haneela', 'vuyyuru'], M: ['megha', 'posinasetty', 'posinasetti'],
-    P: ['pranay', 'singuluri'], R: ['ramya', 'bikkina'], S: ['sahithi', 'thota']
-  };
-  function emailFits(email, pid) {
-    var local = String(email || '').toLowerCase().split('@')[0];
-    return (NAME_KEYS[pid] || []).some(function (k) { return local.indexOf(k) >= 0; });
-  }
   var GLOGO = '<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.9 6.1C12.4 13.7 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.4 5.7c4.3-4 6.9-9.9 6.9-17.1z"/><path fill="#FBBC05" d="M10.5 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C1 16.6 0 20.2 0 24s1 7.4 2.6 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.7c-2.1 1.4-4.8 2.3-8.5 2.3-6.3 0-11.6-4.2-13.5-10l-7.9 6.1C6.6 42.6 14.6 48 24 48z"/></svg>';
   var SPLITWISE_URL = 'https://secure.splitwise.com/#/groups/105847378';
-  var ADMIN_HASH = 'df174295019980fadcb15ac944bdde3b3fc5aff2e92a0906afbc17a1a005044a';
   var PEOPLE = [['A', 'Akshaya'], ['D', 'DivyaTheja'], ['H', 'Haneela'], ['M', 'Megha'], ['P', 'Pranay'], ['R', 'Ramya'], ['S', 'Sahithi']]
     .map(function (p) { return { id: p[0], name: p[1] }; });
   var CITIES = [
@@ -1108,7 +1097,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   try { legCache = JSON.parse(localStorage.getItem(LEGS_KEY) || '{}') || {}; } catch (e) {}
 
   var ui = { tab: 'sd', menu: false, shot: null, albumEdit: null, undoOrder: null, linkOpen: null, linkEdit: null, showLog: false, adding: false, admin: false, adminOpen: false, share: false, sel: null, editing: null, editingExp: null, locFor: null, confirm: null, msg: '', importText: '', flightPerson: null, flightEditing: false, flightDraft: null, flightOCR: null, flightMsg: '' };
-  try { ui.admin = sessionStorage.getItem(ADMIN_KEY) === '1'; } catch (e) {}
+  ui.admin = false;
   /* Always open on San Diego; switching tabs still works during the session. */
 
   function save() {
@@ -1119,10 +1108,11 @@ if (typeof module !== 'undefined') module.exports = Core;
   /* Screenshot OCR is transient: only reviewed flight fields are persisted.
      Booking references, raw OCR, images, and passenger IDs are never saved. */
   var FLIGHTS_KEY='tripwallet.flights.v1', flights={};
-  try {
-    var previousFlights=JSON.parse(localStorage.getItem(FLIGHTS_KEY)||'{}');
-    if(previousFlights&&typeof previousFlights==='object'&&!Array.isArray(previousFlights)) flights=previousFlights;
-  }catch(e){}
+  // Clear legacy browser-cached itineraries on the public hosted application.
+  // Access to shared flight data now requires an approved Firebase session.
+  if(location.protocol!=='file:'){
+    try{localStorage.removeItem(FLIGHTS_KEY);}catch(e){}
+  }
   function flightLeg(x){
     x=x||{};
     return {date:/^20\d{2}-\d{2}-\d{2}$/.test(String(x.date||''))?x.date:'',
@@ -1138,174 +1128,40 @@ if (typeof module !== 'undefined') module.exports = Core;
         var part=Object.assign({},y||{});delete part.segments;return flightLeg(part);
       }):[]};
   }
-  /* User-confirmed schedule; only flight logistics, never reservation codes.
-     These defaults show for Pranay until a traveler saves a revised itinerary. */
-  var PRANAY_FLIGHT_DEFAULT={
-    id:'P',
-    arrival:{date:'2026-12-15',time:'18:48',arrivalDate:'2026-12-15',arrivalTime:'20:31',
-      from:'Dallas/Ft. Worth (DFW)',to:'Phoenix Sky Harbor (PHX)',
-      airline:'Frontier Airlines',flight:'F9 4655',duration:'2h 43m',stops:'Nonstop',
-      tz:'Times local to each airport'},
-    departure:{date:'2027-01-05',time:'21:19',arrivalDate:'2027-01-06',arrivalTime:'00:40',
-      from:'Phoenix Sky Harbor (PHX)',to:'Dallas/Ft. Worth (DFW)',
-      airline:'Frontier Airlines',flight:'F9 3832',duration:'2h 21m',stops:'Nonstop',
-      tz:'Times local to each airport'}
-  };
-  /* Ramya's itinerary is sourced from her Frontier booking screenshot.
-     These are the ticket's airport-local clock times, not converted times.
-     Don't copy Pranay's schedule even where flight numbers overlap. */
-  var RAMYA_FLIGHT_DEFAULT={
-    id:'R',
-    arrival:{date:'2026-12-16',time:'18:51',arrivalDate:'2026-12-16',arrivalTime:'20:34',
-      from:'Dallas/Ft. Worth (DFW)',to:'Phoenix Sky Harbor (PHX)',
-      airline:'Frontier Airlines',flight:'F9 4655',duration:'',stops:'',
-      tz:'Times local to each airport'},
-    departure:{date:'2027-01-05',time:'19:06',arrivalDate:'2027-01-05',arrivalTime:'22:29',
-      from:'Phoenix Sky Harbor (PHX)',to:'Dallas/Ft. Worth (DFW)',
-      airline:'Frontier Airlines',flight:'F9 3832',duration:'',stops:'',
-      tz:'Times local to each airport'}
-  };
-  /* Sahithi's Southwest itinerary is only partially visible in her Gmail
-     screenshot. Keep the connection as two distinct flights. The Phoenix
-     arrival minute and the other flight numbers are not shown; do not guess. */
-  var SAHITHI_FLIGHT_DEFAULT={
-    id:'S',
-    arrival:{date:'2026-12-23',time:'20:30',arrivalDate:'2026-12-24',arrivalTime:'',
-      from:'Columbus (CMH)',to:'Phoenix Sky Harbor (PHX)',
-      airline:'Southwest Airlines',flight:'',duration:'',stops:'1 connection via St. Louis (STL)',
-      note:'Exact arrival time in Phoenix is cut off in the screenshot.',
-      segments:[
-        {date:'2026-12-23',time:'20:30',arrivalDate:'2026-12-23',arrivalTime:'21:00',
-          from:'Columbus (CMH)',to:'St. Louis (STL)',
-          airline:'Southwest Airlines',flight:'WN 1282',duration:'1h 30m',stops:''},
-        {date:'2026-12-23',time:'21:45',arrivalDate:'2026-12-24',arrivalTime:'',
-          from:'St. Louis (STL)',to:'Phoenix Sky Harbor (PHX)',
-          airline:'Southwest Airlines',flight:'',duration:'',stops:'',
-          note:'Phoenix arrival time is truncated and this leg\'s flight number is not shown.'}
-      ]},
-    departure:{date:'2027-01-05',time:'17:10',arrivalDate:'2027-01-05',arrivalTime:'22:45',
-      from:'Phoenix Sky Harbor (PHX)',to:'Columbus (CMH)',
-      airline:'Southwest Airlines',flight:'',duration:'',stops:'',
-      note:'Return flight number and any intermediate stops are not visible.'}
-  };
-  /* Akshaya's updated Alaska confirmation screenshot: pink replacement times
-     take precedence over the struck-through original schedule. Keep the
-     incomplete return flight number blank; never store confirmation codes. */
-  var AKSHAYA_FLIGHT_DEFAULT={
-    id:'A',
-    arrival:{date:'2026-12-24',time:'20:09',arrivalDate:'2026-12-24',arrivalTime:'23:04',
-      from:'Seattle-Tacoma (SEA)',to:'San Diego (SAN)',
-      airline:'Alaska Airlines',flight:'AS 623',duration:'2h 55m',stops:'',
-      tz:'Times local to each airport',
-      note:'Updated schedule: departs 8:09 PM and arrives 11:04 PM; earlier 8:06 PM and 11:01 PM times were crossed out.'},
-    departure:{date:'2027-01-01',time:'07:00',arrivalDate:'2027-01-01',arrivalTime:'09:51',
-      from:'Las Vegas (LAS)',to:'Seattle-Tacoma (SEA)',
-      airline:'Alaska Airlines',flight:'',duration:'',stops:'',
-      tz:'Times local to each airport',
-      note:'Return flight number and any intermediate stops are not shown in the screenshot.'}
-  };
-  /* DivyaTheja's Dec 24 American Airlines screenshot: two connecting flights
-     via Dallas. Only inbound is shown; her return remains blank. The "on time"
-     badges were a snapshot, not ongoing flight status, and aren't persisted. */
-  var DIVYA_FLIGHT_DEFAULT={
-    id:'D',
-    arrival:{date:'2026-12-24',time:'18:31',arrivalDate:'2026-12-24',arrivalTime:'23:45',
-      from:'Columbia Regional (COU)',to:'San Diego (SAN)',
-      airline:'American Airlines',flight:'',duration:'7h 14m',
-      stops:'1 connection via Dallas/Fort Worth (DFW), 2h 10m layover',
-      tz:'Times local to each airport',
-      segments:[
-        {date:'2026-12-24',time:'18:31',arrivalDate:'2026-12-24',arrivalTime:'20:28',
-          from:'Columbia Regional (COU)',to:'Dallas/Fort Worth (DFW)',
-          airline:'American Airlines',flight:'AA 3853',duration:'1h 57m',
-          note:'Operated by Envoy Air as American Eagle'},
-        {date:'2026-12-24',time:'22:38',arrivalDate:'2026-12-24',arrivalTime:'23:45',
-          from:'Dallas/Fort Worth (DFW)',to:'San Diego (SAN)',
-          airline:'American Airlines',flight:'AA 2568',duration:'3h 07m'}
-      ]},
-    departure:{date:'2027-01-04',time:'13:26',arrivalDate:'2027-01-04',arrivalTime:'21:38',
-      from:'Phoenix Sky Harbor (PHX)',to:'Columbia Regional (COU)',
-      airline:'American Airlines',flight:'',duration:'7h 12m',
-      stops:'1 connection via Chicago O\'Hare (ORD), 1h 59m layover',
-      tz:'Times local to each airport',
-      segments:[
-        {date:'2027-01-04',time:'13:26',arrivalDate:'2027-01-04',arrivalTime:'18:00',
-          from:'Phoenix Sky Harbor (PHX)',to:'Chicago O\'Hare (ORD)',
-          airline:'American Airlines',flight:'AA 3165',duration:'3h 34m'},
-        {date:'2027-01-04',time:'19:59',arrivalDate:'2027-01-04',arrivalTime:'21:38',
-          from:'Chicago O\'Hare (ORD)',to:'Columbia Regional (COU)',
-          airline:'American Airlines',flight:'AA 3577',duration:'1h 39m',
-          note:'Operated by Envoy Air as American Eagle'}
-      ]}
-  };
-  /* Haneela's Southwest Trip & Price Details screenshot is from the PRICE
-     stage (before Passenger, Seats, Payment and Confirmation). These are
-     quoted flights, not evidence of a completed booking. */
-  var HANEELA_FLIGHT_DEFAULT={
-    id:'H',
-    arrival:{date:'2026-12-23',time:'21:20',arrivalDate:'2026-12-24',arrivalTime:'00:15',
-      from:'Sacramento (SMF)',to:'Phoenix Sky Harbor (PHX)',
-      airline:'Southwest Airlines',flight:'WN 1415',duration:'1h 55m',stops:'Nonstop',
-      tz:'Times local to each airport',
-      note:'Price quote only — booking not confirmed by the screenshot.'},
-    departure:{date:'2027-01-05',time:'20:55',arrivalDate:'2027-01-05',arrivalTime:'21:55',
-      from:'Phoenix Sky Harbor (PHX)',to:'Sacramento (SMF)',
-      airline:'Southwest Airlines',flight:'WN 1470',duration:'2h 00m',stops:'Nonstop',
-      tz:'Times local to each airport',
-      note:'Price quote only — booking not confirmed by the screenshot.'}
-  };
+  /* Flight schedules are private Firestore documents. Never ship real flight
+     dates, routes, times or booking references in public site source. */
   function flightFor(pid){
-    var defaults=pid==='P'?PRANAY_FLIGHT_DEFAULT:
-      pid==='R'?RAMYA_FLIGHT_DEFAULT:
-      pid==='S'?SAHITHI_FLIGHT_DEFAULT:
-      pid==='A'?AKSHAYA_FLIGHT_DEFAULT:
-      pid==='D'?DIVYA_FLIGHT_DEFAULT:
-      pid==='H'?HANEELA_FLIGHT_DEFAULT:{};
-    var p=flights[pid]||defaults;
-    // An older saved Divya record may contain her outbound flight but no
-    // return. Fill only the missing leg from the newer itinerary screenshot,
-    // without overwriting existing edits or the other travelers' records.
-    if((pid==='D'||pid==='H')&&flights[pid]&&defaults.arrival){
-      var saved=flights[pid],ins=saved.arrival||{},outs=saved.departure||{};
-      var filled=function(x){return !!(x.date||x.time||x.arrivalDate||x.arrivalTime||
-        x.from||x.to||x.flight||(Array.isArray(x.segments)&&x.segments.length));};
-      if(pid==='D') p={
-        arrival:filled(ins)?ins:defaults.arrival,
-        departure:filled(outs)?outs:defaults.departure
-      };
-      else if(!filled(ins)&&!filled(outs))p=defaults;
-    }
+    var p=flights[pid]||{};
     return {id:pid,arrival:flightLeg(p.arrival),departure:flightLeg(p.departure)};
   }
-  function flightCanEdit(pid){return !CLOUD.on||(CLOUD.state==='ready'&&(ui.admin||me===pid));}
+  function flightCanEdit(pid){return CLOUD.on&&CLOUD.state==='ready'&&
+    CLOUD.flightSync==='ready'&&(CLOUD.admin||me===pid);}
   function flightLocalSave(){
-    try{localStorage.setItem(FLIGHTS_KEY,JSON.stringify(flights));return true;}
-    catch(e){ui.flightMsg='Could not save flight details on this device.';return false;}
+    // Shared flight data is never written to localStorage.
+    return !CLOUD.on;
   }
   function saveFlightFor(pid,record){
     if(!isPerson(pid)||!flightCanEdit(pid))return;
     if(CLOUD.on&&CLOUD.flightSync==='loading'){
       ui.flightMsg='Flight details are loading. Please retry the save shortly.';render();return;
     }
-    var clean={id:pid,arrival:flightLeg(record.arrival),departure:flightLeg(record.departure),by:me||'',at:new Date().toISOString()};
-    flights[pid]=clean;flightLocalSave();
-    ui.flightEditing=false;ui.flightOCR=null;ui.flightDraft=null;ui.flightMsg='Flight details saved on this device.';
+    var clean={id:pid,arrival:flightLeg(record.arrival),departure:flightLeg(record.departure),
+      by:me||'',actorUid:CLOUD.user.uid,at:new Date().toISOString()};
+    ui.flightEditing=false;ui.flightOCR=null;ui.flightDraft=null;ui.flightMsg='Saving flight details…';
     if(CLOUD.on&&CLOUD.flightSync==='ready'){
       var session=CLOUD.user;
       CLOUD.fs.setDoc(CLOUD.fs.doc(CLOUD.db,'trips','main','flights',pid),{
-        arrival:clean.arrival,departure:clean.departure,by:clean.by,at:clean.at
+        arrival:clean.arrival,departure:clean.departure,by:clean.by,actorUid:clean.actorUid,at:clean.at
       }).then(function(){
         if(CLOUD.user!==session)return;
-        ui.flightMsg='Flight details saved to the shared trip.';
+        flights[pid]=clean;
+        ui.flightMsg='Flight itinerary securely saved.';
         if(ui.flightPerson===pid)softRender();
       }).catch(function(e){
         if(CLOUD.user!==session)return;
-        ui.flightMsg='Saved on this device only. Shared flight storage was blocked ('+
-          (e&&e.code||'network error')+').';
+        ui.flightMsg='Flight save failed ('+(e&&e.code||'network error')+'). Please retry.';
         if(ui.flightPerson===pid)softRender();
       });
-    }else if(CLOUD.on){
-      ui.flightMsg='Saved on this device only. Shared flight storage is unavailable.';
     }
     render();
   }
@@ -1368,8 +1224,8 @@ if (typeof module !== 'undefined') module.exports = Core;
       var current={};snap.docs.forEach(function(d){
         if(isPerson(d.id))current[d.id]=Object.assign({id:d.id},d.data());
       });
-      flights=Object.assign({},flights,current);
-      flightLocalSave();CLOUD.flightSync='ready';CLOUD.flightError='';softRender();
+      flights=current;
+      CLOUD.flightSync='ready';CLOUD.flightError='';softRender();
     },function(e){
       CLOUD.flightSync='unavailable';CLOUD.flightError=(e&&e.code)||'unavailable';
       softRender();
@@ -1406,7 +1262,9 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   function onUser(user) {
     CLOUD.unsub.forEach(function (f) { try { f(); } catch (e) {} });
-    CLOUD.unsub = []; CLOUD.loaded = {}; CLOUD.user = user; CLOUD.person = ''; CLOUD.flightSync='loading'; me = '';
+    CLOUD.unsub = []; CLOUD.loaded = {}; CLOUD.user = user; CLOUD.person = '';
+    CLOUD.flightSync='loading';CLOUD.admin=false;ui.admin=false;flights={};me='';
+    try{localStorage.removeItem(FLIGHTS_KEY);sessionStorage.removeItem('tripwallet.admin');}catch(e){}
     if (!user) { CLOUD.state = 'signedout'; CLOUD.admin = false; ui.admin = false; render(); return; }
     var fs = CLOUD.fs, db = CLOUD.db, ak = 'tripwallet.isadmin.' + user.uid;
     try { CLOUD.admin = localStorage.getItem(ak) === '1'; } catch (e) {}
@@ -3014,11 +2872,6 @@ if (typeof module !== 'undefined') module.exports = Core;
         }
       }
     }
-    if (!CLOUD.on && ui.adminOpen && !ui.admin) {
-      h += '<form class="card" id="admin-form"><h3>Admin sign-in</h3><p class="sub" style="margin:0">Admin tools for this browser.</p>' +
-        '<div class="row"><input id="admin-pin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN" aria-label="Admin PIN" style="width:140px">' +
-        '<button class="primary" type="submit">Unlock</button><button type="button" class="link" data-act="admin-close">Cancel</button></div><div class="err" data-err hidden></div></form>';
-    }
     if (ui.msg) h += '<div class="note" role="status">' + esc(ui.msg) + '</div>';
     if (undoStop) h += '<div class="note row between" role="status"><span>Stop changed: ' + esc(undoStop.name) + '</span><button type="button" data-act="undo-stop">Undo</button></div>';
     if (ui.share) {
@@ -3528,19 +3381,6 @@ if (typeof module !== 'undefined') module.exports = Core;
       });
       if(bad)return fail('One flight date is invalid. Check the calendar date and year.');
       saveFlightFor(pid,next);return;
-    }
-
-    if (form.id === 'admin-form') {
-      var pin = val('admin-pin');
-      if (!pin) return fail('Enter the PIN.');
-      if (!window.crypto || !crypto.subtle) return fail('This browser cannot check the PIN here. Open the page over https.');
-      sha(pin).then(function (h) {
-        if (h !== ADMIN_HASH) return fail('That PIN is not right.');
-        ui.admin = true; ui.adminOpen = false;
-        try { sessionStorage.setItem(ADMIN_KEY, '1'); } catch (e) {}
-        render();
-      }, function () { fail('This browser cannot check the PIN here.'); });
-      return;
     }
 
     if (form.id === 'shot-form' && ui.shot && ui.shot.x) {
