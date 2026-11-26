@@ -22,7 +22,7 @@ const storage={
 const window={confirm:()=>true};window.top=window.self=window;
 const location={protocol:'file:',origin:'file://',pathname:'/index.html',hash:''};
 const src=scripts[2].replace(/\}\)\(\);\s*$/,
-  'return {ui,flightFor,flightLeg,flightPanel,flightOCRCandidates,flightOCRRead,saveFlightFor,flightCanEdit,airportLocalLabel,act,CLOUD};})();');
+  'return {ui,flightFor,flightLeg,flightPanel,flightOCRCandidates,flightOCRRead,saveFlightFor,flightCanEdit,airportLocalLabel,flightTrackingInfo,flightTrackingHTML,act,CLOUD};})();');
 assert.notEqual(src,scripts[2],'Flight test hook inserted');
 const h=vm.runInNewContext(src,{document,window,localStorage:storage,sessionStorage:storage,location,
   navigator:{},fetch:()=>new Promise(()=>{}),Core,URL,Intl,TextEncoder,TextDecoder,Uint8Array,AbortController,
@@ -58,6 +58,47 @@ async function run(){
     assert.equal(r.flight,'F9 3832');
     assert.equal(r.duration,'2h 21m');
     assert.equal(r.stops,'Nonstop');
+  });
+  test('Frontier outbound and return flights have correct flight-number tracking links',()=>{
+    const outbound=h.flightTrackingInfo(h.flightFor('P').arrival);
+    const inbound=h.flightTrackingInfo(h.flightFor('P').departure);
+    assert.equal(outbound.id,'F94655');
+    assert.equal(outbound.date,'2026-12-15');
+    assert.equal(outbound.tracker,'https://www.flightradar24.com/data/flights/f94655');
+    assert.equal(inbound.id,'F93832');
+    assert.equal(inbound.date,'2027-01-05');
+    assert.equal(inbound.tracker,'https://www.flightradar24.com/data/flights/f93832');
+    assert.equal(outbound.airlineStatus,'https://www.flyfrontier.com/travel/my-trips/flight-status');
+    assert.equal(inbound.airlineStatus,outbound.airlineStatus);
+  });
+  test('flight tracker actions are shown for both flights, with booking schedule preserved',()=>{
+    h.act('flight-person',{id:'P'});
+    const html=h.flightPanel();
+    assert.match(html,/Track F94655/);
+    assert.match(html,/Track F93832/);
+    assert.match(html,/Airline flight status/);
+    assert.match(html,/data\/flights\/f94655/);
+    assert.match(html,/data\/flights\/f93832/);
+    assert.match(html,/may be unavailable until close to departure/);
+    assert.match(html,/Dec 15, 2026/);
+    assert.match(html,/Jan 6, 2027/);
+    assert.match(html,/8:31 PM/);
+    assert.match(html,/12:40 AM/);
+    assert.ok(!html.includes('KBBU7Y'));
+  });
+  test('flight number normalization works for other travelers and numeric-only Frontier flights',()=>{
+    assert.equal(h.flightTrackingInfo({flight:'f9 4655',airline:'Frontier Airlines'}).id,'F94655');
+    assert.equal(h.flightTrackingInfo({flight:'4655',airline:'Frontier Airlines'}).id,'F94655');
+    assert.equal(h.flightTrackingInfo({flight:'AA 1234',airline:'American Airlines'}).tracker,
+      'https://www.flightradar24.com/data/flights/aa1234');
+    assert.equal(h.flightTrackingInfo({flight:'1234',airline:'Unknown carrier'}),null);
+    assert.equal(h.flightTrackingInfo({flight:'',airline:'Frontier Airlines'}),null);
+  });
+  test('untrusted flight-number text cannot inject a URL or markup',()=>{
+    const malicious={flight:'F9"><script>alert(1)</script>',airline:'Frontier Airlines'};
+    assert.equal(h.flightTrackingInfo(malicious),null);
+    assert.ok(!h.flightTrackingHTML(malicious).includes('<script>'));
+    assert.equal(h.flightTrackingInfo({flight:'javascript:alert(1)',airline:'Frontier'}),null);
   });
   test('each other traveler has an independent blank itinerary',()=>{
     for(const id of ['A','D','H','M','R','S']){
