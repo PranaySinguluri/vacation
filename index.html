@@ -47,6 +47,23 @@ button:disabled { opacity: .35; cursor: default }
 .travelers { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px }
 .av { font-size: 12px; font-weight: 600; background: var(--primary-soft); color: var(--primary); border-radius: 999px; padding: 2px 9px }
 .av.me { background: var(--primary); color: var(--primary-ink); box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--primary) }
+button.av{font:inherit;font-size:12px;font-weight:600;border:1px solid transparent;cursor:pointer;min-height:32px;padding:6px 11px}
+button.av:focus-visible{outline:3px solid var(--primary);outline-offset:3px}
+button.av.selected{border-color:var(--primary);background:var(--surface);color:var(--primary)}
+.flight-panel{margin:12px auto;max-width:820px}
+.flight-grid,.flight-edit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0}
+.flight-box{padding:12px;border:1px solid var(--line);border-radius:12px;min-width:0}
+.flight-box h4{margin:0 0 8px}
+.flight-box .fline{display:block;margin:4px 0;overflow-wrap:anywhere}
+.flight-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.flight-fields label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);min-width:0}
+.flight-fields input{width:100%;min-width:0}
+.flight-fields .wide{grid-column:span 2}
+.flight-scan{font-size:12px;margin-top:12px}
+.flight-choices{display:flex;flex-wrap:wrap;gap:6px;margin:7px 0}
+.flight-choices button{font-size:12px;padding:6px 9px;min-height:36px}
+.flight-ocr-text{max-height:170px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}
+@media(max-width:600px){.flight-grid,.flight-edit-grid{grid-template-columns:1fr}}
 .hovertools { opacity: 0; transition: opacity .15s }
 .stop:hover .hovertools, .stop:focus-within .hovertools, .list li:hover .hovertools, .list li:focus-within .hovertools { opacity: 1 }
 @media (hover: none) { .hovertools { opacity: 1 } }
@@ -1029,7 +1046,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   var legCache = {};
   try { legCache = JSON.parse(localStorage.getItem(LEGS_KEY) || '{}') || {}; } catch (e) {}
 
-  var ui = { tab: 'sd', menu: false, shot: null, albumEdit: null, undoOrder: null, linkOpen: null, linkEdit: null, showLog: false, adding: false, admin: false, adminOpen: false, share: false, sel: null, editing: null, editingExp: null, locFor: null, confirm: null, msg: '', importText: '' };
+  var ui = { tab: 'sd', menu: false, shot: null, albumEdit: null, undoOrder: null, linkOpen: null, linkEdit: null, showLog: false, adding: false, admin: false, adminOpen: false, share: false, sel: null, editing: null, editingExp: null, locFor: null, confirm: null, msg: '', importText: '', flightPerson: null, flightEditing: false, flightDraft: null, flightOCR: null, flightMsg: '' };
   try { ui.admin = sessionStorage.getItem(ADMIN_KEY) === '1'; } catch (e) {}
   /* Always open on San Diego; switching tabs still works during the session. */
 
@@ -1038,8 +1055,75 @@ if (typeof module !== 'undefined') module.exports = Core;
     try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {}
   }
 
+  /* Screenshot OCR is transient: only reviewed flight fields are persisted.
+     Booking references, raw OCR, images, and passenger IDs are never saved. */
+  var FLIGHTS_KEY='tripwallet.flights.v1', flights={};
+  try {
+    var previousFlights=JSON.parse(localStorage.getItem(FLIGHTS_KEY)||'{}');
+    if(previousFlights&&typeof previousFlights==='object'&&!Array.isArray(previousFlights)) flights=previousFlights;
+  }catch(e){}
+  function flightLeg(x){
+    x=x||{};
+    return {date:/^20\d{2}-\d{2}-\d{2}$/.test(String(x.date||''))?x.date:'',
+      time:/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(x.time||''))?x.time:'',
+      arrivalDate:/^20\d{2}-\d{2}-\d{2}$/.test(String(x.arrivalDate||''))?x.arrivalDate:'',
+      arrivalTime:/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(x.arrivalTime||''))?x.arrivalTime:'',
+      from:String(x.from||'').slice(0,90),to:String(x.to||'').slice(0,90),
+      flight:String(x.flight||'').slice(0,30),airline:String(x.airline||'').slice(0,70),
+      duration:String(x.duration||'').slice(0,24),stops:String(x.stops||'').slice(0,25),
+      tz:String(x.tz||'').slice(0,45)};
+  }
+  /* User-confirmed schedule; only flight logistics, never reservation codes.
+     These defaults show for Pranay until a traveler saves a revised itinerary. */
+  var PRANAY_FLIGHT_DEFAULT={
+    id:'P',
+    arrival:{date:'2026-12-15',time:'18:48',arrivalDate:'2026-12-15',arrivalTime:'20:31',
+      from:'Dallas/Ft. Worth (DFW)',to:'Phoenix Sky Harbor (PHX)',
+      airline:'Frontier Airlines',flight:'F9 4655',duration:'2h 43m',stops:'Nonstop',
+      tz:'Times local to each airport'},
+    departure:{date:'2027-01-05',time:'21:19',arrivalDate:'2027-01-06',arrivalTime:'00:40',
+      from:'Phoenix Sky Harbor (PHX)',to:'Dallas/Ft. Worth (DFW)',
+      airline:'Frontier Airlines',flight:'F9 3832',duration:'2h 21m',stops:'Nonstop',
+      tz:'Times local to each airport'}
+  };
+  function flightFor(pid){
+    var p=flights[pid]||(pid==='P'?PRANAY_FLIGHT_DEFAULT:{});
+    return {id:pid,arrival:flightLeg(p.arrival),departure:flightLeg(p.departure)};
+  }
+  function flightCanEdit(pid){return !CLOUD.on||(CLOUD.state==='ready'&&(ui.admin||me===pid));}
+  function flightLocalSave(){
+    try{localStorage.setItem(FLIGHTS_KEY,JSON.stringify(flights));return true;}
+    catch(e){ui.flightMsg='Could not save flight details on this device.';return false;}
+  }
+  function saveFlightFor(pid,record){
+    if(!isPerson(pid)||!flightCanEdit(pid))return;
+    if(CLOUD.on&&CLOUD.flightSync==='loading'){
+      ui.flightMsg='Flight details are loading. Please retry the save shortly.';render();return;
+    }
+    var clean={id:pid,arrival:flightLeg(record.arrival),departure:flightLeg(record.departure),by:me||'',at:new Date().toISOString()};
+    flights[pid]=clean;flightLocalSave();
+    ui.flightEditing=false;ui.flightOCR=null;ui.flightDraft=null;ui.flightMsg='Flight details saved on this device.';
+    if(CLOUD.on&&CLOUD.flightSync==='ready'){
+      var session=CLOUD.user;
+      CLOUD.fs.setDoc(CLOUD.fs.doc(CLOUD.db,'trips','main','flights',pid),{
+        arrival:clean.arrival,departure:clean.departure,by:clean.by,at:clean.at
+      }).then(function(){
+        if(CLOUD.user!==session)return;
+        ui.flightMsg='Flight details saved to the shared trip.';
+        if(ui.flightPerson===pid)softRender();
+      }).catch(function(e){
+        if(CLOUD.user!==session)return;
+        ui.flightMsg='Saved on this device only. Shared flight storage was blocked ('+
+          (e&&e.code||'network error')+').';
+        if(ui.flightPerson===pid)softRender();
+      });
+    }else if(CLOUD.on){
+      ui.flightMsg='Saved on this device only. Shared flight storage is unavailable.';
+    }
+    render();
+  }
   /* ---------- Shared trip in Firebase (on the hosted site) ---------- */
-  var CLOUD = { on: false, state: 'off', fs: null, db: null, au: null, auth: null, user: null, admin: false, person: '', members: {}, loaded: {}, deleted: {}, unsub: [], err: '' };
+  var CLOUD = { on: false, state: 'off', fs: null, db: null, au: null, auth: null, user: null, admin: false, person: '', members: {}, loaded: {}, unsub: [], err: '', flightSync: 'local', flightError: '' };
   var COLS = ['places', 'expenses', 'payments', 'log'];
   var synced = { places: {}, expenses: {}, payments: {}, log: {} };
   function stable(o) {
@@ -1092,6 +1176,17 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   function listen() {
     var fs = CLOUD.fs, db = CLOUD.db;
+    CLOUD.flightSync='loading';CLOUD.flightError='';
+    CLOUD.unsub.push(fs.onSnapshot(fs.collection(db,'trips','main','flights'),function(snap){
+      var current={};snap.docs.forEach(function(d){
+        if(isPerson(d.id))current[d.id]=Object.assign({id:d.id},d.data());
+      });
+      flights=Object.assign({},flights,current);
+      flightLocalSave();CLOUD.flightSync='ready';CLOUD.flightError='';softRender();
+    },function(e){
+      CLOUD.flightSync='unavailable';CLOUD.flightError=(e&&e.code)||'unavailable';
+      softRender();
+    }));
     ['places', 'expenses', 'payments'].forEach(function (col) {
       CLOUD.unsub.push(fs.onSnapshot(fs.collection(db, 'trips', 'main', col), function (snap) {
         var arr = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
@@ -1124,7 +1219,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   function onUser(user) {
     CLOUD.unsub.forEach(function (f) { try { f(); } catch (e) {} });
-    CLOUD.unsub = []; CLOUD.loaded = {}; CLOUD.user = user; CLOUD.person = ''; me = '';
+    CLOUD.unsub = []; CLOUD.loaded = {}; CLOUD.user = user; CLOUD.person = ''; CLOUD.flightSync='loading'; me = '';
     if (!user) { CLOUD.state = 'signedout'; CLOUD.admin = false; ui.admin = false; render(); return; }
     var fs = CLOUD.fs, db = CLOUD.db, ak = 'tripwallet.isadmin.' + user.uid;
     try { CLOUD.admin = localStorage.getItem(ak) === '1'; } catch (e) {}
@@ -1201,7 +1296,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   function exportData() { return { v: 3, places: data.places, expenses: data.expenses, payments: data.payments, deleted: data.deleted }; }
   var undoStop = null;
   function downloadBackup() {
-    var backup = { format: 'tripwallet-backup', exportedAt: new Date().toISOString(), data: exportData(), spending: spending };
+    var backup = { format: 'tripwallet-backup', exportedAt: new Date().toISOString(), data: exportData(), spending: spending, flights: flights };
     var blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     var url = URL.createObjectURL(blob), a = document.createElement('a');
     a.href = url; a.download = 'vacation-backup-' + today() + '.json';
@@ -1517,6 +1612,13 @@ if (typeof module !== 'undefined') module.exports = Core;
     save(); render();
   }
   app.addEventListener('input', function (e) {
+    if(ui.flightEditing&&ui.flightDraft&&e.target&&/^flt-(arrival|departure)-/.test(e.target.id||'')){
+      var bits=e.target.id.match(/^flt-(arrival|departure)-(.+)$/);
+      if(bits&&Object.prototype.hasOwnProperty.call(ui.flightDraft[bits[1]],bits[2])){
+        ui.flightDraft[bits[1]][bits[2]]=e.target.value;
+      }
+      return;
+    }
     if (e.target.id === 'place-link' && ui.adding) { previewGoogleLink(); return; }
     if (e.target.id !== 'place-name' || !ui.adding || !document.getElementById('place-suggest')) return;
     clearTimeout(searchTimer);
@@ -2259,6 +2361,155 @@ if (typeof module !== 'undefined') module.exports = Core;
     return ph ? '<img class="pic" src="' + esc(ph) + '" alt="" width="' + size + '" height="' + size + '" referrerpolicy="no-referrer" loading="lazy">'
       : '<span class="pic none" style="width:' + size + 'px;height:' + size + 'px;font-size:' + Math.round(size * 0.45) + 'px" aria-hidden="true">' + esc(n.charAt(0)) + '</span>';
   }
+  function flightDisplayDate(s){
+    var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||'');
+    if(!m)return '';
+    var d=new Date(Date.UTC(+m[1],+m[2]-1,+m[3]));
+    return d.getUTCFullYear()===+m[1]&&d.getUTCMonth()===+m[2]-1&&d.getUTCDate()===+m[3]?
+      d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'}):'';
+  }
+  function flightLegDisplay(title,leg){
+    var depart=flightDisplayDate(leg.date),land=flightDisplayDate(leg.arrivalDate);
+    var has=!!(depart||leg.time||land||leg.arrivalTime||leg.from||leg.to||leg.airline||leg.flight);
+    return '<div class="flight-box"><h4>'+esc(title)+'</h4>'+
+      (has?
+      (leg.from||leg.to?'<span class="fline"><b>Route:</b> '+esc(leg.from||'?')+' → '+esc(leg.to||'?')+'</span>':'')+
+      '<span class="fline"><b>Departure:</b> '+esc(depart||'Date not set')+
+        (leg.time?', '+esc(fmtClock(leg.time)):'')+(leg.from?' · '+esc(leg.from):'')+'</span>'+
+      '<span class="fline"><b>Arrival:</b> '+esc(land||'Date not set')+
+        (leg.arrivalTime?', '+esc(fmtClock(leg.arrivalTime)):'')+(leg.to?' · '+esc(leg.to):'')+'</span>'+
+      (leg.airline||leg.flight?'<span class="fline"><b>Flight:</b> '+esc([leg.airline,leg.flight].filter(Boolean).join(' '))+'</span>':'')+
+      (leg.duration||leg.stops?'<span class="fline"><b>Duration:</b> '+
+        esc([leg.duration,leg.stops].filter(Boolean).join(' · '))+'</span>':'')+
+      (leg.tz?'<span class="fline"><b>Time zone:</b> '+esc(leg.tz)+'</span>':''):
+      '<p class="sub">No flight details added yet.</p>')+'</div>';
+  }
+  function flightInputField(pid,kind,key,label,type,placeholder,wide){
+    var value=flightLeg(ui.flightDraft[kind])[key]||'',id='flt-'+kind+'-'+key;
+    return '<label'+(wide?' class="wide"':'')+' for="'+id+'">'+esc(label)+
+      '<input type="'+(type||'text')+'" id="'+id+'" name="'+id+'" maxlength="90"'+
+      (placeholder?' placeholder="'+esc(placeholder)+'"':'')+' value="'+esc(value)+'"></label>';
+  }
+  function flightEditBox(pid,kind,title){
+    return '<div class="flight-box"><h4>'+esc(title)+'</h4><div class="flight-fields">'+
+      flightInputField(pid,kind,'date','Flight departure date','date','',false)+
+      flightInputField(pid,kind,'time','Flight departure time','time','',false)+
+      flightInputField(pid,kind,'arrivalDate','Flight arrival date','date','',false)+
+      flightInputField(pid,kind,'arrivalTime','Flight arrival time','time','',false)+
+      flightInputField(pid,kind,'from','From airport / city','text','DFW',false)+
+      flightInputField(pid,kind,'to','To airport / city','text','PHX',false)+
+      flightInputField(pid,kind,'airline','Airline','text','Airline',false)+
+      flightInputField(pid,kind,'flight','Flight number','text','F9 4655',false)+
+      flightInputField(pid,kind,'duration','Duration','text','2h 43m',false)+
+      flightInputField(pid,kind,'stops','Stops','text','Nonstop',false)+
+      flightInputField(pid,kind,'tz','Time zones (if known)','text','Airport-local times',true)+
+      '</div></div>';
+  }
+  function flightPanel(){
+    var pid=ui.flightPerson;
+    if(!pid||!isPerson(pid))return '';
+    var mine=flightCanEdit(pid),f=flightFor(pid),name=person(pid);
+    var h='<section class="card flight-panel" id="flight-panel" aria-label="'+esc(name)+' flight itinerary">'+
+      '<div class="row between"><div><h3 style="margin:0">'+esc(name)+' · Flights</h3>'+
+      '<p class="sub" style="margin:4px 0 0">Arrival to the trip and departure from the trip</p></div>'+
+      '<button type="button" class="link" data-act="flight-close">Close</button></div>';
+    if(ui.flightMsg)h+='<div class="sub" role="status">'+esc(ui.flightMsg)+'</div>';
+    if(CLOUD.on&&CLOUD.flightSync==='unavailable')h+='<p class="sub">Shared flight schedules are unavailable here; saved changes remain on this device only.</p>';
+    if(!ui.flightEditing||!mine){
+      h+='<div class="flight-grid">'+flightLegDisplay('Arriving for trip',f.arrival)+
+        flightLegDisplay('Departing from trip',f.departure)+'</div>';
+      if(mine)h+='<button type="button" class="primary" data-act="flight-edit">Add / edit flights</button>';
+    }else{
+      if(!ui.flightDraft)ui.flightDraft={arrival:flightLeg(f.arrival),departure:flightLeg(f.departure)};
+      h+='<form id="flight-form" data-person="'+pid+'">'+
+        '<div class="flight-edit-grid">'+flightEditBox(pid,'arrival','Arriving for trip')+
+        flightEditBox(pid,'departure','Departing from trip')+'</div>'+
+        '<p class="sub">Enter both departure and landing dates and times exactly as printed. Each time is local to the airport shown; overnight returns can land the next day. Review screenshot results before saving.</p>'+
+        '<label class="btn flight-scan">Upload flight itinerary screenshot<input type="file" id="flight-shot" accept="image/*" hidden></label>'+
+        flightOCRPanel()+
+        '<div class="err" data-err hidden></div><div class="row">'+
+        '<button type="submit" class="primary">Save flight itinerary</button>'+
+        '<button type="button" class="link" data-act="flight-cancel">Cancel</button></div></form>';
+    }
+    return h+'</section>';
+  }
+  function flightOCRCandidates(text){
+    text=String(text||'').slice(0,18000);
+    var months={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+    var dates=[],times=[],m,pattern=/\b(?:20\d{2}-\d{1,2}-\d{1,2}|(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\w*,?\s+)?(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+20\d{2})\b/gi;
+    var addDate=function(raw){
+      var y,mo,d,match=/^(20\d{2})-(\d{1,2})-(\d{1,2})$/.exec(raw);
+      if(match){y=+match[1];mo=+match[2];d=+match[3];}
+      else{
+        match=/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{1,2}),?\s+(20\d{2})\b/i.exec(raw);
+        if(!match)return;
+        mo=months[match[1].toLowerCase().slice(0,3)];d=+match[2];y=+match[3];
+      }
+      var dt=new Date(Date.UTC(y,mo-1,d));
+      if(dt.getUTCFullYear()!==y||dt.getUTCMonth()!==mo-1||dt.getUTCDate()!==d)return;
+      var v=y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+      if(dates.indexOf(v)<0&&dates.length<14)dates.push(v);
+    };
+    while((m=pattern.exec(text)))addDate(m[0]);
+    var lines=text.split(/\r?\n/);
+    lines.forEach(function(line){
+      var re=/\b(\d{1,2}):([0-5]\d)\s*(AM|PM)\b/gi,v;
+      while((v=re.exec(line))){
+        var h=(+v[1]%12)+(v[3].toUpperCase()==='PM'?12:0);
+        if(+v[1]<1||+v[1]>12)continue;
+        var time=String(h).padStart(2,'0')+':'+v[2];
+        if(times.indexOf(time)<0&&times.length<20)times.push(time);
+      }
+    });
+    return {dates:dates,times:times};
+  }
+  function flightOCRRead(file){
+    if(!ui.flightEditing||!ui.flightPerson)return;
+    if(file.size>12*1024*1024){ui.flightOCR={state:'error',message:'Screenshot too large (12 MB max).'};render();return;}
+    var pid=ui.flightPerson;
+    ui.flightOCR={state:'reading'};render();
+    var timeout=new Promise(function(_,reject){
+      setTimeout(function(){reject(new Error('The screenshot reader timed out. Try again or enter details manually.'));},90000);
+    });
+    Promise.race([loadOCR().then(function(T){return T.recognize(file,'eng');}),timeout])
+      .then(function(r){
+        if(ui.flightPerson!==pid||!ui.flightEditing)return;
+        var text=String(r&&r.data&&r.data.text||'');
+        if(!text.trim())throw new Error('No readable flight text was found.');
+        var parsed=flightOCRCandidates(text);
+        ui.flightOCR={state:'done',dates:parsed.dates,times:parsed.times,text:text.slice(0,7500)};
+        render();
+      }).catch(function(e){
+        if(ui.flightPerson!==pid||!ui.flightEditing)return;
+        ui.flightOCR={state:'error',message:String(e&&e.message||'Could not read the screenshot.')};
+        render();
+      });
+  }
+  function flightOCRPanel(){
+    var o=ui.flightOCR;
+    if(!o)return '';
+    if(o.state==='reading')return '<p class="sub" role="status">Reading the flight screenshot on your device…</p>';
+    if(o.state==='error')return '<p class="sub" role="alert">'+esc(o.message||'Could not read the screenshot. Enter details manually.')+'</p>';
+    var arr=Array.isArray(o.dates)?o.dates:[],times=Array.isArray(o.times)?o.times:[];
+    var choose=function(values,field){
+      return values.map(function(v){
+        return '<span class="flight-choices">'+
+          ['arrival','departure'].map(function(kind){
+            return [field,field==='date'?'arrivalDate':'arrivalTime'].map(function(dest){
+              var label=(kind==='arrival'?'Outbound':'Return')+
+                (dest==='date'||dest==='time'?' takeoff':' landing');
+              return '<button type="button" data-act="flight-ocr-use" data-kind="'+kind+
+                '" data-field="'+dest+'" data-value="'+esc(v)+'">'+esc(label)+': '+esc(v)+'</button>';
+            }).join('');
+          }).join('')+'</span>';
+      }).join('');
+    };
+    return '<div class="flight-box flight-scan"><h4>Screenshot text — review before saving</h4>'+
+      '<p class="sub">Select a date or time only if it belongs to the correct flight. OCR can mix connecting flights and time zones.</p>'+
+      (arr.length?'<b>Dates recognized</b>'+choose(arr,'date'):'<p class="sub">No complete dates recognized. Enter the date manually.</p>')+
+      (times.length?'<b>Times recognized</b>'+choose(times,'time'):'<p class="sub">No times recognized. Enter the time manually.</p>')+
+      '<details><summary>View extracted screenshot text (not saved)</summary><pre class="flight-ocr-text">'+esc(o.text||'')+'</pre></details></div>';
+  }
   function activityHTML() {
     var log = data.log.slice().reverse();
     var mem = Object.keys(CLOUD.members), inIds = {};
@@ -2325,13 +2576,16 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<div class="hdr-actions">' + right + '</div></div>' +
       '<div class="travelers">' + PEOPLE.map(function (p) {
         var mine = CLOUD.on && me && p.id === me;
-        return '<span class="av' + (mine ? ' me' : '') + '"' + (mine ? ' aria-current="true" title="Signed in as you"' : '') + '>' + esc(p.name) + '</span>';
+        return '<button type="button" class="av' + (mine ? ' me' : '') + (ui.flightPerson === p.id ? ' selected' : '') +
+          '" data-act="flight-person" data-id="' + p.id + '" aria-expanded="' + (ui.flightPerson === p.id) +
+          '" title="View ' + esc(p.name) + '\'s flight arrival and departure">' + esc(p.name) + '</button>';
       }).join('') + '</div></div></header>';
     if (CLOUD.on && CLOUD.state !== 'ready') {
       if (ui.msg) h += '<div class="note warnnote" role="alert">' + esc(ui.msg) + '</div>';
       app.innerHTML = h + gateHTML();
       return;
     }
+    if(ui.flightPerson)h+=flightPanel();
     if (CLOUD.on && allLoaded()) {
       if (!data.places.length && !data.expenses.length) {
         h += ui.admin
@@ -2400,6 +2654,36 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (a !== 'toggle-menu') ui.menu = false;
     if (a !== 'ask') ui.confirm = null;
     if (a !== 'import') ui.msg = '';
+    if (a === 'flight-person') {
+      if(!isPerson(d.id))return;
+      ui.flightPerson=ui.flightPerson===d.id?null:d.id;
+      ui.flightEditing=false;ui.flightDraft=null;ui.flightOCR=null;ui.flightMsg='';
+      render();return;
+    }
+    if (a === 'flight-close') {
+      ui.flightPerson=null;ui.flightEditing=false;ui.flightDraft=null;ui.flightOCR=null;ui.flightMsg='';
+      render();return;
+    }
+    if (a === 'flight-edit') {
+      if(!ui.flightPerson||!flightCanEdit(ui.flightPerson))return;
+      var existing=flightFor(ui.flightPerson);
+      ui.flightDraft={arrival:flightLeg(existing.arrival),departure:flightLeg(existing.departure)};
+      ui.flightEditing=true;ui.flightOCR=null;ui.flightMsg='';
+      render();return;
+    }
+    if (a === 'flight-cancel') {
+      ui.flightEditing=false;ui.flightDraft=null;ui.flightOCR=null;render();return;
+    }
+    if (a === 'flight-ocr-use') {
+      if(!ui.flightEditing||!flightCanEdit(ui.flightPerson)||!ui.flightDraft)return;
+      var k=d.kind,field=d.field,value=d.value;
+      if(['arrival','departure'].indexOf(k)<0||['date','time','arrivalDate','arrivalTime'].indexOf(field)<0)return;
+      var row=document.getElementById('flt-'+k+'-'+field);
+      if(!row)return;
+      if((field==='date'||field==='arrivalDate')&&!/^20\d{2}-\d{2}-\d{2}$/.test(value))return;
+      if((field==='time'||field==='arrivalTime')&&!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value))return;
+      row.value=value;ui.flightDraft[k][field]=value;return;
+    }
     if (a === 'tab') {
       ui.tab = d.id === 'costs' ? 'photos' : d.id; ui.undoOrder = null; ui.adding = false; ui.editing = null; ui.editingExp = null; ui.locFor = null; ui.sel = null;
       try { localStorage.setItem(TAB_KEY, d.id); } catch (e) {}
@@ -2677,6 +2961,13 @@ if (typeof module !== 'undefined') module.exports = Core;
         if (!window.confirm('Replace the local itinerary and spending with this backup? Download your current backup first.')) return;
         data = JSON.parse(JSON.stringify(d)); data.log = data.log || [];
         spending = Array.isArray(b.spending) ? b.spending : spending;
+        if(b.flights&&typeof b.flights==='object'&&!Array.isArray(b.flights)){
+          flights={};
+          PEOPLE.forEach(function(p){if(b.flights[p.id])flights[p.id]={
+            id:p.id,arrival:flightLeg(b.flights[p.id].arrival),departure:flightLeg(b.flights[p.id].departure)
+          };});
+          flightLocalSave();
+        }
         if (!saveSpending()) throw new Error('storage');
         save(); ui.msg = 'Local backup restored.'; render();
       }).catch(function () { ui.msg = 'Could not restore this backup. Check the file and available storage.'; render(); });
@@ -2755,6 +3046,16 @@ if (typeof module !== 'undefined') module.exports = Core;
 
   app.addEventListener('change', function (ev) {
     var el = ev.target;
+    if (el.id === 'flight-shot' && el.files && el.files[0]) {
+      if(!ui.flightDraft)ui.flightDraft={arrival:flightLeg(flightFor(ui.flightPerson).arrival),departure:flightLeg(flightFor(ui.flightPerson).departure)};
+      ['arrival','departure'].forEach(function(kind){
+        ['date','time','arrivalDate','arrivalTime','from','to','airline','flight','duration','stops','tz'].forEach(function(field){
+          var el=document.getElementById('flt-'+kind+'-'+field);
+          if(el)ui.flightDraft[kind][field]=el.value;
+        });
+      });
+      flightOCRRead(el.files[0]);return;
+    }
     if (el.id === 'shot-city' && el.files && el.files[0]) { readShot(el.files[0], ui.tab); return; }
     if (el.dataset && el.dataset.place) {
       var p = placeById(el.dataset.place);
@@ -2772,6 +3073,25 @@ if (typeof module !== 'undefined') module.exports = Core;
     ev.preventDefault();
     var form = ev.target, val = function (id) { var e = document.getElementById(id); return e ? e.value.trim() : ''; };
     var fail = function (msg) { var slot = form.querySelector('[data-err]'); if (slot) { slot.textContent = msg; slot.hidden = false; } };
+
+    if (form.id === 'flight-form') {
+      var pid=form.dataset.person;
+      if(!isPerson(pid)||pid!==ui.flightPerson||!flightCanEdit(pid))return fail('You cannot edit this traveler.');
+      var next={arrival:{},departure:{}};
+      ['arrival','departure'].forEach(function(kind){
+        ['date','time','arrivalDate','arrivalTime','from','to','airline','flight','duration','stops','tz'].forEach(function(field){
+          next[kind][field]=val('flt-'+kind+'-'+field);
+        });
+      });
+      // Validate every entered date, not only its format, before saving.
+      var bad=['arrival','departure'].some(function(k){
+        return ['date','arrivalDate'].some(function(field){
+          var date=next[k][field];return date&&!flightDisplayDate(date);
+        });
+      });
+      if(bad)return fail('One flight date is invalid. Check the calendar date and year.');
+      saveFlightFor(pid,next);return;
+    }
 
     if (form.id === 'admin-form') {
       var pin = val('admin-pin');
