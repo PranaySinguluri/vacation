@@ -1180,6 +1180,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   var cloudWriting = false, cloudPending = false;
   function pushCloud() {
     if (cloudWriting) { cloudPending = true; return; }
+    if(!CLOUD.user||!isPerson(me)||me!==CLOUD.person)return;
     var fs = CLOUD.fs, batch = fs.writeBatch(CLOUD.db), n = 0, order = {}, changes = [];
     data.places.forEach(function (p) { order[p.city] = (order[p.city] || 0) + 1; p.order = order[p.city]; });
     COLS.forEach(function (col) {
@@ -1205,7 +1206,8 @@ if (typeof module !== 'undefined') module.exports = Core;
         else synced[c.col][c.id] = c.value;
       });
     }).catch(function (err) {
-      ui.msg = 'Sync failed (' + (err && (err.code || err.message)) + '). Your change may need retrying.';
+      ui.msg = 'Sync failed (' + (err && (err.code || err.message)) +
+        '). Your changes were not confirmed. Refresh before editing again.';
       render();
     }).finally(function () {
       cloudWriting = false;
@@ -3003,6 +3005,8 @@ if (typeof module !== 'undefined') module.exports = Core;
       data.expenses=data.expenses.filter(function(e){return e.id!==d.id;});
       logIt('removed',(oldExpense.desc||oldExpense.category||'Expense')+' · '+Core.fmt(oldExpense.amount)+' · paid by '+person(oldExpense.paidBy));
       var dl=data.log[data.log.length-1];dl.kind='expense';dl.expenseId=d.id;
+      dl.rev=(oldExpense.rev||0)+1;dl.id='ex_'+d.id+'_'+dl.rev;
+      dl.actorUid=CLOUD.on&&CLOUD.user?CLOUD.user.uid:'';
       dl.before={desc:oldExpense.desc||'',amount:oldExpense.amount,paidBy:oldExpense.paidBy,split:(oldExpense.split||[]).slice()};
       dl.involved=(oldExpense.split||[]).concat([oldExpense.paidBy]);
       if(editingSharedExpense===d.id){editingSharedExpense=null;expenseFormOpen=false;}
@@ -3153,7 +3157,11 @@ if (typeof module !== 'undefined') module.exports = Core;
     else if (a === 'edit-link') { ui.linkEdit = d.id; }
     else if (a === 'cancel-link') ui.linkEdit = null;
     else if (a === 'sign-in') { signIn(); return; }
-    else if (a === 'sign-out') { ui.msg = ''; CLOUD.au.signOut(CLOUD.auth); return; }
+    else if (a === 'sign-out') {
+      ui.msg='';flights={};ui.flightPerson=null;
+      try{localStorage.removeItem(FLIGHTS_KEY);localStorage.removeItem(KEY);}catch(e){}
+      CLOUD.au.signOut(CLOUD.auth);return;
+    }
     else if (a === 'retry') { location.reload(); return; }
     else if(a==='request-access'){
       if(CLOUD.state!=='pending'||!CLOUD.user)return;
@@ -3201,15 +3209,19 @@ if (typeof module !== 'undefined') module.exports = Core;
     }
     else if (a === 'start-trip') {
       if (!ui.admin || data.places.length) return;
-      ['places', 'expenses', 'payments'].forEach(function (col) { data[col] = JSON.parse(JSON.stringify(localData[col] || [])); });
+      ['places'].forEach(function (col) { data[col] = JSON.parse(JSON.stringify(localData[col] || [])); });
+      data.expenses=[];data.payments=[];
+      ui.msg='Legacy expenses require individual verification and re-entry before secure sharing.';
       logIt('started', 'the shared trip');
       save();
     }
     else if (a === 'add-extras') {
       var ex = localExtras();
       data.places = data.places.concat(ex.places);
-      data.expenses = data.expenses.concat(ex.expenses);
-      data.payments = data.payments.concat(ex.payments);
+      // Legacy browser purchases and payments cannot be imported without
+      // accountable server-verified creators and matching audit revisions.
+      if(ex.expenses.length||ex.payments.length)
+        ui.msg='For security, re-enter old expenses manually under your approved account.';
       logIt('added', 'items saved in their browser before sign-in (' + (ex.places.length + ex.expenses.length + ex.payments.length) + ')');
       try { localStorage.setItem('tripwallet.extrasDone', '1'); } catch (e) {}
       save();
@@ -3569,34 +3581,43 @@ if (typeof module !== 'undefined') module.exports = Core;
       if(amt===null||!isPerson(payer))return fail('Enter a valid amount (at most 2 decimal places) and choose who paid.');
       if(!description)return fail('Enter what this expense was for.');
       if(EXPENSE_CATEGORIES.indexOf(category)<0)return fail('Select a valid expense category.');
-      if(CLOUD.on&&!isPerson(me))return fail('Sign in as a traveler to add shared expenses.');
+      if(CLOUD.on&&(!CLOUD.user||!isPerson(me)||me!==CLOUD.person))
+        return fail('Only an approved traveler can edit shared expenses.');
       if(!validExpenseDate(date))return fail('Choose a valid calendar date.');
       if(!split.length)return fail('Select at least one traveler.');
       if(split.some(function(id){return !isPerson(id);})||new Set(split).size!==split.length)return fail('Invalid traveler selection.');
       if(CLOUD.on && CLOUD.state!=='ready')return fail('Shared expenses are not synced yet. Wait for sign-in and try again.');
-      var item={id:uid(),amount:amt,paidBy:payer,category:category,currency:'USD',date:date,split:split,merchant:'',desc:description,time:'',quantity:'',unit:'',unitPrice:''};
+      var item={id:uid(),amount:amt,paidBy:payer,category:category,currency:'USD',date:date,split:split,merchant:'',desc:description,time:'',quantity:'',unit:'',unitPrice:'',rev:1,actorUid:CLOUD.on?CLOUD.user.uid:''};
       var existing=editingSharedExpense&&data.expenses.find(function(e){return e.id===editingSharedExpense;});
       if(editingSharedExpense&&!existing)return fail('That expense no longer exists. Refresh and try again.');
       if(form.dataset)form.dataset.expenseSaved='1';
       if(existing){
         var originalId=existing.id,oldInvolved=(existing.split||[]).concat([existing.paidBy]);
         var before={desc:existing.desc||'',amount:existing.amount,paidBy:existing.paidBy,split:(existing.split||[]).slice()};
-        Object.assign(existing,item,{id:originalId,by:existing.by,at:existing.at,updatedBy:me,updatedAt:new Date().toISOString()});
+        Object.assign(existing,item,{id:originalId,by:existing.by,at:existing.at,
+          ownerUid:existing.ownerUid||'',rev:(existing.rev||0)+1,
+          updatedBy:me,updatedAt:new Date().toISOString()});
         logIt('edited',description+' · '+Core.fmt(before.amount)+' → '+Core.fmt(amt)+
           ' · '+person(before.paidBy)+' → '+person(payer));
         var el=data.log[data.log.length-1];el.kind='expense';el.expenseId=originalId;
+        el.id='ex_'+originalId+'_'+existing.rev;el.rev=existing.rev;
+        el.actorUid=CLOUD.on?CLOUD.user.uid:'';
         el.before=before;el.after={desc:description,amount:amt,paidBy:payer,split:split.slice()};
         el.involved=Array.from(new Set(oldInvolved.concat(split,[payer])));
       }else{
+        item.ownerUid=CLOUD.on?CLOUD.user.uid:'';
         data.expenses.push(stamp(item));
         logIt('added',description+' · '+Core.fmt(amt)+' · paid by '+person(payer));
         var al=data.log[data.log.length-1];al.kind='expense';al.expenseId=item.id;
+        al.id='ex_'+item.id+'_1';al.rev=1;al.actorUid=CLOUD.on?CLOUD.user.uid:'';
         al.after={desc:description,amount:amt,paidBy:payer,split:split.slice()};
         al.involved=Array.from(new Set(split.concat([payer])));
       }
       expenseFormOpen=false;editingSharedExpense=null;save();render();return;
     }
     if (form.id === 'expense-form') {
+      // Historical local-only editor is not a valid authenticated mutation path.
+      if(CLOUD.on)return fail('Use Expenses → Add expense for tracked shared expenses.');
       var desc = val('exp-desc'), amount = Core.toMinor(val('exp-amount'));
       var split = Array.prototype.map.call(document.querySelectorAll('input[name="exp-split"]:checked'), function (c) { return c.value; });
       if (!desc) return fail('Say what the expense was.');
