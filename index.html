@@ -2616,7 +2616,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   function flightTimePoint(place,date,time) {
     var a=airportLocalLabel(place,date);
     var clock=flightDisplayDate(date)||'Date not shown';
-    clock+=time?', '+fmtClock(time):' · Time not shown';
+    clock+=time?', '+fmtClock(time):' · Exact time not shown';
     return '<div class="flight-timepoint">'+
       '<strong class="flight-airport">'+esc(a.code||a.city||'?')+'</strong>'+
       '<span class="flight-datetime">'+esc(clock)+'</span>'+
@@ -2679,7 +2679,7 @@ if (typeof module !== 'undefined') module.exports = Core;
                 leg.airline||'Flight number not shown')+
             '</span>'+(leg.duration?'<span class="flight-leg-duration">'+esc(leg.duration)+'</span>':'')+'</div>'+
             flightTimesHTML(leg)+flightTrackingHTML(leg)+'</div>')+
-        (leg.note?'<p class="flight-note">'+esc(leg.note)+'</p>':''):
+        (leg.note&&(!pieces.length||!pieces.some(function(x){return !!x.note;}))?'<p class="flight-note">'+esc(leg.note)+'</p>':''):
         '<p class="sub">Flight details have not been added for this person yet. No times are assumed.</p>')+
       '</section>';
   }
