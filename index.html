@@ -3186,17 +3186,17 @@ if (typeof module !== 'undefined') module.exports = Core;
     }
     else if(a==='approve-member'){
       if(!CLOUD.on||!CLOUD.admin||CLOUD.state!=='ready')return;
-      var uid=d.id,member=String(d.person||'');
-      if(!CLOUD.requests||!CLOUD.requests[uid]||!isPerson(member))return;
+      var requestUid=d.id,member=String(d.person||'');
+      if(!CLOUD.requests||!CLOUD.requests[requestUid]||!isPerson(member))return;
       if(Object.values(CLOUD.members||{}).some(function(x){return x.person===member;})){
         ui.msg='That traveler already has an approved account. Revoke the old assignment first.';render();return;
       }
-      var req=CLOUD.requests[uid],batch=CLOUD.fs.writeBatch(CLOUD.db);
-      batch.set(CLOUD.fs.doc(CLOUD.db,'trips','main','members',uid),{
+      var req=CLOUD.requests[requestUid],batch=CLOUD.fs.writeBatch(CLOUD.db);
+      batch.set(CLOUD.fs.doc(CLOUD.db,'trips','main','members',requestUid),{
         person:member,name:String(req.name||'').slice(0,80),
         approvedBy:CLOUD.user.uid,approvedAt:new Date().toISOString()
       });
-      batch.delete(CLOUD.fs.doc(CLOUD.db,'trips','main','requests',uid));
+      batch.delete(CLOUD.fs.doc(CLOUD.db,'trips','main','requests',requestUid));
       batch.commit().then(function(){ui.msg=person(member)+' access approved.';render();})
         .catch(function(e){ui.msg='Approval failed ('+(e&&e.code||'error')+').';render();});
       return;
