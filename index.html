@@ -1299,8 +1299,12 @@ if (typeof module !== 'undefined') module.exports = Core;
         CLOUD.person=approved?mine.person:'';me=CLOUD.person;
         if(!approved){
           if(CLOUD.state==='ready'){
-            CLOUD.unsub.forEach(function(f){try{f();}catch(e){}});
-            CLOUD.unsub=[];CLOUD.loaded={};data=seedData();flights={};
+            // Keep listening to this user's membership so a later approval
+            // works without requiring sign-out or a hard reload.
+            var selfListener=CLOUD.unsub[0];
+            CLOUD.unsub.slice(1).forEach(function(f){try{f();}catch(e){}});
+            CLOUD.unsub=selfListener?[selfListener]:[];
+            CLOUD.loaded={};data=seedData();flights={};
           }
           CLOUD.state='pending';render();return;
         }
