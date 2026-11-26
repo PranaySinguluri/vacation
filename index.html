@@ -1096,8 +1096,23 @@ if (typeof module !== 'undefined') module.exports = Core;
       airline:'Frontier Airlines',flight:'F9 3832',duration:'2h 21m',stops:'Nonstop',
       tz:'Times local to each airport'}
   };
+  /* Ramya's itinerary is sourced from her Frontier booking screenshot.
+     These are the ticket's airport-local clock times, not converted times.
+     Don't copy Pranay's schedule even where flight numbers overlap. */
+  var RAMYA_FLIGHT_DEFAULT={
+    id:'R',
+    arrival:{date:'2026-12-16',time:'18:51',arrivalDate:'2026-12-16',arrivalTime:'20:34',
+      from:'Dallas/Ft. Worth (DFW)',to:'Phoenix Sky Harbor (PHX)',
+      airline:'Frontier Airlines',flight:'F9 4655',duration:'',stops:'',
+      tz:'Times local to each airport'},
+    departure:{date:'2027-01-05',time:'19:06',arrivalDate:'2027-01-05',arrivalTime:'22:29',
+      from:'Phoenix Sky Harbor (PHX)',to:'Dallas/Ft. Worth (DFW)',
+      airline:'Frontier Airlines',flight:'F9 3832',duration:'',stops:'',
+      tz:'Times local to each airport'}
+  };
   function flightFor(pid){
-    var p=flights[pid]||(pid==='P'?PRANAY_FLIGHT_DEFAULT:{});
+    var defaults=pid==='P'?PRANAY_FLIGHT_DEFAULT:pid==='R'?RAMYA_FLIGHT_DEFAULT:{};
+    var p=flights[pid]||defaults;
     return {id:pid,arrival:flightLeg(p.arrival),departure:flightLeg(p.departure)};
   }
   function flightCanEdit(pid){return !CLOUD.on||(CLOUD.state==='ready'&&(ui.admin||me===pid));}

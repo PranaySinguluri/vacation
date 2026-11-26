@@ -101,8 +101,49 @@ async function run(){
     assert.ok(!h.flightTrackingHTML(malicious).includes('<script>'));
     assert.equal(h.flightTrackingInfo({flight:'javascript:alert(1)',airline:'Frontier'}),null);
   });
-  test('each other traveler has an independent blank itinerary',()=>{
-    for(const id of ['A','D','H','M','R','S']){
+  test('Ramya Frontier flights match her Dec 16 and Jan 5 screenshot',()=>{
+    const r=h.flightFor('R');
+    assert.equal(r.arrival.date,'2026-12-16');
+    assert.equal(r.arrival.time,'18:51');
+    assert.equal(r.arrival.arrivalDate,'2026-12-16');
+    assert.equal(r.arrival.arrivalTime,'20:34');
+    assert.equal(r.arrival.from,'Dallas/Ft. Worth (DFW)');
+    assert.equal(r.arrival.to,'Phoenix Sky Harbor (PHX)');
+    assert.equal(r.arrival.flight,'F9 4655');
+    assert.equal(r.departure.date,'2027-01-05');
+    assert.equal(r.departure.time,'19:06');
+    assert.equal(r.departure.arrivalDate,'2027-01-05');
+    assert.equal(r.departure.arrivalTime,'22:29');
+    assert.equal(r.departure.from,'Phoenix Sky Harbor (PHX)');
+    assert.equal(r.departure.to,'Dallas/Ft. Worth (DFW)');
+    assert.equal(r.departure.flight,'F9 3832');
+    assert.equal(r.arrival.duration,'');
+    assert.equal(r.departure.duration,'');
+  });
+  test('Ramya flight card shows its own airport-local times and flight tracker',()=>{
+    h.ui.flightPerson='R';
+    const html=h.flightPanel();
+    assert.match(html,/Ramya · Flights/);
+    assert.match(html,/Dec 16, 2026, 6:51 PM/);
+    assert.match(html,/Dec 16, 2026, 8:34 PM/);
+    assert.match(html,/Jan 5, 2027, 7:06 PM/);
+    assert.match(html,/Jan 5, 2027, 10:29 PM/);
+    assert.match(html,/Dallas local time \(CST\)/);
+    assert.match(html,/Phoenix Sky Harbor local time \(MST\)/);
+    assert.match(html,/Track F94655/);
+    assert.match(html,/Track F93832/);
+    assert.doesNotMatch(html,/Jan 6, 2027/);
+    assert.doesNotMatch(html,/6:48 PM/);
+    assert.doesNotMatch(html,/KBBU7Y/);
+    h.ui.flightPerson=null;
+  });
+  test('Ramya itinerary is separate from Pranay and other travelers remain blank',()=>{
+    const pranay=h.flightFor('P'),ramya=h.flightFor('R');
+    assert.equal(pranay.arrival.date,'2026-12-15');
+    assert.equal(pranay.departure.time,'21:19');
+    assert.notEqual(pranay.arrival.date,ramya.arrival.date);
+    assert.notEqual(pranay.departure.time,ramya.departure.time);
+    for(const id of ['A','D','H','M','S']){
       const x=h.flightFor(id);
       assert.equal(x.arrival.date,'');
       assert.equal(x.departure.date,'');
