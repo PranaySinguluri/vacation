@@ -2429,7 +2429,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   function flightOCRCandidates(text){
     text=String(text||'').slice(0,18000);
     var months={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
-    var dates=[],times=[],m,pattern=/\b(?:20\d{2}-\d{1,2}-\d{1,2}|(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\w*,?\s+)?(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+20\d{2}\b/gi;
+    var dates=[],times=[],m,pattern=/\b(?:20\d{2}-\d{1,2}-\d{1,2}|(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\w*,?\s+)?(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+20\d{2})\b/gi;
     var addDate=function(raw){
       var y,mo,d,match=/^(20\d{2})-(\d{1,2})-(\d{1,2})$/.exec(raw);
       if(match){y=+match[1];mo=+match[2];d=+match[3];}
@@ -2673,8 +2673,8 @@ if (typeof module !== 'undefined') module.exports = Core;
       if(['arrival','departure'].indexOf(k)<0||['date','time','arrivalDate','arrivalTime'].indexOf(field)<0)return;
       var row=document.getElementById('flt-'+k+'-'+field);
       if(!row)return;
-      if((field==='date'||field==='arrivalDate')&&!/^20\\d{2}-\\d{2}-\\d{2}$/.test(value))return;
-      if((field==='time'||field==='arrivalTime')&&!/^(?:[01]\\d|2[0-3]):[0-5]\\d$/.test(value))return;
+      if((field==='date'||field==='arrivalDate')&&!/^20\d{2}-\d{2}-\d{2}$/.test(value))return;
+      if((field==='time'||field==='arrivalTime')&&!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value))return;
       row.value=value;ui.flightDraft[k][field]=value;return;
     }
     if (a === 'tab') {
