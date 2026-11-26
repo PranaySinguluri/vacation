@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
+<meta name="referrer" content="no-referrer">
 <title>Trip Wallet</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Pacifico&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap">
 <style>
@@ -921,7 +922,6 @@ if (typeof module !== 'undefined') module.exports = Core;
   ];
   var NEEDS_BOOKING = ['s-whale-watching', 's-antelope-canyon', 's-omnia-nightclub'];
   var GLOGO = '<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.9 6.1C12.4 13.7 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.4 5.7c4.3-4 6.9-9.9 6.9-17.1z"/><path fill="#FBBC05" d="M10.5 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C1 16.6 0 20.2 0 24s1 7.4 2.6 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.7c-2.1 1.4-4.8 2.3-8.5 2.3-6.3 0-11.6-4.2-13.5-10l-7.9 6.1C6.6 42.6 14.6 48 24 48z"/></svg>';
-  var SPLITWISE_URL = 'https://secure.splitwise.com/#/groups/105847378';
   var PEOPLE = [['A', 'Akshaya'], ['D', 'DivyaTheja'], ['H', 'Haneela'], ['M', 'Megha'], ['P', 'Pranay'], ['R', 'Ramya'], ['S', 'Sahithi']]
     .map(function (p) { return { id: p[0], name: p[1] }; });
   var CITIES = [
@@ -2114,10 +2114,10 @@ if (typeof module !== 'undefined') module.exports = Core;
         '<button type="submit" class="primary">Save</button><button type="button" class="link" data-act="cancel-link">Cancel</button><div class="err" data-err hidden style="flex-basis:100%"></div></form>';
       return h;
     }
-    if (p.bookingLink || p.confNo) {
+    if (p.bookingLink) {
       h += ui.linkOpen === p.id
         ? '<button type="button" class="link small" data-act="hide-link" data-id="' + p.id + '">Hide booking details</button></div>' +
-          '<div class="linkbox">' + (p.confNo ? '<span class="conf">Confirmation <b>' + esc(p.confNo) + '</b></span>' : '') +
+          '<div class="linkbox">' +
           (p.bookingLink ? '<a href="' + esc(p.bookingLink) + '" target="_blank" rel="noopener">' + esc(hostOf(p.bookingLink)) + '</a><span class="linkfull">' + esc(p.bookingLink) + '</span>' : '') +
           '<button type="button" class="link small" data-act="edit-link" data-id="' + p.id + '">' + (p.bookingLink ? 'Change link' : '+ Add booking link') + '</button></div>'
         : '<button type="button" class="link small" data-act="show-link" data-id="' + p.id + '">Show booking details</button></div>';
@@ -3379,7 +3379,6 @@ if (typeof module !== 'undefined') module.exports = Core;
     var x = sh.x, bits = [], list = cityPlaces(c.id), pick = guessTarget(c.id, x);
     if (x.checkIn) bits.push('<span><b>Starts</b> ' + niceDate(x.checkIn) + (x.inTime ? ', ' + fmtClock(x.inTime) : '') + '</span>');
     if (x.checkOut) bits.push('<span><b>Ends</b> ' + niceDate(x.checkOut) + (x.outTime ? ', ' + fmtClock(x.outTime) : '') + '</span>');
-    if (x.conf) bits.push('<span><b>Confirmation</b> ' + esc(x.conf) + '</span>');
     var waiting = list.filter(function (p) { return p.needsBooking && !p.booked; }), others = list.filter(function (p) { return !(p.needsBooking && !p.booked); });
     var opt = function (p) { return '<option value="' + p.id + '"' + (p.id === pick ? ' selected' : '') + '>' + esc(p.name) + '</option>'; };
     return '<form class="card shotcard" id="shot-form"><h3>Booking from the screenshot</h3><div class="bdates">' + bits.join('') + '</div>' +
@@ -3469,7 +3468,7 @@ if (typeof module !== 'undefined') module.exports = Core;
 
     if (form.id === 'shot-form' && ui.shot && ui.shot.x) {
       var x = ui.shot.x, which = val('shot-target') || 'new', nm = val('shot-name');
-      var bk = { checkIn: x.checkIn, checkInTime: x.inTime, checkOut: x.checkOut, checkOutTime: x.outTime, confNo: x.conf, needsBooking: true, booked: true };
+      var bk = { checkIn: x.checkIn, checkInTime: x.inTime, checkOut: x.checkOut, checkOutTime: x.outTime, needsBooking: true, booked: true };
       if (x.checkIn) { bk.date = x.checkIn; bk.time = x.inTime || ''; }
       var tgt = which !== 'new' ? placeById(which) : null;
       if (tgt) {
