@@ -297,11 +297,23 @@ test('stale expense edit cannot recreate a deleted record',()=>{
  fresh();
  const e=addAs('P','9.00','Baggage');
  h.setMe('A');h.act('expense-edit',{id:e.id});
- h.setMe('D');h.act('expense-delete',{id:e.id});
+ // A remote device deleted the expense while this edit sheet remained open.
+ h.data.expenses=h.data.expenses.filter(x=>x.id!==e.id);
  assert.equal(h.data.expenses.length,0);
  assert.match(submit({'sp-desc':'Stale edit','sp-amount':'99.00'}),/no longer exists/);
  assert.equal(h.data.expenses.length,0);
  assert.equal(h.data.log.filter(x=>x.act==='edited').length,0);
+});
+test('closed editor cannot submit a detached form after local deletion',()=>{
+ fresh();
+ const e=addAs('P','9.00','Bag');
+ h.setMe('P');h.act('expense-edit',{id:e.id});
+ h.act('expense-delete',{id:e.id});
+ assert.equal(h.data.expenses.length,0);
+ const before=h.expenseAuditEntries().length;
+ assert.match(submit({'sp-desc':'Detached old form'}),/form is closed/);
+ assert.equal(h.data.expenses.length,0);
+ assert.equal(h.expenseAuditEntries().length,before);
 });
 test('cancel delete does not mutate charge or activity log',()=>{
  fresh();const e=addAs('S','27.50','Car wash');
@@ -337,7 +349,7 @@ test('unauthorized loading, missing-member and signed-out states cannot modify c
  h.act('expense-delete',{id:e.id});
  assert.equal(h.data.expenses.length,1);
  assert.equal(h.data.log.length,initial);
- assert.match(submit({'sp-desc':'Guest'}),/Sign in as a traveler/);
+ assert.match(submit({'sp-desc':'Guest'}),/form is closed|Sign in as a traveler/);
  h.CLOUD.on=false;h.CLOUD.state='off';h.CLOUD.user=null;
 });
 
