@@ -3095,6 +3095,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       row.value=value;ui.flightDraft[k][field]=value;return;
     }
     if (a === 'tab') {
+      if(d.id!=='costs'){expenseFormOpen=false;editingSharedExpense=null;}
       ui.tab = d.id; ui.undoOrder = null; ui.adding = false; ui.editing = null; ui.editingExp = null; ui.locFor = null; ui.sel = null;
       try { localStorage.setItem(TAB_KEY, d.id); } catch (e) {}
     }
