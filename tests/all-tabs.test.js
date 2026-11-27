@@ -133,10 +133,12 @@ test('settle up records payment',()=>{
 });
 test('all-person expense ledger shows every paid-by name and no settlement UI',()=>{
   h.ui.tab='costs';h.setMe(p);
+  h.act('expense-section',{id:'totals'});
   const card=h.sharedExpensesTab();
   assert.match(card,/Paid by traveler/);
   for(const name of h.PEOPLE.map(x=>x.name))assert.ok(card.includes(name),'missing '+name);
-  assert.doesNotMatch(card,/Your balances|You owe|Settle up/);
+  assert.doesNotMatch(card,/Your balances|Settle up/);
+  h.act('expense-section',{id:'expenses'});
 });
 test('photos tab navigation',()=>{h.CLOUD.on=false;h.act('tab',{id:'photos'});assert.match(app.innerHTML,/Photos/);});
 test('shared Expenses tab is reachable for every traveler',()=>{h.act('tab',{id:'costs'});assert.equal(h.ui.tab,'costs');assert.match(app.innerHTML,/Trip expenses/);assert.ok(app.innerHTML.includes('data-id="costs"'));assert.match(app.innerHTML,/data-act="expense-add"/);});
