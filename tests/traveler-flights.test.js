@@ -567,7 +567,7 @@ async function run(){
     assert.ok(!panel.includes('KBBU7Y'),'booking confirmation must not be displayed');
   });
   test('all travelers are clickable and itinerary opens from header',()=>{
-    for(const name of ['Pranay','Akshaya','DivyaTheja','Haneela','Megha','Ramya','Sahithi'])
+    for(const name of ['Pranay','Akshaya','DivyaTheja','Haneela','MeghaSai','Ramya','Sahithi'])
       assert.match(app.innerHTML,new RegExp('>'+name+'(?:\\s|<)'));
     assert.match(app.innerHTML,/data-id="P"[^>]*title="Your profile/);
     assert.match(app.innerHTML,/class="av me selected"/);
