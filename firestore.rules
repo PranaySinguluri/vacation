@@ -40,15 +40,15 @@ service cloud.firestore {
   match /trips/main/expenses/{id} {
    allow read: if access();
    allow create: if access() && expense(request.resource.data) && actor(request.resource.data.by);
-   allow update: if admin() && expense(request.resource.data) && request.resource.data.by == resource.data.by;
-   allow delete: if admin();
+   allow update: if access() && expense(request.resource.data) && request.resource.data.by == resource.data.by && request.resource.data.at == resource.data.at;
+   allow delete: if access();
   }
   match /trips/main/payments/{id} {
    allow read: if access();
    allow create: if access() && payment(request.resource.data) && actor(request.resource.data.by)
     && (admin() || request.resource.data.from == person());
-   allow update: if admin() && payment(request.resource.data);
-   allow delete: if admin();
+   allow update: if access() && payment(request.resource.data) && request.resource.data.by == resource.data.by && request.resource.data.at == resource.data.at && (admin() || request.resource.data.from == resource.data.from);
+   allow delete: if access();
   }
   match /trips/main/log/{id} {
    allow read: if access();
@@ -58,7 +58,14 @@ service cloud.firestore {
     && short(request.resource.data.at,35);
    allow update, delete: if false;
   }
-  match /trips/main/deleted/{id} { allow read: if access(); allow write: if admin(); }
+  match /trips/main/deleted/{id} {
+   allow read: if access();
+   allow create: if admin() || (member() && actor(request.resource.data.by)
+    && request.resource.data.keys().hasOnly(['at','by']) && short(request.resource.data.at,35)
+    && ((exists(/databases/$(database)/documents/trips/main/expenses/$(id)) && !existsAfter(/databases/$(database)/documents/trips/main/expenses/$(id)))
+     || (exists(/databases/$(database)/documents/trips/main/payments/$(id)) && !existsAfter(/databases/$(database)/documents/trips/main/payments/$(id)))));
+   allow update, delete: if admin();
+  }
   match /trips/main/flights/{id} {
    allow read: if access();
    allow create, update: if id in people() && (admin() || actor(id))

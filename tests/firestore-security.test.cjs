@@ -1,5 +1,5 @@
 const {initializeTestEnvironment,assertFails,assertSucceeds}=require('@firebase/rules-unit-testing');
-const {doc,setDoc,getDoc,deleteDoc,updateDoc}=require('firebase/firestore');
+const {doc,setDoc,getDoc,deleteDoc,updateDoc,writeBatch}=require('firebase/firestore');
 const fs=require('node:fs');
 const test=require('node:test');
 test('Trip wallet authorization',async()=>{
@@ -17,12 +17,21 @@ test('Trip wallet authorization',async()=>{
  await assertFails(getDoc(doc(outsider,path('expenses','e'))));
  await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(),path('expenses','e'))));
  for(const bad of [{amount:-1},{amount:1.5},{by:'P'},{split:['A','A']},{split:['X']},{split:[]},{paidBy:'X'},{currency:'CAD'}]) await assertFails(setDoc(doc(a,path('expenses','bad')),{...e,...bad}));
- await assertFails(updateDoc(doc(a,path('expenses','e')),{amount:2}));
- await assertFails(deleteDoc(doc(a,path('expenses','e'))));
+ await assertSucceeds(setDoc(doc(admin,path('members','b')),{person:'D'}));
+ const b=ctx('b','b@example.com');
+ await assertSucceeds(updateDoc(doc(b,path('expenses','e')),{amount:2}));
+ await assertFails(updateDoc(doc(b,path('expenses','e')),{by:'D'}));
+ await assertFails(updateDoc(doc(outsider,path('expenses','e')),{amount:3}));
+ await assertFails(setDoc(doc(b,path('deleted','fake')),{by:'D',at:e.at}));
+ await assertSucceeds(setDoc(doc(a,path('expenses','remove')),e));
+ const batch=writeBatch(b);batch.delete(doc(b,path('expenses','remove')));batch.set(doc(b,path('deleted','remove')),{by:'D',at:e.at});await assertSucceeds(batch.commit());
  await assertSucceeds(updateDoc(doc(admin,path('expenses','e')),{amount:2000}));
  const p={from:'A',to:'P',amount:100,date:e.date,by:'A',at:e.at};
  await assertSucceeds(setDoc(doc(a,path('payments','p')),p));
  await assertFails(setDoc(doc(a,path('payments','bad')),{...p,from:'P',to:'A'}));
+ await assertSucceeds(updateDoc(doc(b,path('payments','p')),{amount:200}));
+ await assertFails(updateDoc(doc(b,path('payments','p')),{from:'D'}));
+ const pb=writeBatch(b);pb.delete(doc(b,path('payments','p')));pb.set(doc(b,path('deleted','p')),{by:'D',at:e.at});await assertSucceeds(pb.commit());
  const l={who:'A',act:'added',text:'Gas',at:e.at};
  await assertSucceeds(setDoc(doc(a,path('log','l')),l));
  await assertFails(setDoc(doc(a,path('log','bad')),{...l,who:'P'}));
