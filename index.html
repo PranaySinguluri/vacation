@@ -2475,17 +2475,20 @@ if (typeof module !== 'undefined') module.exports = Core;
     }).slice().sort(function(a,b){return String(b.at||'').localeCompare(String(a.at||''));});
   }
   function expenseAuditHTML(max, all) {
-    var entries=(all?expenseAuditEntries().concat(data.log.filter(function(l){return l.kind==='session' && ['login','logout'].indexOf(l.act)>=0;})).sort(function(a,b){return String(b.at||'').localeCompare(String(a.at||''));}):expenseAuditEntries()).slice(0,max||100);
+    var entries=(all?data.log.slice().sort(function(a,b){return String(b.at||'').localeCompare(String(a.at||''));}):expenseAuditEntries()).slice(0,max||100);
     return '<div class="expense-audit" id="expense-activity"><div class="row between"><h3>'+(all?'All travelers':'Expense activity')+'</h3><span class="count">'+
       entries.length+'</span></div>'+
       (entries.length?'<ul class="list">'+entries.map(function(l){
         var when='';
         try {when=new Date(l.at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});}catch(e){}
         var verb=l.act==='added'?'added':l.act==='edited'?'edited':'deleted';
-        var session=l.kind==='session';
-        var shape=session?(l.act==='login'?'<path d="M10 17l5-5-5-5M15 12H3M15 3h6v18h-6"/>':'<path d="M14 7l5 5-5 5M19 12H7M9 3H3v18h6"/>'):l.act==='added'?'<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>':l.act==='edited'?'<path d="m15 5 4 4M4 20l4-1 12-12-4-4L4 15z"/>':'<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/>';
-        var icon='<span class="expense-activity-icon '+l.act+'" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+shape+'</svg></span>';
-        return '<li>'+icon+'<div class="main"><b>'+esc(person(l.who))+' '+(session?(l.act==='login'?'logged in':'logged out'):verb+' an expense')+'</b>'+
+        var session=l.kind==='session'||['login','logout','logged in','logged out','signed in','signed out'].indexOf(l.act)>=0;
+        var login=['login','logged in','signed in'].indexOf(l.act)>=0;
+        var financial=l.kind==='expense' && ['added','edited','removed'].indexOf(l.act)>=0;
+        var style=session?(login?'login':'logout'):['added','edited','removed'].indexOf(l.act)>=0?l.act:'edited';
+        var shape=session?(login?'<path d="M10 17l5-5-5-5M15 12H3M15 3h6v18h-6"/>':'<path d="M14 7l5 5-5 5M19 12H7M9 3H3v18h6"/>'):style==='added'?'<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>':style==='edited'?'<path d="m15 5 4 4M4 20l4-1 12-12-4-4L4 15z"/>':'<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/>';
+        var icon='<span class="expense-activity-icon '+style+'" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+shape+'</svg></span>';
+        return '<li>'+icon+'<div class="main"><b>'+esc(person(l.who))+' '+(session?(login?'logged in':'logged out'):financial?verb+' an expense':esc(l.act==='removed'?'deleted':l.act||'updated'))+'</b>'+
           '<div class="sub">'+esc(l.text||'')+'</div><div class="sub">'+esc(when)+'</div></div></li>';
       }).join('')+'</ul>':'<p class="sub">No activity yet.</p>')+
       '</div>';
