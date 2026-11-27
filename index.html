@@ -720,19 +720,26 @@ html { overflow-x: hidden }
 (function () {
   var footer = document.getElementById('release-version');
   if (!footer) return;
-  /* Commit time is not a deployment time; never show a hardcoded release timestamp. */
-  fetch('https://api.github.com/repos/PranaySinguluri/vacation/commits?path=index.html&per_page=1', {cache:'no-store'})
-    .then(function(r){ if(!r.ok) throw new Error('GitHub API unavailable'); return r.json(); })
-    .then(function(commits){
-      var latest=commits&&commits[0], sha=latest&&latest.sha;
-      var timestamp=latest&&latest.commit&&latest.commit.committer&&latest.commit.committer.date;
-      var date=new Date(timestamp);
-      if(!sha||!Number.isFinite(date.getTime())) throw new Error('No commit timestamp');
-      var local=new Intl.DateTimeFormat(undefined,{year:'numeric',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'}).format(date);
-      footer.textContent='Code updated '+local;
-      footer.title='Latest index.html commit '+sha.slice(0,7)+' · displayed in your device timezone; deployment may follow';
+  /* Read the deployed HTML's modification metadata from the same origin. */
+  var page = new URL('index.html', document.baseURI);
+  function show(timestamp, cached) {
+    var date = new Date(timestamp);
+    if (!timestamp || !Number.isFinite(date.getTime())) throw new Error('No release timestamp');
+    var local = new Intl.DateTimeFormat(undefined,{year:'numeric',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'}).format(date);
+    footer.textContent=(cached?'Last known update ':'Site updated ')+local;
+    footer.title='Published HTML modification time · device timezone'+(cached?' · cached':'');
+  }
+  fetch(page.href,{method:'HEAD',cache:'no-store'})
+    .then(function(r){
+      if(!r.ok) throw new Error('Site metadata unavailable');
+      var timestamp=r.headers.get('Last-Modified');
+      show(timestamp,false);
+      try { localStorage.setItem('vacation-release-time',timestamp); } catch(e) {}
     })
-    .catch(function(){footer.textContent='Latest update time unavailable';footer.title='Unable to verify the latest commit time';});
+    .catch(function(){
+      try { show(localStorage.getItem('vacation-release-time'),true); }
+      catch(e) { footer.textContent='Update time not yet verified';footer.title='Published file timestamp unavailable'; }
+    });
 })();
 </script>
 
