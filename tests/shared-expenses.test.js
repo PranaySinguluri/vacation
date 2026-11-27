@@ -44,8 +44,11 @@ test('Expenses tab is visible, with one Add expense action and 7 traveler totals
  assert.match(page,/data-id="costs" aria-selected="true"/);
  assert.match(page,/Trip expenses/);
  assert.match(page,/Group spending recorded/);
- assert.match(page,/Paid by traveler/);
- assert.match(page,/Expense activity/);
+ assert.doesNotMatch(page,/Paid by traveler|Expense activity/);
+ h.act('expense-section',{id:'totals'});assert.match(app.innerHTML,/Paid by traveler/);assert.equal((app.innerHTML.match(/class="expense-paid-row"/g)||[]).length,8);
+ h.act('expense-section',{id:'activity'});assert.match(app.innerHTML,/Expense activity/);
+ h.act('expense-section',{id:'balances'});assert.match(app.innerHTML,/Your balances/);
+ h.act('expense-section',{id:'expenses'});assert.match(app.innerHTML,/All expenses/);
  for(const person of h.PEOPLE)assert.match(page,new RegExp(person.name));
  assert.equal((page.match(/data-act="expense-add"/g)||[]).length,1);
  assert.doesNotMatch(page,/Settle up|Your balances|You owe/);
@@ -183,7 +186,7 @@ test('every traveler adds one item and all seven see the same totals and records
   h.setMe(viewer);const html=h.sharedExpensesTab();
   assert.match(html,/Group spending recorded/);
   assert.match(html,/\$28\.00/);
-  assert.equal((html.match(/class="expense-person"/g)||[]).length,7);
+  h.act('expense-section',{id:'totals'});assert.equal((h.sharedExpensesTab().match(/class="expense-paid-row"/g)||[]).length,8);h.act('expense-section',{id:'expenses'});
   for(const actor of ids)
    assert.ok(html.includes(personName[actor]+' paid'),viewer+' cannot see '+actor);
  }
