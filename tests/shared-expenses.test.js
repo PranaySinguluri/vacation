@@ -129,9 +129,19 @@ test('expense-only activity log hides itinerary change events and lists all auth
   assert.ok(log.includes(text),'missing '+text);
  assert.doesNotMatch(log,/Deleted a motel/);
  h.CLOUD.on=true;h.CLOUD.state='ready';h.CLOUD.user={uid:'test',displayName:'Haneela'};
- h.ui.showLog=true;h.render();
- assert.match(app.innerHTML,/Expense activity · All travelers/);
- assert.match(app.innerHTML,/data-act="toggle-log"/);
+ h.data.log.push({id:'login-test',who:'H',kind:'session',act:'login',text:'',at:'2026-12-26T19:00:00Z'},{id:'logout-test',who:'H',kind:'session',act:'logout',text:'',at:'2026-12-26T20:00:00Z'});
+ h.ui.tab='costs';h.ui.menu=true;h.render();
+ assert.match(app.innerHTML,/data-act="toggle-log">Activity/);
+ h.act('toggle-log',{});
+ assert.equal(h.ui.tab,'activity');
+ assert.match(app.innerHTML,/class="card activity-page"/);
+ assert.match(app.innerHTML,/Haneela logged in/);
+ assert.match(app.innerHTML,/Haneela logged out/);
+ assert.doesNotMatch(h.expenseAuditHTML(),/logged in|logged out/);
+ assert.doesNotMatch(app.innerHTML,/Deleted a motel/);
+ h.act('activity-back',{});
+ assert.equal(h.ui.tab,'costs');
+ assert.match(app.innerHTML,/Expense activity/);
  h.CLOUD.on=false;h.CLOUD.state='off';h.CLOUD.user=null;
 });
 test('expense input is HTML-escaped, not interpolated into markup',()=>{
