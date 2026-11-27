@@ -125,13 +125,16 @@ test('Divya deleting an expense records history for everyone and hides it from a
 test('profile activity shows registered travelers and device sessions only',()=>{
  h.CLOUD.on=true;h.CLOUD.state='ready';h.CLOUD.user={uid:'test',displayName:'Haneela'};
  h.CLOUD.members={test:{person:'H'}};
- h.data.log.push({id:'login-test',who:'H',kind:'session',act:'login',deviceId:'device1',text:'iPhone · Safari',at:'2026-12-26T19:00:00Z'},{id:'old-login',who:'P',kind:'session',act:'login',deviceId:'device2',text:'Mac · Chrome',at:'2026-12-26T18:00:00Z'},{id:'logout-test',who:'P',kind:'session',act:'logout',deviceId:'device2',text:'Mac · Chrome',at:'2026-12-26T20:00:00Z'},{id:'place',who:'H',act:'edited',text:'Edited a motel',at:'2026-12-26T20:00:00Z'});
+ h.data.log.push({id:'login-test',who:'H',kind:'session',act:'login',deviceId:'device1',text:'iPhone · Safari',at:'2026-12-26T19:00:00Z'},{id:'old-login',who:'P',kind:'session',act:'login',deviceId:'device2',text:'Mac · Chrome',at:'2026-12-26T18:00:00Z'},{id:'logout-test',who:'P',kind:'session',act:'logout',deviceId:'device2',text:'Mac · Chrome',at:'2026-12-26T20:00:00Z'},{id:'place',who:'H',act:'edited',text:'Edited a motel in San Diego',at:'2026-12-26T20:00:00Z'});
  h.ui.tab='costs';h.ui.menu=true;h.render();
  h.act('toggle-log',{});
  assert.equal(h.ui.tab,'activity');
+ assert.doesNotMatch(app.innerHTML,/Registered travelers|iPhone · Safari/);
+ assert.match(app.innerHTML,/Edited a motel in San Diego/);
+ h.act('activity-accounts',{});
  assert.match(app.innerHTML,/Registered travelers \(1\/7\)/);
  assert.match(app.innerHTML,/iPhone · Safari/);
- assert.doesNotMatch(app.innerHTML,/Mac · Chrome|Edited a motel|added an expense|deleted an expense/);
+ assert.doesNotMatch(app.innerHTML,/Mac · Chrome|added an expense|deleted an expense/);
  assert.match(h.expenseAuditHTML(),/added an expense/);
  h.act('activity-back',{});
  assert.equal(h.ui.tab,'costs');
