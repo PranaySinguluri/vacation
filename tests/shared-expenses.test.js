@@ -122,12 +122,13 @@ test('Divya deleting an expense records history for everyone and hides it from a
  assert.doesNotMatch(ledger,/Parking/);
  assert.match(h.expenseAuditHTML(),/Parking/);
 });
-test('expense-only activity log hides itinerary change events and lists all authors',()=>{
+test('profile activity includes itinerary events while expense history stays separate',()=>{
  h.setMe('H');h.data.log.push({id:'not-exp',who:'H',act:'removed',text:'Deleted a motel',at:'2026-12-26T18:00:00Z'});
  const log=h.activityHTML();
  for(const text of ['Pranay added an expense','Akshaya added an expense','Ramya edited an expense','DivyaTheja deleted an expense'])
   assert.ok(log.includes(text),'missing '+text);
- assert.doesNotMatch(log,/Deleted a motel/);
+ assert.match(log,/Deleted a motel/);
+ assert.doesNotMatch(h.expenseAuditHTML(),/Deleted a motel/);
  h.CLOUD.on=true;h.CLOUD.state='ready';h.CLOUD.user={uid:'test',displayName:'Haneela'};
  h.data.log.push({id:'login-test',who:'H',kind:'session',act:'login',text:'',at:'2026-12-26T19:00:00Z'},{id:'logout-test',who:'H',kind:'session',act:'logout',text:'',at:'2026-12-26T20:00:00Z'});
  h.ui.tab='costs';h.ui.menu=true;h.render();
@@ -138,7 +139,7 @@ test('expense-only activity log hides itinerary change events and lists all auth
  assert.match(app.innerHTML,/Haneela logged in/);
  assert.match(app.innerHTML,/Haneela logged out/);
  assert.doesNotMatch(h.expenseAuditHTML(),/logged in|logged out/);
- assert.doesNotMatch(app.innerHTML,/Deleted a motel/);
+ assert.match(app.innerHTML,/Deleted a motel/);
  h.act('activity-back',{});
  assert.equal(h.ui.tab,'costs');
  assert.match(app.innerHTML,/Expense activity/);
