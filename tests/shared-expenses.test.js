@@ -117,32 +117,24 @@ test('Divya deleting an expense records history for everyone and hides it from a
  const deleted=h.data.log.filter(l=>l.kind==='expense'&&l.act==='removed').at(-1);
  assert.equal(deleted.who,'D');assert.equal(deleted.expenseId,id);
  assert.match(deleted.text,/Parking/);
- assert.match(h.activityHTML(),/DivyaTheja deleted an expense/);
+ assert.match(h.expenseAuditHTML(),/DivyaTheja deleted an expense/);
  const ledger=h.sharedExpensesTab().split('id="expense-activity"')[0];
  assert.doesNotMatch(ledger,/Parking/);
  assert.match(h.expenseAuditHTML(),/Parking/);
 });
-test('profile activity includes itinerary events while expense history stays separate',()=>{
- h.setMe('H');h.data.log.push({id:'not-exp',who:'H',act:'removed',text:'Deleted a motel',at:'2026-12-26T18:00:00Z'});
- const log=h.activityHTML();
- for(const text of ['Pranay added an expense','Akshaya added an expense','Ramya edited an expense','DivyaTheja deleted an expense'])
-  assert.ok(log.includes(text),'missing '+text);
- assert.match(log,/Deleted a motel/);
- assert.doesNotMatch(h.expenseAuditHTML(),/Deleted a motel/);
+test('profile activity shows registered travelers and device sessions only',()=>{
  h.CLOUD.on=true;h.CLOUD.state='ready';h.CLOUD.user={uid:'test',displayName:'Haneela'};
- h.data.log.push({id:'login-test',who:'H',kind:'session',act:'login',text:'',at:'2026-12-26T19:00:00Z'},{id:'logout-test',who:'H',kind:'session',act:'logout',text:'',at:'2026-12-26T20:00:00Z'});
+ h.CLOUD.members={test:{person:'H'}};
+ h.data.log.push({id:'login-test',who:'H',kind:'session',act:'login',deviceId:'device1',text:'iPhone · Safari',at:'2026-12-26T19:00:00Z'},{id:'old-login',who:'P',kind:'session',act:'login',deviceId:'device2',text:'Mac · Chrome',at:'2026-12-26T18:00:00Z'},{id:'logout-test',who:'P',kind:'session',act:'logout',deviceId:'device2',text:'Mac · Chrome',at:'2026-12-26T20:00:00Z'},{id:'place',who:'H',act:'edited',text:'Edited a motel',at:'2026-12-26T20:00:00Z'});
  h.ui.tab='costs';h.ui.menu=true;h.render();
- assert.match(app.innerHTML,/data-act="toggle-log">Activity/);
  h.act('toggle-log',{});
  assert.equal(h.ui.tab,'activity');
- assert.match(app.innerHTML,/class="card activity-page"/);
- assert.match(app.innerHTML,/Haneela logged in/);
- assert.match(app.innerHTML,/Haneela logged out/);
- assert.doesNotMatch(h.expenseAuditHTML(),/logged in|logged out/);
- assert.match(app.innerHTML,/Deleted a motel/);
+ assert.match(app.innerHTML,/Registered travelers \(1\/7\)/);
+ assert.match(app.innerHTML,/iPhone · Safari/);
+ assert.doesNotMatch(app.innerHTML,/Mac · Chrome|Edited a motel|added an expense|deleted an expense/);
+ assert.match(h.expenseAuditHTML(),/added an expense/);
  h.act('activity-back',{});
  assert.equal(h.ui.tab,'costs');
- assert.match(app.innerHTML,/Expense activity/);
  h.CLOUD.on=false;h.CLOUD.state='off';h.CLOUD.user=null;
 });
 test('expense input is HTML-escaped, not interpolated into markup',()=>{
@@ -235,7 +227,7 @@ test('49 creator/deleter combinations remove the charge but preserve who deleted
   assert.equal(event.expenseId,exp.id);
   assert.equal(event.before.amount,999);
   assert.equal(event.before.desc,'Snack '+owner);
-  assert.ok(h.activityHTML().includes(personName[deleter]+' deleted an expense'));
+  assert.ok(h.expenseAuditHTML().includes(personName[deleter]+' deleted an expense'));
   h.data.log=[];
  }
 });
