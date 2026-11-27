@@ -720,6 +720,16 @@ html { overflow-x: hidden }
 .expense-activity-icon.edited{--activity-color:#2563eb;--activity-bg:#dbeafe}
 .expense-activity-icon.removed{--activity-color:#dc2626;--activity-bg:#fee2e2}
 @media(max-width:500px){.shared-expenses{padding:12px}.expense-heading{align-items:stretch}.expense-heading .primary{width:100%}}
+ 
+#vac-help{position:fixed;right: max(16px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom));z-index:90}
+#vac-help-toggle{background:var(--primary);color:var(--primary-ink);border:0;border-radius:24px;padding:12px 18px;box-shadow:0 4px 18px #0003}
+#vac-help-panel{width:min(380px,calc(100vw - 32px));height:min(540px,75dvh);background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:0 8px 32px #0003;display:flex;flex-direction:column;padding:14px;gap:10px}
+#vac-help-messages{flex:1;overflow:auto;min-height:0;display:flex;flex-direction:column;gap:8px}
+#vac-help-messages p{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;padding:10px;border-radius:12px;background:var(--bg)}
+#vac-help-messages .mine{align-self:flex-end;background:var(--primary-soft)}
+#vac-help-form{display:flex;gap:6px}#vac-help-form input{flex:1;width:0}
+#vac-help button{cursor:pointer;min-height:40px}
+@media(max-width:600px){#vac-help-panel{height:min(600px,80dvh)}}
 </style>
 </head>
 <body>
@@ -3016,7 +3026,46 @@ if (typeof module !== 'undefined') module.exports = Core;
     if (st === 'error') return '<section class="card gate"><h2 class="gatehead">Something went wrong</h2><p class="sub" style="margin:0">' + esc(CLOUD.err) + '</p><div><button class="primary" data-act="retry">Try again</button></div></section>';
     return '<section class="card gate"><p class="sub" style="margin:0">Loading the trip…</p></section>';
   }
+
+  /* Local, read-only help. No external AI service or chat persistence. */
+  var helpRoot=null,helpOwner=null;
+  function helpAnswer(question){
+    var q=String(question).toLowerCase(),city=CITIES.find(function(c){return q.indexOf(c.name.toLowerCase())>=0;})||cityById(ui.tab);
+    if(/traffic|weather|forecast|fastest|opening hours/.test(q))return 'Live traffic, weather and opening hours are not available in this help chat. Open the stop in Maps for current directions and verify holiday hours.';
+    if(/expense|owe|balance|payment|split/.test(q))return 'Open Expenses. Use Expenses to add or edit shared costs, Balances for your settlement, Totals for spending by traveler, and Activity for changes. Check your signed-in profile before recording a payment.';
+    if(/drag|reorder|sort|edit|add stop/.test(q))return 'Open a city tab and tap a stop to edit it. Drag flexible stops to move them (long press on touchscreens). Stops with both date and time are automatically sorted chronologically.';
+    if(/photo|album/.test(q))return 'Open the shared photo album from the app to view or add trip photos.';
+    if(/flight|airport/.test(q))return 'Select a traveler name at the top of the app to view their recorded flight details.';
+    if(/itinerary|plan|next|stop|booking|hotel|stay|today|tomorrow|schedule/.test(q)){
+      if(!city)return 'Choose a city tab or ask for San Diego, Los Angeles, Arizona or Las Vegas.';
+      var stops=cityPlaces(city.id);
+      if(/booking|hotel|stay/.test(q))stops=stops.filter(function(p){return p.kind==='stay'||p.needsBooking||p.booked;});
+      if(/today|tomorrow/.test(q)){var day=new Date();if(/tomorrow/.test(q))day.setDate(day.getDate()+1);var key=day.getFullYear()+'-'+String(day.getMonth()+1).padStart(2,'0')+'-'+String(day.getDate()).padStart(2,'0');stops=stops.filter(function(p){return (p.checkIn||p.date)===key;});}
+      return city.name+':\n'+(stops.length?stops.slice(0,30).map(function(p,i){return (i+1)+'. '+p.name+' — '+([p.checkIn||p.date,p.checkInTime||p.time].filter(Boolean).join(' ')||'Not scheduled')+(p.booked?' · Booked':p.needsBooking?' · Booking needed':'');}).join('\n'):'No matching stops recorded.')+'\nTimes are as recorded in the itinerary; this is not live navigation.';
+    }
+    return 'I am the built-in Vacation help assistant, not ChatGPT. Ask about a city itinerary, bookings, expenses, editing stops, flights or photos. For general travel advice, use ChatGPT separately.';
+  }
+  function syncHelp(allowed){
+    var owner=CLOUD.on?(CLOUD.user&&CLOUD.user.uid):'local';
+    if(helpRoot&&(!allowed||helpOwner!==owner)){helpRoot.remove();helpRoot=null;}
+    if(!allowed||helpRoot||typeof document.createElement!=='function'||!document.body)return;
+    helpOwner=owner;helpRoot=document.createElement('aside');helpRoot.id='vac-help';
+    helpRoot.innerHTML='<button id="vac-help-toggle" type="button" aria-expanded="false" aria-controls="vac-help-panel">? Help</button><section id="vac-help-panel" hidden aria-label="Vacation Help"><div class="row between"><strong>Vacation Help</strong><button type="button" id="vac-help-close" aria-label="Close help">×</button></div><small>Built-in help · No live AI or traffic</small><div id="vac-help-messages" role="log" aria-live="polite"></div><div class="row"><button type="button" data-help="Show itinerary">Itinerary</button><button type="button" data-help="Show bookings">Bookings</button><button type="button" data-help="Expenses help">Expenses</button></div><form id="vac-help-form"><input aria-label="Your question" maxlength="300" placeholder="Ask for help…" required><button type="submit">Send</button></form></section>';
+    document.body.appendChild(helpRoot);
+    var panel=helpRoot.querySelector('#vac-help-panel'),toggle=helpRoot.querySelector('#vac-help-toggle'),messages=helpRoot.querySelector('#vac-help-messages'),form=helpRoot.querySelector('form'),input=form.querySelector('input');
+    function append(value,mine){var p=document.createElement('p');p.textContent=value;if(mine)p.className='mine';messages.appendChild(p);while(messages.children.length>40)messages.firstChild.remove();messages.scrollTop=messages.scrollHeight;}
+    function open(value){panel.hidden=!value;toggle.hidden=value;toggle.setAttribute('aria-expanded',String(value));if(value)input.focus();else toggle.focus();}
+    function ask(q){if(!q.trim())return;append(q,true);append(helpAnswer(q),false);}
+    append('Hi! Ask me about your itinerary, bookings or how to use Vacation.',false);
+    toggle.addEventListener('click',function(){open(true);});
+    helpRoot.querySelector('#vac-help-close').addEventListener('click',function(){open(false);});
+    helpRoot.addEventListener('keydown',function(e){if(e.key==='Escape')open(false);});
+    helpRoot.querySelectorAll('[data-help]').forEach(function(b){b.addEventListener('click',function(){ask(b.dataset.help);});});
+    form.addEventListener('submit',function(e){e.preventDefault();ask(input.value.slice(0,300));input.value='';});
+  }
+
   function render() {
+    syncHelp(!CLOUD.on || (CLOUD.state === 'ready' && allLoaded()));
     pendingRender = false;
     if ((!CLOUD.on || (CLOUD.state === 'ready' && allLoaded() && data.places.length)) && ensureBookings()) save();
     var u = CLOUD.on ? CLOUD.user : null, initial = (u && (u.displayName || u.email || '?').charAt(0).toUpperCase()) || '?';
