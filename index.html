@@ -1437,7 +1437,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   function onUser(user) {
     CLOUD.unsub.forEach(function (f) { try { f(); } catch (e) {} });
-    CLOUD.unsub = []; CLOUD.loaded = {}; CLOUD.user = user; CLOUD.person = ''; CLOUD.flightSync='loading'; me = '';
+    CLOUD.unsub = []; CLOUD.loaded = {}; CLOUD.members = {}; CLOUD.user = user; CLOUD.person = ''; CLOUD.flightSync='loading'; me = '';
     if (!user) { CLOUD.state = 'signedout'; CLOUD.admin = false; ui.admin = false; render(); return; }
     var fs = CLOUD.fs, db = CLOUD.db, ak = 'tripwallet.isadmin.' + user.uid;
     try { CLOUD.admin = localStorage.getItem(ak) === '1'; } catch (e) {}
@@ -1450,17 +1450,20 @@ if (typeof module !== 'undefined') module.exports = Core;
       try { localStorage.setItem(ak, isAdmin ? '1' : '0'); } catch (e) {}
       softRender();
     });
-    CLOUD.unsub.push(fs.onSnapshot(fs.collection(db, 'trips', 'main', 'members'), function (snap) {
-      CLOUD.members = {};
-      snap.docs.forEach(function (d) { CLOUD.members[d.id] = d.data(); });
-      var mine = CLOUD.members[user.uid];
-      CLOUD.person = mine && isPerson(mine.person) ? mine.person : '';
-
-      me = CLOUD.person;
-      if (!CLOUD.person) { CLOUD.state = 'pickme'; render(); return; }
-      if (CLOUD.state !== 'ready') { CLOUD.state = 'ready'; listen(); var key='vacation-session-'+user.uid; try { if(!sessionStorage.getItem(key)){recordSession('login').then(function(){sessionStorage.setItem(key,'1');}).catch(function(){});} } catch(e) {} }
+    var listed=false;
+    CLOUD.unsub.push(fs.onSnapshot(fs.doc(db,'trips','main','members',user.uid),function(snap){
+      if(CLOUD.user!==user)return;
+      var mine=snap.exists()?snap.data():null;
+      CLOUD.person=mine&&isPerson(mine.person)?mine.person:'';
+      me=CLOUD.person;
+      if(!me){if(CLOUD.state==='ready'){onUser(user);return;}CLOUD.state='pickme';render();return;}
+      if(!listed){listed=true;CLOUD.unsub.push(fs.onSnapshot(fs.collection(db,'trips','main','members'),function(all){
+        if(CLOUD.user!==user)return;CLOUD.members={};all.docs.forEach(function(d){CLOUD.members[d.id]=d.data();});softRender();
+      },cloudErr));}
+      if(CLOUD.state!=='ready'){CLOUD.state='ready';listen();var key='vacation-session-'+user.uid;try{if(!sessionStorage.getItem(key)){recordSession('login').then(function(){sessionStorage.setItem(key,'1');}).catch(function(){});}}catch(e){}}
       softRender();
-    }, cloudErr));
+    },cloudErr));
+
   }
   function loadFirebase() {
     if (window.__tripwalletFirebase) return Promise.resolve(window.__tripwalletFirebase);
