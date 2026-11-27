@@ -1,5 +1,5 @@
 const {initializeTestEnvironment,assertFails,assertSucceeds}=require('@firebase/rules-unit-testing');
-const {doc,setDoc,getDoc,deleteDoc,updateDoc,writeBatch}=require('firebase/firestore');
+const {doc,setDoc,getDoc,deleteDoc,updateDoc,writeBatch,collection,getDocs}=require('firebase/firestore');
 const fs=require('node:fs');
 const test=require('node:test');
 test('Trip wallet authorization',async()=>{
@@ -10,7 +10,25 @@ test('Trip wallet authorization',async()=>{
  const e={desc:'Gas',amount:1000,paidBy:'A',split:['A','P'],date:'2026-12-24',by:'A',at:'2026-12-24T00:00:00Z'};
  try {
  await env.clearFirestore();
+ await assertSucceeds(setDoc(doc(admin,path('places','guest-test')),{name:'Test stop'}));
+ await assertSucceeds(getDoc(doc(outsider,path('places','guest-test'))));
+ await assertFails(setDoc(doc(outsider,path('places','new')),{name:'No'}));
+ await assertFails(updateDoc(doc(outsider,path('places','guest-test')),{name:'No'}));
+ await assertFails(deleteDoc(doc(outsider,path('places','guest-test'))));
+ for(const col of ['expenses','payments','flights','log','albums','members','deleted'])await assertFails(getDoc(doc(outsider,path(col,'private'))));
  await assertFails(setDoc(doc(outsider,path('members','x')),{person:'A'}));
+ const megha=ctx('m','posinasetty.sai@gmail.com'), fake=ctx('fake','unrelated@gmail.com');
+ const profile={person:'M',name:'MeghaSai',at:e.at};
+ await assertSucceeds(getDoc(doc(megha,path('members','m'))));
+ await assertFails(getDocs(collection(megha,'trips/main/members')));
+ await assertSucceeds(setDoc(doc(megha,path('members','m')),profile));
+ await assertSucceeds(getDoc(doc(megha,path('members','m'))));
+ await assertSucceeds(getDocs(collection(megha,'trips/main/members')));
+ await assertFails(setDoc(doc(fake,path('members','fake')),profile));
+ await assertFails(setDoc(doc(megha,path('members','other')),profile));
+ await assertFails(updateDoc(doc(megha,path('members','m')),{person:'P'}));
+ await assertFails(setDoc(doc(ctx('p2','pranay2@gmail.com'),path('members','p2')),{...profile,person:'P'}));
+ await assertSucceeds(deleteDoc(doc(admin,path('members','m'))));
  await assertSucceeds(setDoc(doc(admin,path('members','a')),{person:'A'}));
  await assertFails(updateDoc(doc(a,path('members','a')),{person:'P'}));
  await assertSucceeds(setDoc(doc(a,path('expenses','e')),e));

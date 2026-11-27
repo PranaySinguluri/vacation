@@ -25,15 +25,27 @@ service cloud.firestore {
     && amount(d.amount) && short(d.date,10) && d.by in people() && short(d.at,35);
   }
   match /trips/main/admin/{id} { allow read, write: if admin(); }
+  function nameMatches(p) {
+   let email = request.auth.token.email.lower();
+   return email.matches('[^@]*@gmail[.]com') && (
+    (p == 'A' && email.matches('[^@]*(akshaya|chiduruppa)[^@]*@gmail[.]com')) ||
+    (p == 'D' && email.matches('[^@]*(divya|theja|gangam)[^@]*@gmail[.]com')) ||
+    (p == 'H' && email.matches('[^@]*(haneela|vuyyuru)[^@]*@gmail[.]com')) ||
+    (p == 'M' && email.matches('[^@]*(megha|posinasetty|posinasetti|sai)[^@]*@gmail[.]com')) ||
+    (p == 'R' && email.matches('[^@]*(ramya|bikkina)[^@]*@gmail[.]com')) ||
+    (p == 'S' && email.matches('[^@]*(sahithi|thota)[^@]*@gmail[.]com')));
+  }
   match /trips/main/members/{uid} {
    allow get: if admin() || (verified() && request.auth.uid == uid) || member();
    allow list: if access();
+   allow create: if verified() && request.auth.uid == uid && nameMatches(request.resource.data.person)
+    && request.resource.data.keys().hasOnly(['person','name','at']) && short(request.resource.data.name,60) && short(request.resource.data.at,35);
    allow create, update: if admin() && request.resource.data.person in people()
     && request.resource.data.keys().hasOnly(['person','name','at','photo']);
    allow delete: if admin();
   }
   match /trips/main/places/{id} {
-   allow read: if access();
+   allow read: if verified();
    allow create, update: if access() && request.resource.data.keys().size() <= 30;
    allow delete: if admin();
   }
