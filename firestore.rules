@@ -25,6 +25,19 @@ service cloud.firestore {
     && amount(d.amount) && short(d.date,10) && d.by in people() && short(d.at,35);
   }
   match /trips/main/admin/{id} { allow read, write: if admin(); }
+  match /trips/main/requests/{uid} {
+   allow get: if admin() || (verified() && request.auth.uid == uid);
+   allow list: if admin();
+   allow create: if verified() && request.auth.uid == uid && !member()
+    && request.resource.data.keys().hasOnly(['person','email','status','at'])
+    && request.resource.data.person in people()
+    && request.resource.data.email == request.auth.token.email
+    && request.resource.data.status == 'pending' && short(request.resource.data.at,35);
+   allow update: if admin() && resource.data.status == 'pending'
+    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+    && request.resource.data.status == 'rejected';
+   allow delete: if admin();
+  }
   match /trips/main/members/{uid} {
    allow get: if admin() || (verified() && request.auth.uid == uid) || member();
    allow list: if access();
