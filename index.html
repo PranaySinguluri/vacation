@@ -3811,22 +3811,25 @@ if (typeof module !== 'undefined') module.exports = Core;
     var card = g.closest('.stop'), list = card && card.parentNode;
     if (!list) return;
     var point = { x: e.clientX, y: e.clientY, pointerId: e.pointerId };
-    drag = { card: card, list: list, moved: false, active: false, point: point, grip: g };
-    drag.timer = setTimeout(function () {
+    drag = { card: card, list: list, moved: false, active: false, point: point, grip: g, mouse: e.pointerType === 'mouse' };
+    function activate() {
       if (!drag || drag.card !== card) return;
       drag.active = true;
       try { g.setPointerCapture(point.pointerId); } catch (x) {}
       list.classList.add('reordering');
       card.classList.add('dragging');
-    }, 420);
+    }
+    drag.activate = activate;
+    if (!drag.mouse) drag.timer = setTimeout(activate, 420);
   });
   app.addEventListener('pointermove', function (e) {
     if (!drag) return;
     if (!drag.active) {
       if (Math.abs(e.clientY - drag.point.y) > 9 || Math.abs(e.clientX - drag.point.x) > 9) {
-        clearTimeout(drag.timer); drag = null;
+        if (drag.mouse) drag.activate();
+        else { clearTimeout(drag.timer); drag = null; }
       }
-      return;
+      if (!drag || !drag.active) return;
     }
     e.preventDefault();
     var y = e.clientY, card = drag.card, stops = drag.list.querySelectorAll('.stop');
