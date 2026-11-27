@@ -709,6 +709,9 @@ html { overflow-x: hidden }
 .expense-amount{flex:none;font-size:14px}
 .expense-audit{margin-top:20px;padding-top:14px;border-top:1px solid var(--line)}
 .expense-audit h3{margin:0 0 7px}
+.expense-audit .list{max-height:340px;overflow-y:auto;overscroll-behavior:contain;padding-right:6px}
+.activity-page .expense-audit .list{max-height:none;overflow:visible}
+.expense-activity-icon.login,.expense-activity-icon.logout{--activity-color:#7e22ce;--activity-bg:#f3e8ff}
 .expense-audit .list li{padding:9px 0;display:flex;align-items:flex-start;gap:10px}
 .expense-activity-icon{width:34px;height:34px;flex:0 0 34px;display:grid;place-items:center;border-radius:50%;color:var(--activity-color);background:var(--activity-bg)}
 .expense-activity-icon svg{width:18px;height:18px}
@@ -1439,7 +1442,7 @@ if (typeof module !== 'undefined') module.exports = Core;
 
       me = CLOUD.person;
       if (!CLOUD.person) { CLOUD.state = 'pickme'; render(); return; }
-      if (CLOUD.state !== 'ready') { CLOUD.state = 'ready'; listen(); }
+      if (CLOUD.state !== 'ready') { CLOUD.state = 'ready'; listen(); var key='vacation-session-'+user.uid; try { if(!sessionStorage.getItem(key)){recordSession('login').then(function(){sessionStorage.setItem(key,'1');}).catch(function(){});} } catch(e) {} }
       softRender();
     }, cloudErr));
   }
@@ -2471,19 +2474,20 @@ if (typeof module !== 'undefined') module.exports = Core;
       return l.kind==='expense' && ['added','edited','removed'].indexOf(l.act)>=0;
     }).slice().sort(function(a,b){return String(b.at||'').localeCompare(String(a.at||''));});
   }
-  function expenseAuditHTML(max) {
-    var entries=expenseAuditEntries().slice(0,max||100);
-    return '<div class="expense-audit" id="expense-activity"><div class="row between"><h3>Expense activity</h3><span class="count">'+
+  function expenseAuditHTML(max, all) {
+    var entries=(all?expenseAuditEntries().concat(data.log.filter(function(l){return l.kind==='session' && ['login','logout'].indexOf(l.act)>=0;})).sort(function(a,b){return String(b.at||'').localeCompare(String(a.at||''));}):expenseAuditEntries()).slice(0,max||100);
+    return '<div class="expense-audit" id="expense-activity"><div class="row between"><h3>'+(all?'All travelers':'Expense activity')+'</h3><span class="count">'+
       entries.length+'</span></div>'+
       (entries.length?'<ul class="list">'+entries.map(function(l){
         var when='';
         try {when=new Date(l.at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});}catch(e){}
         var verb=l.act==='added'?'added':l.act==='edited'?'edited':'deleted';
-        var shape=l.act==='added'?'<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>':l.act==='edited'?'<path d="m15 5 4 4M4 20l4-1 12-12-4-4L4 15z"/>':'<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/>';
+        var session=l.kind==='session';
+        var shape=session?(l.act==='login'?'<path d="M10 17l5-5-5-5M15 12H3M15 3h6v18h-6"/>':'<path d="M14 7l5 5-5 5M19 12H7M9 3H3v18h6"/>'):l.act==='added'?'<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>':l.act==='edited'?'<path d="m15 5 4 4M4 20l4-1 12-12-4-4L4 15z"/>':'<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/>';
         var icon='<span class="expense-activity-icon '+l.act+'" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+shape+'</svg></span>';
-        return '<li>'+icon+'<div class="main"><b>'+esc(person(l.who))+' '+verb+' an expense</b>'+
+        return '<li>'+icon+'<div class="main"><b>'+esc(person(l.who))+' '+(session?(l.act==='login'?'logged in':'logged out'):verb+' an expense')+'</b>'+
           '<div class="sub">'+esc(l.text||'')+'</div><div class="sub">'+esc(when)+'</div></div></li>';
-      }).join('')+'</ul>':'<p class="sub">No expense activity yet. Add an expense to begin tracking changes.</p>')+
+      }).join('')+'</ul>':'<p class="sub">No activity yet.</p>')+
       '</div>';
   }
   function sharedExpensesTab() {
@@ -2944,12 +2948,12 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<details><summary>View extracted screenshot text (not saved)</summary><pre class="flight-ocr-text">'+esc(o.text||'')+'</pre></details></div>';
   }
   function activityHTML() {
-    return '<div class="logpop" id="activity-card" role="dialog" aria-label="Expense activity">'+
-      '<div class="row between"><h3>Expense activity · All travelers</h3>'+
-      '<button type="button" class="link" data-act="toggle-log">Close</button></div>'+
-      expenseAuditHTML(150)+
-      (ui.admin?'<p class="sub">Changes to stops and flights are not shown in this expense log.</p>':'')+
-      '</div>';
+    return '<section class="card activity-page"><div class="row between"><h2>Activity</h2><button type="button" class="link" data-act="activity-back">Back</button></div>'+expenseAuditHTML(300,true)+'</section>';
+  }
+  var previousActivityTab='costs';
+  function recordSession(act) {
+    if(!CLOUD.user||!CLOUD.person||CLOUD.state!=='ready')return Promise.resolve();
+    return CLOUD.fs.setDoc(tripDoc('log',uid()),{who:CLOUD.person,act:act,kind:'session',text:'',at:new Date().toISOString()});
   }
   function gateHTML() {
     var st = CLOUD.state;
@@ -2986,11 +2990,11 @@ if (typeof module !== 'undefined') module.exports = Core;
         right += '<div class="acctmenu" role="menu"><div class="acct-head">' + face('face big') + '<div class="main"><div class="ttl">' + esc(u.displayName || 'You') + (ui.admin ? ' <span class="adminpill">Admin</span>' : '') + '</div>' +
           '<div class="sub">' + esc(u.email || '') + '</div>' + (me ? '<div class="sub">Traveling as ' + esc(person(me)) + '</div>' : '') + '</div></div>' +
           (CLOUD.state === 'ready' ? '<button type="button" role="menuitem" data-act="invite">Invite friends</button>' +
-            '<button type="button" role="menuitem" data-act="toggle-log" aria-controls="activity-card">Expense activity</button>' : '') +
+            '<button type="button" role="menuitem" data-act="toggle-log">Activity</button>' : '') +
           '<button type="button" role="menuitem" data-act="download-backup">Download trip backup</button>' +
           '<button type="button" role="menuitem" data-act="sign-out">Sign out</button></div>';
       }
-      if (CLOUD.state === 'ready' && ui.showLog) right += activityHTML();
+
     } else if (!CLOUD.on) {
       right = '<button type="button" class="herobtn" data-act="toggle-share">Share</button>';
     }
@@ -3055,7 +3059,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<button class="tab" role="tab" data-act="tab" data-id="costs" aria-selected="' + (ui.tab === 'costs') + '">Expenses <span class="count">' + data.expenses.length + '</span></button></div>';
 
     var c = cityById(ui.tab);
-    h += c ? cityTab(c) : ui.tab==='costs' ? sharedExpensesTab() : photosTab();
+    h += ui.tab==='activity' ? activityHTML() : c ? cityTab(c) : ui.tab==='costs' ? sharedExpensesTab() : photosTab();
     if (!CLOUD.on) h += '<div class="row backup-actions"><button type="button" data-act="download-backup">Download trip backup</button><label class="btn">Restore local backup<input id="restore-backup" type="file" accept=".json,application/json" hidden></label></div>';
     app.innerHTML = h;
     if (c) fetchLegs(cityPlaces(c.id));
@@ -3278,7 +3282,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     else if (a === 'edit-link') { ui.linkEdit = d.id; }
     else if (a === 'cancel-link') ui.linkEdit = null;
     else if (a === 'sign-in') { signIn(); return; }
-    else if (a === 'sign-out') { ui.msg = ''; CLOUD.au.signOut(CLOUD.auth); return; }
+    else if (a === 'sign-out') { ui.msg = ''; var user=CLOUD.user; var finish=function(){try{if(user)sessionStorage.removeItem('vacation-session-'+user.uid);}catch(e){} CLOUD.au.signOut(CLOUD.auth);}; Promise.race([recordSession('logout').catch(function(){}),new Promise(function(resolve){setTimeout(resolve,1500);})]).then(finish); return; }
     else if (a === 'retry') { location.reload(); return; }
     else if (a === 'be') {
       if (!emailFits(CLOUD.user.email, d.id)) {
@@ -3293,7 +3297,8 @@ if (typeof module !== 'undefined') module.exports = Core;
       return;
     }
     else if (a === 'reset-member') { CLOUD.fs.deleteDoc(CLOUD.fs.doc(CLOUD.db, 'trips', 'main', 'members', d.id)).catch(function () {}); return; }
-    else if (a === 'toggle-log') ui.showLog = !ui.showLog;
+    else if (a === 'toggle-log') { if(ui.tab!=='activity')previousActivityTab=ui.tab; ui.tab='activity';ui.menu=false;ui.showLog=false; }
+    else if (a === 'activity-back') { ui.tab=previousActivityTab; }
     else if (a === 'invite') {
       var link = location.origin + location.pathname;
       ui.msg = 'Invite link: ' + link + '. Friends open it and sign in with Google.';
