@@ -2474,10 +2474,10 @@ if (typeof module !== 'undefined') module.exports = Core;
       return l.kind==='expense' && ['added','edited','removed'].indexOf(l.act)>=0;
     }).slice().sort(function(a,b){return String(b.at||'').localeCompare(String(a.at||''));});
   }
-  function expenseAuditHTML(max, all, itinerary, combined) {
+  function expenseAuditHTML(max, all, itinerary, paidDetails) {
     var entries=(itinerary?data.log.filter(function(l){return l.kind==='place'||(!l.kind && CITIES.some(function(c){return String(l.text||'').indexOf(c.name)>=0;}) && !/expense|payment/i.test(l.text||''));}).sort(function(a,b){return String(b.at||'').localeCompare(String(a.at||''));}):all?data.log.slice().sort(function(a,b){return String(b.at||'').localeCompare(String(a.at||''));}):expenseAuditEntries()).slice(0,max||100);
-    return '<div class="expense-audit" id="expense-activity"><div class="row between"><h3>'+(itinerary?'Itinerary activity':all?'All travelers':combined?'Recent changes':'Expense activity')+'</h3><span class="count">'+
-      entries.length+'</span></div>'+
+    return '<div class="expense-audit" id="expense-activity"><div class="row between"><h3>'+(itinerary?'Itinerary activity':all?'All travelers':'Expense activity')+'</h3><span class="count">'+
+      entries.length+'</span></div>'+(paidDetails||'')+
       (entries.length?'<ul class="list">'+entries.map(function(l){
         var when='';
         try {when=new Date(l.at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});}catch(e){}
@@ -2526,7 +2526,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<div class="expense-total"><span>Group spending recorded</span><strong>'+esc(Core.fmt(total))+'</strong></div>'+
       '<h3>All expenses <span class="count">'+expenses.length+'</span></h3>'+
       (entries?'<ul class="list">'+entries+'</ul>':'<p class="sub">No shared expenses yet. Anyone in the group can add the first one.</p>')+
-      '<details class="expense-paid-details"><summary>Expense Activity</summary><h3>Paid by traveler</h3><div class="expense-paid-list">'+perPerson+'</div>'+expenseAuditHTML(80,false,false,true)+'</details>'+
+      expenseAuditHTML(80,false,false,'<details class="expense-paid-details"><summary>Paid by traveler</summary><div class="expense-paid-list">'+perPerson+'</div></details>')+
       (spending.length?'<p class="sub">Note: '+spending.length+' older device-only purchases are not included here.</p>':'')+
       '</section>'+
       (expenseFormOpen?'<div class="edit-overlay expense-overlay" role="presentation">'+
