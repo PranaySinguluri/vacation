@@ -726,6 +726,7 @@ html { overflow-x: hidden }
 #vac-help-panel{width:min(380px,calc(100vw - 32px));height:min(540px,75dvh);background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:0 8px 32px #0003;display:flex;flex-direction:column;padding:14px;gap:10px}
 #vac-help-messages{flex:1;overflow:auto;min-height:0;display:flex;flex-direction:column;gap:8px}
 #vac-help-messages p{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;padding:10px;border-radius:12px;background:var(--bg)}
+#vac-help-messages .ai-wait{color:var(--muted);font-style:italic}
 #vac-help-messages .mine{align-self:flex-end;background:var(--primary-soft)}
 #vac-help-form{display:flex;gap:6px}#vac-help-form input{flex:1;width:0}
 #vac-help button{cursor:pointer;min-height:40px}
@@ -1470,7 +1471,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       var fapp = m.app.initializeApp(FIREBASE_CONFIG), db;
       try { db = m.fs.initializeFirestore(fapp, { localCache: m.fs.persistentLocalCache({ tabManager: m.fs.persistentMultipleTabManager() }) }); }
       catch (e) { db = m.fs.getFirestore(fapp); }
-      CLOUD.fs = m.fs; CLOUD.db = db; CLOUD.au = m.auth; CLOUD.auth = m.auth.getAuth(fapp);
+      CLOUD.app = fapp; CLOUD.fs = m.fs; CLOUD.db = db; CLOUD.au = m.auth; CLOUD.auth = m.auth.getAuth(fapp);
       m.auth.getRedirectResult(CLOUD.auth).catch(function () {});
       m.auth.onAuthStateChanged(CLOUD.auth, onUser);
     }).catch(function () {
@@ -3045,18 +3046,98 @@ if (typeof module !== 'undefined') module.exports = Core;
     }
     return 'I am the built-in Vacation help assistant, not ChatGPT. Ask about a city itinerary, bookings, expenses, editing stops, flights or photos. For general travel advice, use ChatGPT separately.';
   }
+
+  /* Real AI answers through Firebase AI Logic (Gemini Developer API). The page
+     holds no AI key: requests go through the Firebase project. If AI Logic is
+     not switched on yet, the built-in answers above are used instead. */
+  var HELP_MODELS=['gemini-3.8-flash','gemini-4-hydrogen'];
+  var helpAI={p:null,ai:null,m:null,model:0,history:[],off:false};
+  function loadHelpAI(){
+    if(helpAI.p)return helpAI.p;
+    if(!CLOUD.on||!CLOUD.app)return Promise.reject(new Error('local'));
+    helpAI.p=import('https://www.gstatic.com/firebasejs/'+FB_VERSION+'/firebase-ai.js').then(function(m){
+      helpAI.m=m;helpAI.ai=m.getAI(CLOUD.app,{backend:new m.GoogleAIBackend()});return m;});
+    helpAI.p.catch(function(){helpAI.p=null;});
+    return helpAI.p;
+  }
+  function helpContext(){
+    var d=new Date(),lines=[];
+    lines.push('Today is '+d.toDateString()+' '+d.toTimeString().slice(0,5)+' (traveler local time).');
+    lines.push('Trip: group road trip, Dec 24 to 31, 2026: San Diego, Los Angeles, Las Vegas and Arizona.');
+    lines.push('Travelers: '+PEOPLE.map(function(x){return x.name;}).join(', ')+'.');
+    if(me)lines.push('You are talking with '+person(me)+'.');
+    CITIES.forEach(function(c){
+      var st=cityPlaces(c.id);
+      lines.push('\n'+c.name+' ('+st.length+' stops, in order):');
+      st.slice(0,40).forEach(function(x,i){
+        var when=[x.checkIn||x.date,x.checkInTime||x.time].filter(Boolean).join(' ');
+        lines.push((i+1)+'. '+x.name+(x.kind?' ['+x.kind+']':'')+(when?' - '+when:' - not scheduled')+
+          (x.checkOut?' to '+x.checkOut:'')+(x.booked?' - booked':x.needsBooking?' - needs booking':'')+
+          (x.note?' - note: '+String(x.note).slice(0,140):''));
+      });
+    });
+    return lines.join('\n');
+  }
+  function helpSystem(){
+    return 'You are Vacation Assistant, a friendly, capable AI assistant (like ChatGPT) inside a group trip app called Vacation. '+
+      'Answer any question the user asks: travel tips, food and things to do near a stop, packing, driving times, budgets, translations, general knowledge. '+
+      'Use the trip data below whenever it is relevant, and refer to stops by name. '+
+      'You cannot change the trip yourself; if asked, explain how to do it in the app (open a city tab, tap a stop to edit, + Add stop, Add from screenshot, Expenses tab). '+
+      'You have no live traffic, live weather or live opening hours; say so briefly and give your best general guidance. '+
+      'Keep answers short and practical. Write plain text, no markdown symbols like ** or #; use simple numbered or dashed lists.\n\nTRIP DATA\n'+helpContext();
+  }
+  function helpPlain(t){return String(t).replace(/\*\*(.+?)\*\*/g,'$1').replace(/^#+\s*/gm,'').replace(/^\s*\*\s+/gm,'- ');}
+  function aiAnswer(q,onText){
+    return loadHelpAI().then(function(m){
+      function tryModel(){
+        var model=m.getGenerativeModel(helpAI.ai,{model:HELP_MODELS[helpAI.model],systemInstruction:helpSystem()});
+        var chat=model.startChat({history:helpAI.history.slice()}),text='';
+        return chat.sendMessageStream(q).then(function(res){
+          var it=res.stream[Symbol.asyncIterator]();
+          function next(){return it.next().then(function(r){
+            if(r.done)return text;
+            try{text+=r.value.text();}catch(e){}
+            onText(helpPlain(text));return next();});}
+          return next();
+        }).catch(function(e){
+          var msg=String(e&&e.message||e);
+          if(!text&&/not.?found|404|unsupported model|not supported/i.test(msg)&&helpAI.model<HELP_MODELS.length-1){helpAI.model++;return tryModel();}
+          throw e;
+        });
+      }
+      return tryModel();
+    }).then(function(text){
+      helpAI.history.push({role:'user',parts:[{text:q}]},{role:'model',parts:[{text:text||'…'}]});
+      if(helpAI.history.length>24)helpAI.history=helpAI.history.slice(-24);
+      return text;
+    });
+  }
   function syncHelp(allowed){
     var owner=CLOUD.on?(CLOUD.user&&CLOUD.user.uid):'local';
     if(helpRoot&&(!allowed||helpOwner!==owner)){helpRoot.remove();helpRoot=null;}
     if(!allowed||helpRoot||typeof document.createElement!=='function'||!document.body)return;
     helpOwner=owner;helpRoot=document.createElement('aside');helpRoot.id='vac-help';
-    helpRoot.innerHTML='<button id="vac-help-toggle" type="button" aria-expanded="false" aria-controls="vac-help-panel">? Help</button><section id="vac-help-panel" hidden aria-label="Vacation Help"><div class="row between"><strong>Vacation Help</strong><button type="button" id="vac-help-close" aria-label="Close help">×</button></div><small>Built-in help · No live AI or traffic</small><div id="vac-help-messages" role="log" aria-live="polite"></div><div class="row"><button type="button" data-help="Show itinerary">Itinerary</button><button type="button" data-help="Show bookings">Bookings</button><button type="button" data-help="Expenses help">Expenses</button></div><form id="vac-help-form"><input aria-label="Your question" maxlength="300" placeholder="Ask for help…" required><button type="submit">Send</button></form></section>';
+    helpRoot.innerHTML='<button id="vac-help-toggle" type="button" aria-expanded="false" aria-controls="vac-help-panel">'+(CLOUD.on?'✨ Ask AI':'? Help')+'</button><section id="vac-help-panel" hidden aria-label="Vacation Help"><div class="row between"><strong>'+(CLOUD.on?'Vacation AI':'Vacation Help')+'</strong><button type="button" id="vac-help-close" aria-label="Close help">×</button></div><small>'+(CLOUD.on?'Powered by Google Gemini · knows your itinerary · no live traffic':'Built-in help · No live AI or traffic')+'</small><div id="vac-help-messages" role="log" aria-live="polite"></div><div class="row"><button type="button" data-help="Show itinerary">Itinerary</button><button type="button" data-help="Show bookings">Bookings</button><button type="button" data-help="Expenses help">Expenses</button></div><form id="vac-help-form"><input aria-label="Your question" maxlength="300" placeholder="'+(CLOUD.on?'Ask anything…':'Ask for help…')+'" required><button type="submit">Send</button></form></section>';
     document.body.appendChild(helpRoot);
     var panel=helpRoot.querySelector('#vac-help-panel'),toggle=helpRoot.querySelector('#vac-help-toggle'),messages=helpRoot.querySelector('#vac-help-messages'),form=helpRoot.querySelector('form'),input=form.querySelector('input');
     function append(value,mine){var p=document.createElement('p');p.textContent=value;if(mine)p.className='mine';messages.appendChild(p);while(messages.children.length>40)messages.firstChild.remove();messages.scrollTop=messages.scrollHeight;}
     function open(value){panel.hidden=!value;toggle.hidden=value;toggle.setAttribute('aria-expanded',String(value));if(value)input.focus();else toggle.focus();}
-    function ask(q){if(!q.trim())return;append(q,true);append(helpAnswer(q),false);}
-    append('Hi! Ask me about your itinerary, bookings or how to use Vacation.',false);
+    var busy=false,sendBtn=form.querySelector('button[type=submit]');
+    function ask(q){
+      if(!q.trim()||busy)return;append(q,true);
+      if(!CLOUD.on||helpAI.off){append(helpAnswer(q),false);return;}
+      busy=true;sendBtn.disabled=true;
+      var p=document.createElement('p');p.textContent='Thinking…';p.className='ai-wait';messages.appendChild(p);messages.scrollTop=messages.scrollHeight;
+      aiAnswer(q,function(t){p.className='';p.textContent=t;messages.scrollTop=messages.scrollHeight;}).then(function(t){
+        p.className='';if(!t)p.textContent='Sorry, I could not answer that. Try asking another way.';
+      }).catch(function(e){
+        var msg=String(e&&e.message||e);
+        if(/quota|429|resource.?exhausted|rate/i.test(msg)){p.textContent='The free AI limit is used up for now. Try again in a minute.';}
+        else{helpAI.off=true;p.textContent=helpAnswer(q)+'\n\n(AI is not available right now, so this is the built-in answer.)';
+          if(typeof console!=='undefined')console.warn('Vacation AI:',msg);}
+      }).then(function(){busy=false;sendBtn.disabled=false;messages.scrollTop=messages.scrollHeight;});
+    }
+    append(CLOUD.on?'Hi! I\'m your trip AI. Ask me anything: what\'s next on the plan, food near a stop, packing tips, driving times…':'Hi! Ask me about your itinerary, bookings or how to use Vacation.',false);
     toggle.addEventListener('click',function(){open(true);});
     helpRoot.querySelector('#vac-help-close').addEventListener('click',function(){open(false);});
     helpRoot.addEventListener('keydown',function(e){if(e.key==='Escape')open(false);});
