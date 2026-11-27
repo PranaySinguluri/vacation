@@ -224,6 +224,7 @@ html { overflow-x: hidden }
 .stops.reordering .leg { display: none }
 .grip { touch-action: none; cursor: grab; border: 0; background: none; padding: 6px 2px; color: var(--muted); flex: none }
 .grip:active { cursor: grabbing }
+@media (hover:hover) and (pointer:fine) { .stop { cursor:grab; user-select:none; } .stop.dragging { cursor:grabbing; } }
 .num { flex: none; width: 30px; height: 30px; border-radius: 15px; background: var(--sun); color: #4D3900; font: 800 14px/30px var(--display); text-align: center; font-variant-numeric: tabular-nums }
 .stop .main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px }
 .stop .title { border: 0; background: none; padding: 0; font-weight: 700; font-size: 16px; text-align: left; color: var(--ink); overflow-wrap: anywhere }
@@ -1624,8 +1625,9 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   var pendingRender = false, drag = null;
   function typing() { var a = document.activeElement; return !!(a && app.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)); }
-  function softRender() { if (typing() || drag) pendingRender = true; else render(); }
-  app.addEventListener('focusout', function () { setTimeout(function () { if (pendingRender && !typing() && !drag) render(); }, 0); });
+  function interactionBusy() { return typing() || !!drag || !!ui.adding || !!ui.editing || !!ui.editingExp || !!ui.flightEditing; }
+  function softRender() { if (interactionBusy()) pendingRender = true; else render(); }
+  app.addEventListener('focusout', function () { setTimeout(function () { if (pendingRender && !interactionBusy()) render(); }, 0); });
 
   /* ---------- Place search (Photon, a free OpenStreetMap search made for type-ahead) ---------- */
   var searchSeq = 0, searchTimer = null, results = [], active = -1;
@@ -3804,28 +3806,34 @@ if (typeof module !== 'undefined') module.exports = Core;
     citySwipeIgnoreClick = false;
   }, true);
   /* ---------- Long press prevents accidental drag while scrolling ---------- */
+  var suppressTileClickUntil = 0;
+  app.addEventListener('click', function(e) { if (Date.now() < suppressTileClickUntil && e.target.closest('.stop')) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);
   app.addEventListener('pointerdown', function (e) {
-    var g = e.target.closest('.grip');
-    if (!g || (e.button && e.button !== 0)) return;
-    var card = g.closest('.stop'), list = card && card.parentNode;
+    var card = e.target.closest('.stop[data-id]');
+    if (!card || drag || e.isPrimary === false || (e.button && e.button !== 0)) return;
+    if (e.target.closest('a,input,select,textarea,label,form,button:not(.grip):not(.title)')) return;
+    var g = card, list = card.parentNode;
     if (!list) return;
     var point = { x: e.clientX, y: e.clientY, pointerId: e.pointerId };
-    drag = { card: card, list: list, moved: false, active: false, point: point, grip: g };
-    drag.timer = setTimeout(function () {
+    drag = { card: card, list: list, moved: false, active: false, point: point, grip: g, mouse: e.pointerType === 'mouse' };
+    function activate() {
       if (!drag || drag.card !== card) return;
       drag.active = true;
       try { g.setPointerCapture(point.pointerId); } catch (x) {}
       list.classList.add('reordering');
       card.classList.add('dragging');
-    }, 420);
+    }
+    drag.activate = activate;
+    if (!drag.mouse) drag.timer = setTimeout(activate, 420);
   });
   app.addEventListener('pointermove', function (e) {
-    if (!drag) return;
+    if (!drag || e.pointerId !== drag.point.pointerId) return;
     if (!drag.active) {
       if (Math.abs(e.clientY - drag.point.y) > 9 || Math.abs(e.clientX - drag.point.x) > 9) {
-        clearTimeout(drag.timer); drag = null;
+        if (drag.mouse) drag.activate();
+        else { clearTimeout(drag.timer); drag = null; }
       }
-      return;
+      if (!drag || !drag.active) return;
     }
     e.preventDefault();
     var y = e.clientY, card = drag.card, stops = drag.list.querySelectorAll('.stop');
@@ -3839,15 +3847,16 @@ if (typeof module !== 'undefined') module.exports = Core;
     Array.prototype.forEach.call(drag.list.querySelectorAll('.stop .num'), function (n, i) { n.textContent = i + 1; });
     if (y < 70) window.scrollBy(0, -14); else if (y > window.innerHeight - 70) window.scrollBy(0, 14);
   });
-  function endDrag() {
-    if (!drag) return;
+  function endDrag(e) {
+    if (!drag || e.pointerId !== drag.point.pointerId) return;
     var d = drag;
     drag = null;
     clearTimeout(d.timer);
     d.list.classList.remove('reordering');
     d.card.classList.remove('dragging');
-    if (!d.active) return;
-    if (d.moved) reorderCity(d.list.dataset.city, Array.prototype.map.call(d.list.querySelectorAll('.stop'), function (s) { return s.dataset.id; }));
+    if (!d.active) { if (pendingRender && !interactionBusy()) render(); return; }
+    suppressTileClickUntil = Date.now() + 350;
+    if (d.moved && e.type !== 'pointercancel') reorderCity(d.list.dataset.city, Array.prototype.map.call(d.list.querySelectorAll('.stop'), function (s) { return s.dataset.id; }));
     render();
   }
   app.addEventListener('pointerup', endDrag);
