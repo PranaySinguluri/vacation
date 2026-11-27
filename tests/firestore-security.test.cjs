@@ -21,11 +21,14 @@ test('Trip wallet authorization',async()=>{
  await assertFails(updateDoc(doc(outsider,path('requests','x')),{status:'rejected'}));
  await assertSucceeds(getDoc(doc(admin,path('requests','x'))));
  await assertSucceeds(updateDoc(doc(admin,path('requests','x')),{status:'rejected'}));
- await assertFails(setDoc(doc(outsider,path('requests','x')),req));
- await assertSucceeds(deleteDoc(doc(admin,path('requests','x'))));
  await assertSucceeds(setDoc(doc(outsider,path('requests','x')),req));
- const approval=writeBatch(admin);approval.set(doc(admin,path('members','x')),{person:'M'});approval.delete(doc(admin,path('requests','x')));await assertSucceeds(approval.commit());
- await assertSucceeds(deleteDoc(doc(admin,path('members','x'))));
+ await assertFails(setDoc(doc(outsider,path('requests','x')),req));
+ await assertFails(setDoc(doc(admin,path('members','x')),{person:'M'}));
+ const approval=writeBatch(admin);approval.set(doc(admin,path('approvalSlots','M')),{uid:'x'});approval.set(doc(admin,path('members','x')),{person:'M'});approval.delete(doc(admin,path('requests','x')));await assertSucceeds(approval.commit());
+ const y=ctx('y','y@example.com');await assertSucceeds(setDoc(doc(y,path('requests','y')),{...req,email:'y@example.com'}));
+ const duplicate=writeBatch(admin);duplicate.set(doc(admin,path('approvalSlots','M')),{uid:'y'});duplicate.set(doc(admin,path('members','y')),{person:'M'});duplicate.delete(doc(admin,path('requests','y')));await assertFails(duplicate.commit());
+ await assertFails(deleteDoc(doc(admin,path('approvalSlots','M'))));
+ const reset=writeBatch(admin);reset.delete(doc(admin,path('members','x')));reset.delete(doc(admin,path('approvalSlots','M')));await assertSucceeds(reset.commit());
  await assertSucceeds(setDoc(doc(admin,path('members','a')),{person:'A'}));
  await assertFails(updateDoc(doc(a,path('members','a')),{person:'P'}));
  await assertSucceeds(setDoc(doc(a,path('expenses','e')),e));
