@@ -11,6 +11,14 @@ test('Trip wallet authorization',async()=>{
  try {
  await env.clearFirestore();
  await assertFails(setDoc(doc(outsider,path('members','x')),{person:'A'}));
+ const megha=ctx('m','posinasetty.sai@gmail.com'), fake=ctx('fake','unrelated@gmail.com');
+ const profile={person:'M',name:'MeghaSai',at:e.at};
+ await assertSucceeds(setDoc(doc(megha,path('members','m')),profile));
+ await assertFails(setDoc(doc(fake,path('members','fake')),profile));
+ await assertFails(setDoc(doc(megha,path('members','other')),profile));
+ await assertFails(updateDoc(doc(megha,path('members','m')),{person:'P'}));
+ await assertFails(setDoc(doc(ctx('p2','pranay2@gmail.com'),path('members','p2')),{...profile,person:'P'}));
+ await assertSucceeds(deleteDoc(doc(admin,path('members','m'))));
  await assertSucceeds(setDoc(doc(admin,path('members','a')),{person:'A'}));
  await assertFails(updateDoc(doc(a,path('members','a')),{person:'P'}));
  await assertSucceeds(setDoc(doc(a,path('expenses','e')),e));
