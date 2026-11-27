@@ -2474,9 +2474,9 @@ if (typeof module !== 'undefined') module.exports = Core;
       return l.kind==='expense' && ['added','edited','removed'].indexOf(l.act)>=0;
     }).slice().sort(function(a,b){return String(b.at||'').localeCompare(String(a.at||''));});
   }
-  function expenseAuditHTML(max, all) {
-    var entries=(all?data.log.slice().sort(function(a,b){return String(b.at||'').localeCompare(String(a.at||''));}):expenseAuditEntries()).slice(0,max||100);
-    return '<div class="expense-audit" id="expense-activity"><div class="row between"><h3>'+(all?'All travelers':'Expense activity')+'</h3><span class="count">'+
+  function expenseAuditHTML(max, all, itinerary) {
+    var entries=(itinerary?data.log.filter(function(l){return l.kind==='place'||(!l.kind && CITIES.some(function(c){return String(l.text||'').indexOf(c.name)>=0;}) && !/expense|payment/i.test(l.text||''));}).sort(function(a,b){return String(b.at||'').localeCompare(String(a.at||''));}):all?data.log.slice().sort(function(a,b){return String(b.at||'').localeCompare(String(a.at||''));}):expenseAuditEntries()).slice(0,max||100);
+    return '<div class="expense-audit" id="expense-activity"><div class="row between"><h3>'+(itinerary?'Itinerary activity':all?'All travelers':'Expense activity')+'</h3><span class="count">'+
       entries.length+'</span></div>'+
       (entries.length?'<ul class="list">'+entries.map(function(l){
         var when='';
@@ -2950,14 +2950,15 @@ if (typeof module !== 'undefined') module.exports = Core;
       (times.length?'<b>Times recognized</b>'+choose(times,'time'):'<p class="sub">No times recognized. Enter the time manually.</p>')+
       '<details><summary>View extracted screenshot text (not saved)</summary><pre class="flight-ocr-text">'+esc(o.text||'')+'</pre></details></div>';
   }
+  var showAccountActivity=false;
   function activityHTML() {
     var registered=PEOPLE.filter(function(p){return Object.keys(CLOUD.members).some(function(k){return CLOUD.members[k].person===p.id;});});
     var sessions=data.log.filter(function(l){return l.kind==='session'&&['login','logout'].indexOf(l.act)>=0;}).slice().sort(function(a,b){return String(b.at||'').localeCompare(String(a.at||''));});
     var seen={}, devices=sessions.filter(function(l){if(!l.deviceId)return l.act==='login';var key=l.who+':'+l.deviceId;if(seen[key])return false;seen[key]=true;return l.act==='login';});
     return '<section class="card activity-page"><div class="row between"><h2>Activity</h2><button type="button" class="link" data-act="activity-back">Back</button></div>'+
-      '<h3>Registered travelers ('+registered.length+'/7)</h3><ul class="list">'+PEOPLE.map(function(p){return '<li><div class="main"><b>'+esc(p.name)+'</b></div><span class="sub">'+(registered.some(function(r){return r.id===p.id;})?'Registered':'Not registered')+'</span></li>';}).join('')+'</ul>'+
+      '<button type="button" class="link" data-act="activity-accounts" aria-expanded="'+showAccountActivity+'">'+(showAccountActivity?'Hide':'Show')+' registered users &amp; devices</button>'+(showAccountActivity?'<h3>Registered travelers ('+registered.length+'/7)</h3><ul class="list">'+PEOPLE.map(function(p){return '<li><div class="main"><b>'+esc(p.name)+'</b></div><span class="sub">'+(registered.some(function(r){return r.id===p.id;})?'Registered':'Not registered')+'</span></li>';}).join('')+'</ul>'+
       '<h3>Recorded device logins</h3><p class="sub">Last recorded sessions, not live online status.</p>'+
-      (devices.length?'<ul class="list">'+devices.map(function(l){return '<li><div class="main"><b>'+esc(person(l.who))+'</b><div class="sub">'+esc(l.text||'Unknown device')+'</div><div class="sub">'+esc(new Date(l.at).toLocaleString())+'</div></div></li>';}).join('')+'</ul>':'<p class="sub">No device logins recorded yet.</p>')+'</section>';
+      (devices.length?'<ul class="list">'+devices.map(function(l){return '<li><div class="main"><b>'+esc(person(l.who))+'</b><div class="sub">'+esc(l.text||'Unknown device')+'</div><div class="sub">'+esc(new Date(l.at).toLocaleString())+'</div></div></li>';}).join('')+'</ul>':'<p class="sub">No device logins recorded yet.</p>'):'')+expenseAuditHTML(300,false,true)+'</section>';
   }
   function sessionDevice(){
     var id='';try{id=localStorage.getItem('vacation-device-id')||uid();localStorage.setItem('vacation-device-id',id);}catch(e){id=uid();}
@@ -3089,7 +3090,10 @@ if (typeof module !== 'undefined') module.exports = Core;
     var byId = {};
     data.places.forEach(function (p) { byId[p.id] = p; });
     var moved = ids.map(function (id) { return byId[id]; }).filter(Boolean);
+    var before=cityPlaces(cid).map(function(p){return p.id;});
+    if(JSON.stringify(before)===JSON.stringify(ids))return;
     data.places = data.places.filter(function (p) { return p.city !== cid; }).concat(moved);
+    logIt('reordered',cityName(cid)+' · '+moved.map(function(p){return p.name;}).join(' → '));data.log[data.log.length-1].kind='place';
     save();
   }
   var ADMIN_ONLY = ['reset-member', 'start-trip'];
@@ -3245,7 +3249,7 @@ if (typeof module !== 'undefined') module.exports = Core;
         reorderCity(ui.tab, newIds);
         var after = driveMiles(cityPlaces(ui.tab));
         ui.msg = 'Reordered for the shortest drive: about ' + Math.round(after) + ' mi instead of ' + Math.round(before) + ' mi. Restore previous order puts it back.';
-        logIt('reordered', cityName(ui.tab) + ' for the shortest drive');
+
         LEAF.fitKey = '';
         save();
       }
@@ -3256,7 +3260,7 @@ if (typeof module !== 'undefined') module.exports = Core;
         var ids = rl.slice().sort(function (x, y) { return (x.prevOrder || 1e6) - (y.prevOrder || 1e6); }).map(function (p) { return p.id; });
         rl.forEach(function (p) { delete p.prevOrder; });
         reorderCity(ui.tab, ids);
-        logIt('restored', 'the previous order in ' + cityName(ui.tab));
+
         LEAF.fitKey = '';
         save();
       }
@@ -3314,7 +3318,8 @@ if (typeof module !== 'undefined') module.exports = Core;
     }
     else if (a === 'reset-member') { CLOUD.fs.deleteDoc(CLOUD.fs.doc(CLOUD.db, 'trips', 'main', 'members', d.id)).catch(function () {}); return; }
     else if (a === 'toggle-log') { if(ui.tab!=='activity')previousActivityTab=ui.tab; ui.tab='activity';ui.menu=false;ui.showLog=false; }
-    else if (a === 'activity-back') { ui.tab=previousActivityTab; }
+    else if (a === 'activity-accounts') { showAccountActivity=!showAccountActivity; }
+    else if (a === 'activity-back') { ui.tab=previousActivityTab;showAccountActivity=false; }
     else if (a === 'invite') {
       var link = location.origin + location.pathname;
       ui.msg = 'Invite link: ' + link + '. Friends open it and sign in with Google.';
