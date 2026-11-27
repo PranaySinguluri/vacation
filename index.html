@@ -1142,6 +1142,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   /* Always open on San Diego; switching tabs still works during the session. */
 
   function save() {
+    if(CLOUD.guest)return;
     normalizePlaceOrder();
     if (CLOUD.on) { if (CLOUD.state === 'ready') pushCloud(); return; }
     try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {}
@@ -1354,6 +1355,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   /* Sends only what changed since the last copy from the server. */
   var cloudWriting = false, cloudPending = false;
   function pushCloud() {
+    if(CLOUD.guest)return;
     if (cloudWriting) { cloudPending = true; return; }
     var fs = CLOUD.fs, batch = fs.writeBatch(CLOUD.db), n = 0, order = {}, changes = [];
     data.places.forEach(function (p) { order[p.city] = (order[p.city] || 0) + 1; p.order = order[p.city]; });
@@ -1435,9 +1437,21 @@ if (typeof module !== 'undefined') module.exports = Core;
       softRender();
     }, function () {}));
   }
+  function listenGuest(){
+    if(CLOUD.guestListening===CLOUD.user)return;
+    var owner=CLOUD.user;CLOUD.guestListening=owner;
+    CLOUD.unsub.push(CLOUD.fs.onSnapshot(CLOUD.fs.collection(CLOUD.db,'trips','main','places'),function(snap){
+      if(CLOUD.user!==owner)return;
+      data.places=snap.docs.map(function(d){return Object.assign({id:d.id},d.data());});CLOUD.loaded.places=true;softRender();
+    },cloudErr));
+  }
+  function guestHTML(){
+    var c=cityById(ui.tab)||CITIES[0];
+    return '<section class="card"><h2>Guest · Read only</h2><p>View the trip itinerary. Private traveler information and editing are unavailable.</p></section><div class="tabs">'+CITIES.map(function(x){return '<button class="tab" data-act="tab" data-id="'+x.id+'">'+esc(x.name)+'</button>';}).join('')+'</div><section class="card"><h2>'+esc(c.name)+'</h2>'+(!CLOUD.loaded.places?'<p>Loading itinerary…</p>':cityPlaces(c.id).map(function(p){return '<div class="row between"><div><strong>'+esc(p.name)+'</strong><div class="sub">'+esc(p.date||p.checkIn||'')+' '+esc(p.time||p.checkInTime||'')+'</div></div></div>';}).join(''))+'</section>';
+  }
   function onUser(user) {
     CLOUD.unsub.forEach(function (f) { try { f(); } catch (e) {} });
-    CLOUD.unsub = []; CLOUD.loaded = {}; CLOUD.members = {}; CLOUD.user = user; CLOUD.person = ''; CLOUD.flightSync='loading'; me = '';
+    CLOUD.unsub = []; CLOUD.loaded = {}; CLOUD.members = {}; CLOUD.guest=false; CLOUD.guestListening=null; CLOUD.user = user; CLOUD.person = ''; CLOUD.flightSync='loading'; me = '';
     if (!user) { CLOUD.state = 'signedout'; CLOUD.admin = false; ui.admin = false; render(); return; }
     var fs = CLOUD.fs, db = CLOUD.db, ak = 'tripwallet.isadmin.' + user.uid;
     try { CLOUD.admin = localStorage.getItem(ak) === '1'; } catch (e) {}
@@ -1456,6 +1470,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       var mine=snap.exists()?snap.data():null;
       CLOUD.person=mine&&isPerson(mine.person)?mine.person:'';
       me=CLOUD.person;
+      if(!me && user.emailVerified && !PEOPLE.some(function(p){return emailFits(user.email,p.id);})) { CLOUD.guest=true; ui.admin=false; CLOUD.state='ready'; listenGuest(); softRender(); return; }
       if(!me){if(CLOUD.state==='ready'){onUser(user);return;}CLOUD.state='pickme';render();return;}
       if(!listed){listed=true;CLOUD.unsub.push(fs.onSnapshot(fs.collection(db,'trips','main','members'),function(all){
         if(CLOUD.user!==user)return;CLOUD.members={};all.docs.forEach(function(d){CLOUD.members[d.id]=d.data();});softRender();
@@ -3008,7 +3023,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   var previousActivityTab='costs';
   function recordSession(act) {
-    if(!CLOUD.user||!CLOUD.person||CLOUD.state!=='ready')return Promise.resolve();
+    if(CLOUD.guest||!CLOUD.user||!CLOUD.person||CLOUD.state!=='ready')return Promise.resolve();
     var device=sessionDevice();
     return CLOUD.fs.setDoc(tripDoc('log',uid()),{who:CLOUD.person,act:act,kind:'session',deviceId:device.id,text:device.label,at:new Date().toISOString()});
   }
@@ -3152,6 +3167,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
 
   function render() {
+    if(CLOUD.guest){syncHelp(false);app.innerHTML='<header class="hero"><div class="hero-in"><h1>Vacation</h1><button data-act="sign-out">Sign out</button></div></header>'+guestHTML();return;}
     syncHelp(!CLOUD.on || (CLOUD.state === 'ready' && allLoaded()));
     pendingRender = false;
     if ((!CLOUD.on || (CLOUD.state === 'ready' && allLoaded() && data.places.length)) && ensureBookings()) save();
@@ -3257,6 +3273,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   var ADMIN_ONLY = ['reset-member', 'start-trip'];
   function act(a, d) {
+    if(CLOUD.guest && ['tab','sign-out','retry'].indexOf(a)<0)return;
     if (ADMIN_ONLY.indexOf(a) >= 0 && !ui.admin) return;
     if (a !== 'toggle-menu') ui.menu = false;
     if (a !== 'ask') ui.confirm = null;
