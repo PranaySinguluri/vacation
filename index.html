@@ -709,7 +709,12 @@ html { overflow-x: hidden }
 .expense-amount{flex:none;font-size:14px}
 .expense-audit{margin-top:20px;padding-top:14px;border-top:1px solid var(--line)}
 .expense-audit h3{margin:0 0 7px}
-.expense-audit .list li{padding:9px 0}
+.expense-audit .list li{padding:9px 0;display:flex;align-items:flex-start;gap:10px}
+.expense-activity-icon{width:34px;height:34px;flex:0 0 34px;display:grid;place-items:center;border-radius:50%;color:var(--activity-color);background:var(--activity-bg)}
+.expense-activity-icon svg{width:18px;height:18px}
+.expense-activity-icon.added{--activity-color:#15803d;--activity-bg:#dcfce7}
+.expense-activity-icon.edited{--activity-color:#2563eb;--activity-bg:#dbeafe}
+.expense-activity-icon.removed{--activity-color:#dc2626;--activity-bg:#fee2e2}
 @media(max-width:500px){.shared-expenses{padding:12px}.expense-heading{align-items:stretch}.expense-heading .primary{width:100%}}
 </style>
 </head>
@@ -2474,7 +2479,9 @@ if (typeof module !== 'undefined') module.exports = Core;
         var when='';
         try {when=new Date(l.at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});}catch(e){}
         var verb=l.act==='added'?'added':l.act==='edited'?'edited':'deleted';
-        return '<li><div class="main"><b>'+esc(person(l.who))+' '+verb+' an expense</b>'+
+        var shape=l.act==='added'?'<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>':l.act==='edited'?'<path d="m15 5 4 4M4 20l4-1 12-12-4-4L4 15z"/>':'<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/>';
+        var icon='<span class="expense-activity-icon '+l.act+'" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+shape+'</svg></span>';
+        return '<li>'+icon+'<div class="main"><b>'+esc(person(l.who))+' '+verb+' an expense</b>'+
           '<div class="sub">'+esc(l.text||'')+'</div><div class="sub">'+esc(when)+'</div></div></li>';
       }).join('')+'</ul>':'<p class="sub">No expense activity yet. Add an expense to begin tracking changes.</p>')+
       '</div>';
