@@ -1434,30 +1434,33 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   function onUser(user) {
     CLOUD.unsub.forEach(function (f) { try { f(); } catch (e) {} });
-    CLOUD.unsub = []; CLOUD.loaded = {}; CLOUD.user = user; CLOUD.person = ''; CLOUD.flightSync='loading'; me = '';
+    CLOUD.unsub = []; CLOUD.loaded = {}; CLOUD.members={}; CLOUD.requests={}; CLOUD.request=null; CLOUD.approvalsOpen=false; CLOUD.user = user; CLOUD.person = ''; CLOUD.flightSync='loading'; me = '';
     if (!user) { CLOUD.state = 'signedout'; CLOUD.admin = false; ui.admin = false; render(); return; }
     var fs = CLOUD.fs, db = CLOUD.db, ak = 'tripwallet.isadmin.' + user.uid;
-    try { CLOUD.admin = localStorage.getItem(ak) === '1'; } catch (e) {}
+    CLOUD.admin = false;
     ui.admin = CLOUD.admin;
     CLOUD.state = 'loading'; render();
     /* Only the admin's account may write this document; the database rules decide. */
     fs.setDoc(fs.doc(db, 'trips', 'main', 'admin', 'check'), { at: new Date().toISOString() }).then(function () { return true; }, function () { return false; }).then(function (isAdmin) {
       if (CLOUD.user !== user) return;
       CLOUD.admin = isAdmin; ui.admin = isAdmin;
+      if(isAdmin){listMembers();CLOUD.unsub.push(fs.onSnapshot(fs.collection(db,'trips','main','requests'),function(snap){if(CLOUD.user!==user)return;CLOUD.requests={};snap.docs.forEach(function(d){CLOUD.requests[d.id]=d.data();});softRender();},function(e){ui.msg='Approval requests unavailable: '+e.code;softRender();}));}
       try { localStorage.setItem(ak, isAdmin ? '1' : '0'); } catch (e) {}
       softRender();
     });
-    CLOUD.unsub.push(fs.onSnapshot(fs.collection(db, 'trips', 'main', 'members'), function (snap) {
-      CLOUD.members = {};
-      snap.docs.forEach(function (d) { CLOUD.members[d.id] = d.data(); });
-      var mine = CLOUD.members[user.uid];
-      CLOUD.person = mine && isPerson(mine.person) ? mine.person : '';
-
-      me = CLOUD.person;
-      if (!CLOUD.person) { CLOUD.state = 'pickme'; render(); return; }
-      if (CLOUD.state !== 'ready') { CLOUD.state = 'ready'; listen(); var key='vacation-session-'+user.uid; try { if(!sessionStorage.getItem(key)){recordSession('login').then(function(){sessionStorage.setItem(key,'1');}).catch(function(){});} } catch(e) {} }
+    var listed=false;
+    function listMembers(){if(listed)return;listed=true;CLOUD.unsub.push(fs.onSnapshot(fs.collection(db,'trips','main','members'),function(snap){if(CLOUD.user!==user)return;CLOUD.members={};snap.docs.forEach(function(d){CLOUD.members[d.id]=d.data();});softRender();},function(){}));}
+    CLOUD.unsub.push(fs.onSnapshot(fs.doc(db,'trips','main','members',user.uid),function(snap){
+      if(CLOUD.user!==user)return;
+      var mine=snap.exists()?snap.data():null;
+      CLOUD.person=mine&&isPerson(mine.person)?mine.person:'';me=CLOUD.person;
+      if(!me){if(CLOUD.state==='ready'){onUser(user);return;}CLOUD.state='pickme';render();return;}
+      listMembers();
+      if(CLOUD.state!=='ready'){CLOUD.state='ready';listen();var key='vacation-session-'+user.uid;try{if(!sessionStorage.getItem(key)){recordSession('login').then(function(){sessionStorage.setItem(key,'1');}).catch(function(){});}}catch(e){}}
       softRender();
-    }, cloudErr));
+    },cloudErr));
+    CLOUD.unsub.push(fs.onSnapshot(fs.doc(db,'trips','main','requests',user.uid),function(snap){if(CLOUD.user!==user)return;CLOUD.request=snap.exists()?snap.data():null;softRender();},function(){}));
+
   }
   function loadFirebase() {
     if (window.__tripwalletFirebase) return Promise.resolve(window.__tripwalletFirebase);
@@ -3014,10 +3017,12 @@ if (typeof module !== 'undefined') module.exports = Core;
         '<div><button class="primary big" data-act="sign-in">' + GLOGO + 'Sign in with Google</button></div></section>';
     }
     if (st === 'pickme') {
+      if(CLOUD.request&&CLOUD.request.status==='pending')return '<section class="card gate"><h2>Approval pending</h2><p>Requested profile: '+esc(person(CLOUD.request.person))+'</p><button data-act="sign-out">Sign out</button></section>';
+      if(CLOUD.request&&CLOUD.request.status==='rejected')return '<section class="card gate"><h2>Request rejected</h2><p>Contact the administrator.</p><button data-act="sign-out">Sign out</button></section>';
       var taken = {};
       Object.keys(CLOUD.members).forEach(function (k) { if (k !== CLOUD.user.uid) taken[CLOUD.members[k].person] = CLOUD.members[k].name || 'someone'; });
       return '<section class="card gate"><h2 class="gatehead">Which traveler are you?</h2>' +
-        '<p class="sub" style="margin:0">Signed in as ' + esc(CLOUD.user.email || CLOUD.user.displayName || 'you') + '. Pick your name once. Your Gmail needs to include your first or last name.</p>' +
+        '<p class="sub" style="margin:0">Signed in as ' + esc(CLOUD.user.email || CLOUD.user.displayName || 'you') + '. Pick your name to request administrator approval. Your Gmail needs to include your first or last name.</p>' +
         '<div class="chips">' + PEOPLE.map(function (p) {
           return taken[p.id] ? '<button class="btn chipbtn" disabled title="Picked by ' + esc(taken[p.id]) + '">' + esc(p.name) + ' (taken)</button>'
             : '<button class="btn chipbtn' + (emailFits(CLOUD.user.email, p.id) ? ' fits' : '') + '" data-act="be" data-id="' + p.id + '">' + esc(p.name) + '</button>';
@@ -3161,6 +3166,7 @@ if (typeof module !== 'undefined') module.exports = Core;
           '<div class="sub">' + esc(u.email || '') + '</div>' + (me ? '<div class="sub">Traveling as ' + esc(person(me)) + '</div>' : '') + '</div></div>' +
           (CLOUD.state === 'ready' ? '<button type="button" role="menuitem" data-act="invite">Invite friends</button>' +
             '<button type="button" role="menuitem" data-act="toggle-log">Activity</button>' : '') +
+          (CLOUD.admin ? '<button type="button" role="menuitem" data-act="approvals-toggle">User Approvals</button>' : '') +
           '<button type="button" role="menuitem" data-act="download-backup">Download trip backup</button>' +
           '<button type="button" role="menuitem" data-act="sign-out">Sign out</button></div>';
       }
@@ -3178,6 +3184,7 @@ if (typeof module !== 'undefined') module.exports = Core;
           '" title="' + (mine ? 'Your profile · ' : '') + 'View ' + esc(p.name) + '\'s flight arrival and departure">' +
           esc(p.name) + (mine ? ' <span class="sr-only">(you)</span>' : '') + '</button>';
       }).join('') + '</div></div></header>';
+    h += approvalsHTML();
     if (CLOUD.on && CLOUD.state !== 'ready') {
       if (ui.msg) h += '<div class="note warnnote" role="alert">' + esc(ui.msg) + '</div>';
       app.innerHTML = h + gateHTML();
@@ -3249,7 +3256,12 @@ if (typeof module !== 'undefined') module.exports = Core;
     logIt('reordered',cityName(cid)+' · '+moved.map(function(p){return p.name;}).join(' → '));data.log[data.log.length-1].kind='place';
     save();
   }
-  var ADMIN_ONLY = ['reset-member', 'start-trip'];
+  function approvalsHTML(){
+    if(!CLOUD.admin||!CLOUD.approvalsOpen)return '';
+    var requests=CLOUD.requests||{},ids=Object.keys(requests).filter(function(id){return requests[id].status==='pending';});
+    return '<section class="card"><div class="row between"><h3>User Approvals</h3><button data-act="approvals-toggle">Close</button></div>'+ (ids.length?ids.map(function(id){var r=requests[id];return '<div class="row between" style="flex-wrap:wrap"><div><strong>'+esc(person(r.person))+'</strong><div class="sub">'+esc(r.email)+'</div></div><div><button class="primary" data-act="approve-user" data-id="'+esc(id)+'">Approve</button> <button class="btn danger" data-act="reject-user" data-id="'+esc(id)+'">Reject</button></div></div>';}).join(''):'<p>No pending requests.</p>')+'</section>';
+  }
+  var ADMIN_ONLY = ['reset-member', 'start-trip','approvals-toggle','approve-user','reject-user'];
   function act(a, d) {
     if (ADMIN_ONLY.indexOf(a) >= 0 && !ui.admin) return;
     if (a !== 'toggle-menu') ui.menu = false;
@@ -3457,6 +3469,18 @@ if (typeof module !== 'undefined') module.exports = Core;
     else if (a === 'sign-in') { signIn(); return; }
     else if (a === 'sign-out') { ui.msg = ''; var user=CLOUD.user; var finish=function(){try{if(user)sessionStorage.removeItem('vacation-session-'+user.uid);}catch(e){} CLOUD.au.signOut(CLOUD.auth);}; Promise.race([recordSession('logout').catch(function(){}),new Promise(function(resolve){setTimeout(resolve,1500);})]).then(finish); return; }
     else if (a === 'retry') { location.reload(); return; }
+    else if(a==='approvals-toggle'){CLOUD.approvalsOpen=!CLOUD.approvalsOpen;render();return;}
+    else if(a==='approve-user'||a==='reject-user'){
+      if(!CLOUD.admin)return;
+      var r=(CLOUD.requests||{})[d.id];if(!r||r.status!=='pending'||!isPerson(r.person))return;
+      var fs=CLOUD.fs,db=CLOUD.db,owner=CLOUD.user;
+      if(a==='approve-user'&&Object.keys(CLOUD.members).some(function(id){return id!==d.id&&CLOUD.members[id].person===r.person;})){ui.msg='That traveler is already assigned.';render();return;}
+      if(!window.confirm((a==='approve-user'?'Approve ':'Reject ')+r.email+' as '+person(r.person)+'?'))return;
+      var batch=fs.writeBatch(db),ref=fs.doc(db,'trips','main','requests',d.id);
+      if(a==='approve-user') {batch.set(fs.doc(db,'trips','main','members',d.id),{person:r.person,name:person(r.person),at:new Date().toISOString()});batch.delete(ref);}
+      else batch.update(ref,{status:'rejected'});
+      batch.commit().catch(function(e){if(CLOUD.user===owner){ui.msg='Approval failed: '+e.code;render();}});return;
+    }
     else if (a === 'be') {
       if (!emailFits(CLOUD.user.email, d.id)) {
         ui.msg = (CLOUD.user.email || 'This Google account') + ' does not look like ' + person(d.id) + '\'s Gmail, so it cannot join as ' + person(d.id) +
@@ -3465,7 +3489,7 @@ if (typeof module !== 'undefined') module.exports = Core;
         return;
       }
       ui.msg = '';
-      CLOUD.fs.setDoc(CLOUD.fs.doc(CLOUD.db, 'trips', 'main', 'members', CLOUD.user.uid), { person: d.id, name: String(CLOUD.user.displayName || '').slice(0, 60), at: new Date().toISOString() })
+      CLOUD.fs.setDoc(CLOUD.fs.doc(CLOUD.db, 'trips', 'main', 'requests', CLOUD.user.uid), { person: d.id, email: CLOUD.user.email, status: 'pending', at: new Date().toISOString() })
         .catch(function (err) { ui.msg = 'Could not save your name (' + (err.code || err.message) + ').'; render(); });
       return;
     }
