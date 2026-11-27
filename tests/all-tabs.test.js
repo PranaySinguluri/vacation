@@ -215,8 +215,11 @@ test('red debtor summary says You owe',()=>{
 test('Arizona stop time uses Phoenix timezone',()=>{
   assert.ok(html.includes("p.city === 'az' ? 'America/Phoenix' : 'America/Los_Angeles'"));
 });
-test('footer gets latest code commit timestamp, not old v26 date',()=>{
-  assert.ok(html.includes('api.github.com/repos/PranaySinguluri/vacation/commits'));
+test('footer reads published site timestamp with offline fallback',()=>{
+  assert.ok(html.includes("r.headers.get('Last-Modified')"));
+  assert.ok(html.includes("method:'HEAD'"));
+  assert.ok(html.includes('Last known update'));
+  assert.ok(!html.includes('api.github.com/repos/PranaySinguluri/vacation/commits'));
   assert.ok(!html.includes("new Date('2026-11-20T00:48:00Z')"));
 });
 
