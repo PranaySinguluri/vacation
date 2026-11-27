@@ -1624,8 +1624,9 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   var pendingRender = false, drag = null;
   function typing() { var a = document.activeElement; return !!(a && app.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)); }
-  function softRender() { if (typing() || drag) pendingRender = true; else render(); }
-  app.addEventListener('focusout', function () { setTimeout(function () { if (pendingRender && !typing() && !drag) render(); }, 0); });
+  function interactionBusy() { return typing() || !!drag || !!ui.adding || !!ui.editing || !!ui.editingExp || !!ui.flightEditing; }
+  function softRender() { if (interactionBusy()) pendingRender = true; else render(); }
+  app.addEventListener('focusout', function () { setTimeout(function () { if (pendingRender && !interactionBusy()) render(); }, 0); });
 
   /* ---------- Place search (Photon, a free OpenStreetMap search made for type-ahead) ---------- */
   var searchSeq = 0, searchTimer = null, results = [], active = -1;
@@ -3846,7 +3847,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     clearTimeout(d.timer);
     d.list.classList.remove('reordering');
     d.card.classList.remove('dragging');
-    if (!d.active) return;
+    if (!d.active) { if (pendingRender && !interactionBusy()) render(); return; }
     if (d.moved) reorderCity(d.list.dataset.city, Array.prototype.map.call(d.list.querySelectorAll('.stop'), function (s) { return s.dataset.id; }));
     render();
   }
