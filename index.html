@@ -1434,7 +1434,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   function onUser(user) {
     CLOUD.unsub.forEach(function (f) { try { f(); } catch (e) {} });
-    CLOUD.unsub = []; CLOUD.loaded = {}; CLOUD.members={}; CLOUD.requests={}; CLOUD.request=null; CLOUD.approvalsOpen=false; CLOUD.user = user; CLOUD.person = ''; CLOUD.flightSync='loading'; me = '';
+    CLOUD.unsub = []; CLOUD.loaded = {}; CLOUD.members={}; CLOUD.requests={}; CLOUD.request=null; CLOUD.retryRequest=false; CLOUD.approvalsOpen=false; CLOUD.approvalBusy={}; CLOUD.user = user; CLOUD.person = ''; CLOUD.flightSync='loading'; me = '';
     if (!user) { CLOUD.state = 'signedout'; CLOUD.admin = false; ui.admin = false; render(); return; }
     var fs = CLOUD.fs, db = CLOUD.db, ak = 'tripwallet.isadmin.' + user.uid;
     CLOUD.admin = false;
@@ -3018,7 +3018,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     }
     if (st === 'pickme') {
       if(CLOUD.request&&CLOUD.request.status==='pending')return '<section class="card gate"><h2>Approval pending</h2><p>Requested profile: '+esc(person(CLOUD.request.person))+'</p><button data-act="sign-out">Sign out</button></section>';
-      if(CLOUD.request&&CLOUD.request.status==='rejected')return '<section class="card gate"><h2>Request rejected</h2><p>Contact the administrator.</p><button data-act="sign-out">Sign out</button></section>';
+      if(CLOUD.request&&CLOUD.request.status==='rejected'&&!CLOUD.retryRequest)return '<section class="card gate"><h2>Request rejected</h2><p>You may submit a new request.</p><button data-act="retry-request">Request again</button> <button data-act="sign-out">Sign out</button></section>';
       var taken = {};
       Object.keys(CLOUD.members).forEach(function (k) { if (k !== CLOUD.user.uid) taken[CLOUD.members[k].person] = CLOUD.members[k].name || 'someone'; });
       return '<section class="card gate"><h2 class="gatehead">Which traveler are you?</h2>' +
@@ -3469,17 +3469,26 @@ if (typeof module !== 'undefined') module.exports = Core;
     else if (a === 'sign-in') { signIn(); return; }
     else if (a === 'sign-out') { ui.msg = ''; var user=CLOUD.user; var finish=function(){try{if(user)sessionStorage.removeItem('vacation-session-'+user.uid);}catch(e){} CLOUD.au.signOut(CLOUD.auth);}; Promise.race([recordSession('logout').catch(function(){}),new Promise(function(resolve){setTimeout(resolve,1500);})]).then(finish); return; }
     else if (a === 'retry') { location.reload(); return; }
+    else if(a==='retry-request'){CLOUD.retryRequest=true;render();return;}
     else if(a==='approvals-toggle'){CLOUD.approvalsOpen=!CLOUD.approvalsOpen;render();return;}
     else if(a==='approve-user'||a==='reject-user'){
-      if(!CLOUD.admin)return;
+      if(!CLOUD.admin||CLOUD.approvalBusy[d.id])return;
       var r=(CLOUD.requests||{})[d.id];if(!r||r.status!=='pending'||!isPerson(r.person))return;
       var fs=CLOUD.fs,db=CLOUD.db,owner=CLOUD.user;
       if(a==='approve-user'&&Object.keys(CLOUD.members).some(function(id){return id!==d.id&&CLOUD.members[id].person===r.person;})){ui.msg='That traveler is already assigned.';render();return;}
       if(!window.confirm((a==='approve-user'?'Approve ':'Reject ')+r.email+' as '+person(r.person)+'?'))return;
-      var batch=fs.writeBatch(db),ref=fs.doc(db,'trips','main','requests',d.id);
-      if(a==='approve-user') {batch.set(fs.doc(db,'trips','main','members',d.id),{person:r.person,name:person(r.person),at:new Date().toISOString()});batch.delete(ref);}
-      else batch.update(ref,{status:'rejected'});
-      batch.commit().catch(function(e){if(CLOUD.user===owner){ui.msg='Approval failed: '+e.code;render();}});return;
+      CLOUD.approvalBusy[d.id]=true;
+      var ref=fs.doc(db,'trips','main','requests',d.id),memberRef=fs.doc(db,'trips','main','members',d.id),lock=fs.doc(db,'trips','main','approvalSlots',r.person);
+      fs.runTransaction(db,async function(tx){
+        if(CLOUD.user!==owner)throw new Error('Account changed');
+        var current=await tx.get(ref);
+        if(!current.exists()||current.data().status!=='pending'||current.data().person!==r.person||current.data().email!==r.email)throw new Error('Request changed');
+        if(a==='approve-user'){
+          var slot=await tx.get(lock),existing=await tx.get(memberRef);
+          if(slot.exists()||existing.exists())throw new Error('Traveler already assigned');
+          tx.set(lock,{uid:d.id});tx.set(memberRef,{person:r.person,name:person(r.person),at:new Date().toISOString()});tx.delete(ref);
+        }else tx.update(ref,{status:'rejected'});
+      }).catch(function(e){if(CLOUD.user===owner)ui.msg='Approval failed: '+(e.code||e.message);}).finally(function(){if(CLOUD.user===owner){delete CLOUD.approvalBusy[d.id];render();}});return;
     }
     else if (a === 'be') {
       if (!emailFits(CLOUD.user.email, d.id)) {
@@ -3493,7 +3502,7 @@ if (typeof module !== 'undefined') module.exports = Core;
         .catch(function (err) { ui.msg = 'Could not save your name (' + (err.code || err.message) + ').'; render(); });
       return;
     }
-    else if (a === 'reset-member') { CLOUD.fs.deleteDoc(CLOUD.fs.doc(CLOUD.db, 'trips', 'main', 'members', d.id)).catch(function () {}); return; }
+    else if (a === 'reset-member') { var fs=CLOUD.fs,db=CLOUD.db,owner=CLOUD.user;fs.runTransaction(db,async function(tx){var ref=fs.doc(db,'trips','main','members',d.id),m=await tx.get(ref);if(!m.exists())return;var lock=fs.doc(db,'trips','main','approvalSlots',m.data().person),slot=await tx.get(lock);if(slot.exists()&&slot.data().uid===d.id)tx.delete(lock);tx.delete(ref);}).catch(function(e){if(CLOUD.user===owner){ui.msg='Reset failed: '+(e.code||e.message);render();}});return; }
     else if (a === 'toggle-log') { if(ui.tab!=='activity')previousActivityTab=ui.tab; ui.tab='activity';ui.menu=false;ui.showLog=false; }
     else if (a === 'activity-accounts') { showAccountActivity=!showAccountActivity; }
     else if (a === 'expense-section') { if(['expenses','balances','totals','activity'].indexOf(d.id)>=0)expenseSection=d.id; }
