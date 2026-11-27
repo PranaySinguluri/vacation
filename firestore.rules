@@ -45,7 +45,7 @@ service cloud.firestore {
    allow delete: if admin();
   }
   match /trips/main/places/{id} {
-   allow read: if access();
+   allow read: if verified();
    allow create, update: if access() && request.resource.data.keys().size() <= 30;
    allow delete: if admin();
   }
