@@ -25,24 +25,36 @@ service cloud.firestore {
     && amount(d.amount) && short(d.date,10) && d.by in people() && short(d.at,35);
   }
   match /trips/main/admin/{id} { allow read, write: if admin(); }
-  match /trips/main/requests/{uid} {
-   allow get: if admin() || (verified() && request.auth.uid == uid);
-   allow list: if admin();
-   allow create: if verified() && request.auth.uid == uid && !member()
+  function validRequest(uid) {
+   return verified() && request.auth.uid == uid && !member()
     && request.resource.data.keys().hasOnly(['person','email','status','at'])
     && request.resource.data.person in people()
     && request.resource.data.email == request.auth.token.email
     && request.resource.data.status == 'pending' && short(request.resource.data.at,35);
-   allow update: if admin() && resource.data.status == 'pending'
+  }
+  match /trips/main/approvalSlots/{p} {
+   allow read: if admin();
+   allow create: if admin() && p in people() && request.resource.data.keys().hasOnly(['uid'])
+    && request.resource.data.uid is string
+    && getAfter(/databases/$(database)/documents/trips/main/members/$(request.resource.data.uid)).data.person == p;
+   allow update: if false;
+   allow delete: if admin() && !existsAfter(/databases/$(database)/documents/trips/main/members/$(resource.data.uid));
+  }
+  match /trips/main/requests/{uid} {
+   allow get: if admin() || (verified() && request.auth.uid == uid);
+   allow list: if admin();
+   allow create: if validRequest(uid);
+   allow update: if (resource.data.status == 'rejected' && validRequest(uid)) || (admin() && resource.data.status == 'pending'
     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
-    && request.resource.data.status == 'rejected';
+    && request.resource.data.status == 'rejected');
    allow delete: if admin();
   }
   match /trips/main/members/{uid} {
    allow get: if admin() || (verified() && request.auth.uid == uid) || member();
    allow list: if access();
    allow create, update: if admin() && request.resource.data.person in people()
-    && request.resource.data.keys().hasOnly(['person','name','at','photo']);
+    && request.resource.data.keys().hasOnly(['person','name','at','photo'])
+    && (!exists(/databases/$(database)/documents/trips/main/requests/$(uid)) || (get(/databases/$(database)/documents/trips/main/requests/$(uid)).data.status == 'pending' && get(/databases/$(database)/documents/trips/main/requests/$(uid)).data.person == request.resource.data.person && getAfter(/databases/$(database)/documents/trips/main/approvalSlots/$(request.resource.data.person)).data.uid == uid && !existsAfter(/databases/$(database)/documents/trips/main/requests/$(uid))));
    allow delete: if admin();
   }
   match /trips/main/places/{id} {
