@@ -2951,12 +2951,25 @@ if (typeof module !== 'undefined') module.exports = Core;
       '<details><summary>View extracted screenshot text (not saved)</summary><pre class="flight-ocr-text">'+esc(o.text||'')+'</pre></details></div>';
   }
   function activityHTML() {
-    return '<section class="card activity-page"><div class="row between"><h2>Activity</h2><button type="button" class="link" data-act="activity-back">Back</button></div>'+expenseAuditHTML(300,true)+'</section>';
+    var registered=PEOPLE.filter(function(p){return Object.keys(CLOUD.members).some(function(k){return CLOUD.members[k].person===p.id;});});
+    var sessions=data.log.filter(function(l){return l.kind==='session'&&['login','logout'].indexOf(l.act)>=0;}).slice().sort(function(a,b){return String(b.at||'').localeCompare(String(a.at||''));});
+    var seen={}, devices=sessions.filter(function(l){if(!l.deviceId)return l.act==='login';var key=l.who+':'+l.deviceId;if(seen[key])return false;seen[key]=true;return l.act==='login';});
+    return '<section class="card activity-page"><div class="row between"><h2>Activity</h2><button type="button" class="link" data-act="activity-back">Back</button></div>'+
+      '<h3>Registered travelers ('+registered.length+'/7)</h3><ul class="list">'+PEOPLE.map(function(p){return '<li><div class="main"><b>'+esc(p.name)+'</b></div><span class="sub">'+(registered.some(function(r){return r.id===p.id;})?'Registered':'Not registered')+'</span></li>';}).join('')+'</ul>'+
+      '<h3>Recorded device logins</h3><p class="sub">Last recorded sessions, not live online status.</p>'+
+      (devices.length?'<ul class="list">'+devices.map(function(l){return '<li><div class="main"><b>'+esc(person(l.who))+'</b><div class="sub">'+esc(l.text||'Unknown device')+'</div><div class="sub">'+esc(new Date(l.at).toLocaleString())+'</div></div></li>';}).join('')+'</ul>':'<p class="sub">No device logins recorded yet.</p>')+'</section>';
+  }
+  function sessionDevice(){
+    var id='';try{id=localStorage.getItem('vacation-device-id')||uid();localStorage.setItem('vacation-device-id',id);}catch(e){id=uid();}
+    var ua=String(navigator.userAgent||''),os=/iPhone/.test(ua)?'iPhone':/iPad/.test(ua)?'iPad':/Android/.test(ua)?'Android':/Windows/.test(ua)?'Windows':/Macintosh/.test(ua)?'Mac':/Linux/.test(ua)?'Linux':'Unknown device';
+    var browser=/Edg/.test(ua)?'Edge':/Chrome|CriOS/.test(ua)?'Chrome':/Firefox|FxiOS/.test(ua)?'Firefox':/Safari/.test(ua)?'Safari':'Unknown browser';
+    return {id:id,label:os+' · '+browser};
   }
   var previousActivityTab='costs';
   function recordSession(act) {
     if(!CLOUD.user||!CLOUD.person||CLOUD.state!=='ready')return Promise.resolve();
-    return CLOUD.fs.setDoc(tripDoc('log',uid()),{who:CLOUD.person,act:act,kind:'session',text:'',at:new Date().toISOString()});
+    var device=sessionDevice();
+    return CLOUD.fs.setDoc(tripDoc('log',uid()),{who:CLOUD.person,act:act,kind:'session',deviceId:device.id,text:device.label,at:new Date().toISOString()});
   }
   function gateHTML() {
     var st = CLOUD.state;
