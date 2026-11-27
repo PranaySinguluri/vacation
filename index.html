@@ -1128,6 +1128,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   /* Always open on San Diego; switching tabs still works during the session. */
 
   function save() {
+    normalizePlaceOrder();
     if (CLOUD.on) { if (CLOUD.state === 'ready') pushCloud(); return; }
     try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {}
   }
@@ -1491,7 +1492,24 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   function allLoaded() { return CLOUD.loaded.places && CLOUD.loaded.expenses && CLOUD.loaded.payments && CLOUD.loaded.deleted; }
   function saveLegs() { try { localStorage.setItem(LEGS_KEY, JSON.stringify(legCache)); } catch (e) {} }
-  function cityPlaces(cid) { return data.places.filter(function (p) { return p.city === cid; }); }
+  function scheduleKey(p) {
+    var date = p.kind === 'stay' ? (p.checkIn || p.date) : p.date;
+    var time = p.kind === 'stay' ? (p.checkInTime || p.time) : p.time;
+    return /^\d{4}-\d{2}-\d{2}$/.test(date || '') && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time || '') ? date + 'T' + time : '';
+  }
+  function sortScheduledSlots(places) {
+    var scheduled = places.filter(function(p){return !!scheduleKey(p);}).sort(function(a,b){return scheduleKey(a).localeCompare(scheduleKey(b));});
+    var i=0;
+    return places.map(function(p){return scheduleKey(p)?scheduled[i++]:p;});
+  }
+  function normalizePlaceOrder() {
+    var cities={};
+    data.places.forEach(function(p){(cities[p.city]||(cities[p.city]=[])).push(p);});
+    Object.keys(cities).forEach(function(cid){cities[cid]=sortScheduledSlots(cities[cid]);});
+    var offsets={};
+    data.places=data.places.map(function(p){var i=offsets[p.city]||0;offsets[p.city]=i+1;return cities[p.city][i];});
+  }
+  function cityPlaces(cid) { return sortScheduledSlots(data.places.filter(function (p) { return p.city === cid; })); }
   function placeById(id) { return data.places.find(function (p) { return p.id === id; }); }
   function standalone() { try { return window.top === window.self && /^https?:$/.test(location.protocol); } catch (e) { return false; } }
 
@@ -3094,9 +3112,9 @@ if (typeof module !== 'undefined') module.exports = Core;
   function reorderCity(cid, ids) {
     var byId = {};
     data.places.forEach(function (p) { byId[p.id] = p; });
-    var moved = ids.map(function (id) { return byId[id]; }).filter(Boolean);
+    var moved = sortScheduledSlots(ids.map(function (id) { return byId[id]; }).filter(Boolean));
     var before=cityPlaces(cid).map(function(p){return p.id;});
-    if(JSON.stringify(before)===JSON.stringify(ids))return;
+    if(JSON.stringify(before)===JSON.stringify(moved.map(function(p){return p.id;})))return;
     data.places = data.places.filter(function (p) { return p.city !== cid; }).concat(moved);
     logIt('reordered',cityName(cid)+' · '+moved.map(function(p){return p.name;}).join(' → '));data.log[data.log.length-1].kind='place';
     save();
