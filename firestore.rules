@@ -1,0 +1,78 @@
+rules_version = '2';
+service cloud.firestore {
+ match /databases/{database}/documents {
+  function verified() { return request.auth != null && request.auth.token.email_verified == true; }
+  function admin() { return verified() && request.auth.token.email == 'singuluripranay@gmail.com'; }
+  function people() { return ['A','D','H','M','P','R','S']; }
+  function member() { return verified() && exists(/databases/$(database)/documents/trips/main/members/$(request.auth.uid)); }
+  function person() { return get(/databases/$(database)/documents/trips/main/members/$(request.auth.uid)).data.person; }
+  function access() { return admin() || member(); }
+  function actor(p) { return member() && person() == p; }
+  function short(s,n) { return s is string && s.size() <= n; }
+  function amount(n) { return n is int && n > 0 && n <= 100000000; }
+  function split(s) { return s is list && s.size() > 0 && s.size() <= 7 && s.hasOnly(people()) && s.toSet().size() == s.size(); }
+  function expense(d) {
+   return d.keys().hasOnly(['desc','amount','paidBy','split','date','currency','category','by','at','merchant','time','quantity','unit','unitPrice','updatedBy','updatedAt'])
+    && short(d.desc,80) && d.desc.size() > 0 && amount(d.amount)
+    && d.paidBy in people() && split(d.split) && short(d.date,10)
+    && d.get('currency','USD') == 'USD'
+    && d.get('category','Other') in ['Gas','Food','Transport','Activities','Other']
+    && d.by in people() && short(d.at,35);
+  }
+  function payment(d) {
+   return d.keys().hasOnly(['from','to','amount','date','by','at'])
+    && d.from in people() && d.to in people() && d.from != d.to
+    && amount(d.amount) && short(d.date,10) && d.by in people() && short(d.at,35);
+  }
+  match /trips/main/admin/{id} { allow read, write: if admin(); }
+  match /trips/main/members/{uid} {
+   allow get: if admin() || (verified() && request.auth.uid == uid) || member();
+   allow list: if access();
+   allow create, update: if admin() && request.resource.data.person in people()
+    && request.resource.data.keys().hasOnly(['person','name','at','photo']);
+   allow delete: if admin();
+  }
+  match /trips/main/places/{id} {
+   allow read: if access();
+   allow create, update: if access() && request.resource.data.keys().size() <= 30;
+   allow delete: if admin();
+  }
+  match /trips/main/expenses/{id} {
+   allow read: if access();
+   allow create: if access() && expense(request.resource.data) && actor(request.resource.data.by);
+   allow update: if admin() && expense(request.resource.data) && request.resource.data.by == resource.data.by;
+   allow delete: if admin();
+  }
+  match /trips/main/payments/{id} {
+   allow read: if access();
+   allow create: if access() && payment(request.resource.data) && actor(request.resource.data.by)
+    && (admin() || request.resource.data.from == person());
+   allow update: if admin() && payment(request.resource.data);
+   allow delete: if admin();
+  }
+  match /trips/main/log/{id} {
+   allow read: if access();
+   allow create: if access() && actor(request.resource.data.who)
+    && request.resource.data.keys().size() <= 15
+    && short(request.resource.data.text,140) && short(request.resource.data.act,40)
+    && short(request.resource.data.at,35);
+   allow update, delete: if false;
+  }
+  match /trips/main/deleted/{id} { allow read: if access(); allow write: if admin(); }
+  match /trips/main/flights/{id} {
+   allow read: if access();
+   allow create, update: if id in people() && (admin() || actor(id))
+    && request.resource.data.keys().hasOnly(['arrival','departure','by','at'])
+    && actor(request.resource.data.by);
+   allow delete: if admin();
+  }
+  match /trips/main/albums/{id} {
+   allow read: if access();
+   allow create, update: if access() && actor(request.resource.data.by)
+    && request.resource.data.keys().hasOnly(['url','by','at'])
+    && short(request.resource.data.url,2048) && request.resource.data.url.matches('https://.*')
+    && short(request.resource.data.at,35);
+   allow delete: if admin();
+  }
+ }
+}
