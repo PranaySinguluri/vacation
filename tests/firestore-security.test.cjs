@@ -11,6 +11,21 @@ test('Trip wallet authorization',async()=>{
  try {
  await env.clearFirestore();
  await assertFails(setDoc(doc(outsider,path('members','x')),{person:'A'}));
+ const req={person:'M',email:'x@example.com',status:'pending',at:e.at};
+ await assertFails(setDoc(doc(outsider,path('requests','other')),req));
+ await assertFails(setDoc(doc(outsider,path('requests','x')),{...req,email:'fake@example.com'}));
+ await assertFails(setDoc(doc(outsider,path('requests','x')),{...req,status:'approved'}));
+ await assertSucceeds(setDoc(doc(outsider,path('requests','x')),req));
+ await assertSucceeds(getDoc(doc(outsider,path('requests','x'))));
+ await assertFails(getDoc(doc(a,path('requests','x'))));
+ await assertFails(updateDoc(doc(outsider,path('requests','x')),{status:'rejected'}));
+ await assertSucceeds(getDoc(doc(admin,path('requests','x'))));
+ await assertSucceeds(updateDoc(doc(admin,path('requests','x')),{status:'rejected'}));
+ await assertFails(setDoc(doc(outsider,path('requests','x')),req));
+ await assertSucceeds(deleteDoc(doc(admin,path('requests','x'))));
+ await assertSucceeds(setDoc(doc(outsider,path('requests','x')),req));
+ const approval=writeBatch(admin);approval.set(doc(admin,path('members','x')),{person:'M'});approval.delete(doc(admin,path('requests','x')));await assertSucceeds(approval.commit());
+ await assertSucceeds(deleteDoc(doc(admin,path('members','x'))));
  await assertSucceeds(setDoc(doc(admin,path('members','a')),{person:'A'}));
  await assertFails(updateDoc(doc(a,path('members','a')),{person:'P'}));
  await assertSucceeds(setDoc(doc(a,path('expenses','e')),e));
