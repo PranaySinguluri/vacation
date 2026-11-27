@@ -3048,7 +3048,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   function syncHelp(allowed){
     var owner=CLOUD.on?(CLOUD.user&&CLOUD.user.uid):'local';
     if(helpRoot&&(!allowed||helpOwner!==owner)){helpRoot.remove();helpRoot=null;}
-    if(!allowed||helpRoot)return;
+    if(!allowed||helpRoot||typeof document.createElement!=='function'||!document.body)return;
     helpOwner=owner;helpRoot=document.createElement('aside');helpRoot.id='vac-help';
     helpRoot.innerHTML='<button id="vac-help-toggle" type="button" aria-expanded="false" aria-controls="vac-help-panel">? Help</button><section id="vac-help-panel" hidden aria-label="Vacation Help"><div class="row between"><strong>Vacation Help</strong><button type="button" id="vac-help-close" aria-label="Close help">×</button></div><small>Built-in help · No live AI or traffic</small><div id="vac-help-messages" role="log" aria-live="polite"></div><div class="row"><button type="button" data-help="Show itinerary">Itinerary</button><button type="button" data-help="Show bookings">Bookings</button><button type="button" data-help="Expenses help">Expenses</button></div><form id="vac-help-form"><input aria-label="Your question" maxlength="300" placeholder="Ask for help…" required><button type="submit">Send</button></form></section>';
     document.body.appendChild(helpRoot);
