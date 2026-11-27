@@ -700,7 +700,7 @@ html { overflow-x: hidden }
 .expense-heading .primary{min-height:42px}
 .expense-total{margin:14px 0 16px;padding:12px 14px;background:var(--primary-soft);border-radius:12px;display:flex;justify-content:space-between;gap:12px;align-items:center}
 .expense-total strong{font-size:22px;color:var(--ink)}
-.expense-people{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:7px;margin-bottom:16px}
+.expense-section-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;margin:12px 0;padding:3px;border:1px solid var(--line);border-radius:10px}.expense-section-tabs button{min-width:0;padding:9px 2px;font-size:12px;border:0;background:transparent;color:var(--ink);border-radius:7px}.expense-section-tabs button.active{background:var(--primary-soft);font-weight:700}.expense-paid-details{margin:0 0 16px;border:1px solid var(--line);border-radius:10px;padding:10px 12px}.expense-paid-details summary{cursor:pointer;font-weight:600;font-size:14px}.expense-paid-list{margin-top:8px}.expense-paid-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:7px 0;font-size:14px}.expense-paid-row span{font-variant-numeric:tabular-nums}.expense-people{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:7px;margin-bottom:16px}
 .expense-person{padding:9px 10px;border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;gap:3px;font-size:13px}
 .expense-person span{color:var(--muted)}
 .expense-entry{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:12px 0}
@@ -2474,10 +2474,10 @@ if (typeof module !== 'undefined') module.exports = Core;
       return l.kind==='expense' && ['added','edited','removed'].indexOf(l.act)>=0;
     }).slice().sort(function(a,b){return String(b.at||'').localeCompare(String(a.at||''));});
   }
-  function expenseAuditHTML(max, all, itinerary) {
+  function expenseAuditHTML(max, all, itinerary, paidDetails) {
     var entries=(itinerary?data.log.filter(function(l){return l.kind==='place'||(!l.kind && CITIES.some(function(c){return String(l.text||'').indexOf(c.name)>=0;}) && !/expense|payment/i.test(l.text||''));}).sort(function(a,b){return String(b.at||'').localeCompare(String(a.at||''));}):all?data.log.slice().sort(function(a,b){return String(b.at||'').localeCompare(String(a.at||''));}):expenseAuditEntries()).slice(0,max||100);
     return '<div class="expense-audit" id="expense-activity"><div class="row between"><h3>'+(itinerary?'Itinerary activity':all?'All travelers':'Expense activity')+'</h3><span class="count">'+
-      entries.length+'</span></div>'+
+      entries.length+'</span></div>'+(paidDetails||'')+
       (entries.length?'<ul class="list">'+entries.map(function(l){
         var when='';
         try {when=new Date(l.at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});}catch(e){}
@@ -2493,6 +2493,7 @@ if (typeof module !== 'undefined') module.exports = Core;
       }).join('')+'</ul>':'<p class="sub">No activity yet.</p>')+
       '</div>';
   }
+  var expenseSection='expenses';
   function sharedExpensesTab() {
     var expenses=(data.expenses||[]).filter(function(e){
       return Number.isSafeInteger(e.amount)&&e.amount>0;
@@ -2503,8 +2504,8 @@ if (typeof module !== 'undefined') module.exports = Core;
     var total=expenses.reduce(function(sum,e){return sum+e.amount;},0);
     var perPerson=PEOPLE.map(function(p){
       var paid=expenses.reduce(function(sum,e){return sum+(e.paidBy===p.id?e.amount:0);},0);
-      return '<div class="expense-person"><strong>'+esc(p.name)+'</strong>'+
-        '<span>'+esc(Core.fmt(paid))+' paid</span></div>';
+      return '<div class="expense-paid-row"><strong>'+esc(p.name)+'</strong>'+
+        '<span>'+esc(Core.fmt(paid))+'</span></div>';
     }).join('');
     var entries=expenses.map(function(e){
       var payer=person(e.paidBy),by=person(e.by||e.paidBy);
@@ -2519,15 +2520,16 @@ if (typeof module !== 'undefined') module.exports = Core;
           esc(e.id)+'">Delete</button></div></div><strong class="expense-amount">'+
           esc(Core.fmt(e.amount))+'</strong></li>';
     }).join('');
+    var balance=Core.balances({people:PEOPLE,expenses:expenses,payments:data.payments||[]}), net=balance[me]||0;
+    var settlements=Core.settle(balance).filter(function(p){return p.from===me||p.to===me;});
+    var tabs=['expenses','balances','totals','activity'].map(function(t){return '<button type="button" data-act="expense-section" data-id="'+t+'" aria-pressed="'+(expenseSection===t)+'" class="'+(expenseSection===t?'active':'')+'">'+t.charAt(0).toUpperCase()+t.slice(1)+'</button>';}).join('');
+    var balances=settlements.map(function(p){var incoming=p.to===me;return '<div class="expense-paid-row"><span>'+esc(incoming?person(p.from)+' owes you':'You owe '+person(p.to))+'</span><strong class="'+(incoming?'sw-green':'sw-red')+'">'+esc(Core.fmt(p.amount))+'</strong></div>';}).join('');
     return '<section class="card shared-expenses" aria-label="Shared trip expenses">'+
-      '<div class="row between expense-heading"><div><h2>Trip expenses</h2>'+
-      '<p class="sub">Shared by all 7 travelers · USD</p></div>'+
-      '<button type="button" class="primary" data-act="expense-add">+ Add expense</button></div>'+
+      '<div class="row between expense-heading"><div><h2>Trip expenses</h2><p class="sub">Shared by all 7 travelers · USD</p></div><button type="button" class="primary" data-act="expense-add">+ Add expense</button></div>'+
       '<div class="expense-total"><span>Group spending recorded</span><strong>'+esc(Core.fmt(total))+'</strong></div>'+
-      '<h3>Paid by traveler</h3><div class="expense-people">'+perPerson+'</div>'+
-      '<h3>All expenses <span class="count">'+expenses.length+'</span></h3>'+
-      (entries?'<ul class="list">'+entries+'</ul>':'<p class="sub">No shared expenses yet. Anyone in the group can add the first one.</p>')+
-      expenseAuditHTML(80)+
+      '<div class="expense-paid-row"><span>'+(net>0?'You get back':net<0?'You owe':'You are settled up')+'</span><strong class="'+(net<0?'sw-red':'sw-green')+'">'+esc(Core.fmt(Math.abs(net)))+'</strong></div>'+
+      '<div class="expense-section-tabs" role="group" aria-label="Expense views">'+tabs+'</div>'+
+      (expenseSection==='expenses'?'<h3>All expenses <span class="count">'+expenses.length+'</span></h3>'+(entries?'<ul class="list">'+entries+'</ul>':'<p class="sub">No shared expenses yet. Anyone in the group can add the first one.</p>'):expenseSection==='balances'?'<h3>Your balances</h3>'+(balances||'<p class="sub">No outstanding balances.</p>'):expenseSection==='totals'?'<h3>Paid by traveler</h3><div class="expense-paid-list">'+perPerson+'</div>':expenseAuditHTML(80))+
       (spending.length?'<p class="sub">Note: '+spending.length+' older device-only purchases are not included here.</p>':'')+
       '</section>'+
       (expenseFormOpen?'<div class="edit-overlay expense-overlay" role="presentation">'+
@@ -3319,6 +3321,7 @@ if (typeof module !== 'undefined') module.exports = Core;
     else if (a === 'reset-member') { CLOUD.fs.deleteDoc(CLOUD.fs.doc(CLOUD.db, 'trips', 'main', 'members', d.id)).catch(function () {}); return; }
     else if (a === 'toggle-log') { if(ui.tab!=='activity')previousActivityTab=ui.tab; ui.tab='activity';ui.menu=false;ui.showLog=false; }
     else if (a === 'activity-accounts') { showAccountActivity=!showAccountActivity; }
+    else if (a === 'expense-section') { if(['expenses','balances','totals','activity'].indexOf(d.id)>=0)expenseSection=d.id; }
     else if (a === 'activity-back') { ui.tab=previousActivityTab;showAccountActivity=false; }
     else if (a === 'invite') {
       var link = location.origin + location.pathname;
